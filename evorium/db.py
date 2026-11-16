@@ -1,11 +1,12 @@
 """SQLite connections and ordered, transactional schema migrations."""
 
+import os
 import sqlite3
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Iterator
 
-DEFAULT_DB_PATH = Path(__file__).resolve().parent.parent / "evorium.sqlite3"
+DEFAULT_DB_PATH = Path(os.environ.get("EVORIUM_DB_PATH") or Path(__file__).resolve().parent.parent / "evorium.sqlite3")
 
 # Append migrations; never edit one after it has been applied to a saved world.
 # PRAGMA user_version records how many migrations have been applied.
@@ -118,7 +119,20 @@ MIGRATIONS = (
             seed_key TEXT UNIQUE
         )""",
     ),
+    # Migration 4: participant kinds and sortable simulation timestamps.
+    (
+        "ALTER TABLE agents ADD COLUMN kind TEXT NOT NULL DEFAULT 'npc' CHECK (kind IN ('npc','player','system'))",
+        "ALTER TABLE conversations ADD COLUMN sim_at TEXT",
+    ),
 )
+
+
+def npc_agents(connection):
+    return [dict(r) for r in connection.execute("SELECT * FROM agents WHERE kind='npc' ORDER BY id")]
+
+
+def system_id(connection):
+    return connection.execute("SELECT id FROM agents WHERE kind='system'").fetchone()[0]
 
 
 @contextmanager

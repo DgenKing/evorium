@@ -111,3 +111,8 @@ def seed_agents(db_path: str | Path = DEFAULT_DB_PATH) -> None:
                VALUES (?, ?, ?, 'seed', ?) ON CONFLICT(seed_key) DO NOTHING""",
             [(ids[name], subject, content, f"{name}|{i}") for i, (name, subject, content) in enumerate(SEED_FACTS)],
         )
+
+        connection.execute("""INSERT INTO agents
+            (name, age, occupation, background, personality, current_goal, mood, location, kind)
+            VALUES ('World', 0, 'World bookkeeping', 'System', 'Neutral', 'Record events', 'neutral', 'World', 'system')
+            ON CONFLICT(name) DO NOTHING""")

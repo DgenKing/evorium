@@ -11,7 +11,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 from evorium import world
-from evorium.db import DEFAULT_DB_PATH, connect
+from evorium.db import DEFAULT_DB_PATH, connect, npc_agents
 from evorium.events import emit
 from evorium.llm import InvalidProposal, LLMError
 from evorium.memory import DUE_FMT
@@ -25,7 +25,7 @@ DEFAULT_CONVERSATION_GAP_MIN = 20  # sim minutes between auto conversations
 
 
 def _agents(connection) -> list[dict]:
-    return [dict(r) for r in connection.execute("SELECT * FROM agents ORDER BY id")]
+    return npc_agents(connection)
 
 
 def update_routines(now: datetime, db_path: str | Path = DEFAULT_DB_PATH) -> list[str]:
@@ -100,11 +100,12 @@ def check_due_promises(client, now: datetime, db_path: str | Path = DEFAULT_DB_P
 def conversation_due(now: datetime, gap_minutes: int, db_path: str | Path = DEFAULT_DB_PATH) -> bool:
     with connect(db_path) as connection:
         row = connection.execute(
-            "SELECT sim_time FROM conversations WHERE status IN ('completed','running') ORDER BY id DESC LIMIT 1").fetchone()
-    if row is None or not row["sim_time"]:
+            "SELECT sim_time, sim_at FROM conversations WHERE status IN ('completed','running') ORDER BY id DESC LIMIT 1").fetchone()
+    if row is None or not (row["sim_at"] or row["sim_time"]):
         return True
     try:
-        last = datetime.strptime(row["sim_time"], "%A %d %B, %H:%M").replace(year=now.year)
+        last = (datetime.strptime(row["sim_at"], DUE_FMT) if row["sim_at"] else
+                datetime.strptime(row["sim_time"], "%A %d %B, %H:%M").replace(year=now.year))
     except ValueError:
         return True
     if last > now + timedelta(days=300):  # year boundary

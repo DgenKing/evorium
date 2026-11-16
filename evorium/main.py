@@ -13,7 +13,7 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
 from evorium import tick, world
-from evorium.db import DEFAULT_DB_PATH, connect, init_db
+from evorium.db import DEFAULT_DB_PATH, connect, init_db, npc_agents
 from evorium.events import emit, since
 from evorium.llm import DeepSeekClient, LLMError, get_usage
 from evorium.memory import open_commitments
@@ -114,7 +114,7 @@ async def agents():
     out = []
     now = world.now(DEFAULT_DB_PATH)
     with connect(DEFAULT_DB_PATH) as connection:
-        for r in connection.execute("SELECT * FROM agents ORDER BY id").fetchall():
+        for r in npc_agents(connection):
             aid = r["id"]
             facts = [dict(f) for f in connection.execute(
                 """SELECT f.content, f.source, a.name AS by_name FROM facts f LEFT JOIN agents a ON a.id=f.source_agent_id

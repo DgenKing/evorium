@@ -25,7 +25,7 @@ def test_restart_preserves_characters_and_changed_state(tmp_path):
     init_db(path)
     seed_agents(path)
     with connect(path) as connection:
-        original = [dict(row) for row in connection.execute("SELECT * FROM agents ORDER BY id")]
+        original = [dict(row) for row in connection.execute("SELECT * FROM agents WHERE kind='npc' ORDER BY id")]
         assert [row["name"] for row in original] == [
             "Dez Whitworth", "Chloe Barlow", "Tommy Shaw", "Jess Hartley", "Raj Patel",
         ]
@@ -33,7 +33,7 @@ def test_restart_preserves_characters_and_changed_state(tmp_path):
     init_db(path)
     seed_agents(path)
     with connect(path) as connection:
-        restored = [dict(row) for row in connection.execute("SELECT * FROM agents ORDER BY id")]
+        restored = [dict(row) for row in connection.execute("SELECT * FROM agents WHERE kind='npc' ORDER BY id")]
     original[0]["mood"] = "relieved"
     assert restored == original
 

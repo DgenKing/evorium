@@ -152,7 +152,7 @@ def routine(name: str, dt: datetime) -> tuple[str, str]:
 
 
 def present_in_pub(agents: list[dict], dt: datetime) -> list[dict]:
-    return [a for a in agents if routine(a["name"], dt)[0] == PUB]
+    return [a for a in agents if a.get("kind", "npc") == "npc" and routine(a["name"], dt)[0] == PUB]
 
 
 def pick_pair(ids: list[int], db_path: str | Path = DEFAULT_DB_PATH, recent_window: int = 3) -> tuple[int, int]:
@@ -161,6 +161,10 @@ def pick_pair(ids: list[int], db_path: str | Path = DEFAULT_DB_PATH, recent_wind
         rows = connection.execute(
             "SELECT id, agent_a_id, agent_b_id FROM conversations WHERE agent_a_id IS NOT NULL ORDER BY id DESC LIMIT 50"
         ).fetchall()
+        allowed = {r[0] for r in connection.execute("SELECT id FROM agents WHERE kind='npc'")}
+    ids = [i for i in ids if i in allowed]
+    if len(ids) < 2:
+        raise ValueError("Fewer than two available characters.")
     last_seen: dict[frozenset, int] = {}
     recent: set[frozenset] = set()
     for rank, r in enumerate(rows):

@@ -8,7 +8,7 @@ from evorium import world
 from evorium.db import DEFAULT_DB_PATH, connect
 from evorium.events import emit
 from evorium.llm import InvalidProposal, LLMError
-from evorium.memory import knowledge_for_prompt, open_commitments, store_extraction
+from evorium.memory import DUE_FMT, knowledge_for_prompt, open_commitments, store_extraction
 from evorium.models import Extraction
 from evorium.prompts import build_extraction_messages, build_messages
 
@@ -64,7 +64,7 @@ def _set_status(db_path, conversation_id, status, summary=None):
 def _take_notes(client, db_path, conversation_id, a, b, transcript, sim_label):
     """Second model call: extract facts, commitments, people. Falls back to a plain summary."""
     with connect(db_path) as connection:
-        cast = [r["name"] for r in connection.execute("SELECT name FROM agents")]
+        cast = [r["name"] for r in connection.execute("SELECT name FROM agents WHERE kind!='system'")]
         known = [f"{r['name']}: {r['content']}" for r in connection.execute(
             """SELECT ag.name, f.content FROM facts f JOIN agents ag ON ag.id=f.agent_id
                WHERE f.agent_id IN (?, ?) AND f.source IN ('seed','observed') ORDER BY f.id""", (a["id"], b["id"]))]
@@ -96,8 +96,8 @@ def run_conversation(client, agent_a_id: int, agent_b_id: int, turns: int = 4,
     with connect(db_path) as connection:
         a, b = _agent(connection, agent_a_id), _agent(connection, agent_b_id)
         conversation_id = connection.execute(
-            "INSERT INTO conversations (location, status, sim_time, agent_a_id, agent_b_id) VALUES (?, 'running', ?, ?, ?)",
-            (a["location"], sim_label, a["id"], b["id"]),
+            "INSERT INTO conversations (location, status, sim_time, agent_a_id, agent_b_id, sim_at) VALUES (?, 'running', ?, ?, ?, ?)",
+            (a["location"], sim_label, a["id"], b["id"], now.strftime(DUE_FMT)),
         ).lastrowid
 
     transcript: list[dict] = []
