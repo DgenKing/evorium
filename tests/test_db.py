@@ -15,7 +15,7 @@ def test_schema_is_created_and_initialization_is_idempotent(tmp_path):
             "SELECT name FROM sqlite_master WHERE type = 'table'"
         )}
         assert tables == {"agents", "messages", "conversations", "llm_calls", "memories",
-                          "facts", "commitments", "npcs", "world", "scheduled_events", "timeline", "digests"}
+                          "facts", "commitments", "npcs", "world", "scheduled_events", "timeline", "digests", "relationships", "relationship_events"}
         assert connection.execute("PRAGMA user_version").fetchone()[0] == len(MIGRATIONS)
         assert connection.execute("PRAGMA foreign_keys").fetchone()[0] == 1
 

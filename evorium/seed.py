@@ -122,3 +122,6 @@ def seed_agents(db_path: str | Path = DEFAULT_DB_PATH) -> None:
                 (name,age,occupation,background,personality,current_goal,mood,location,kind)
                 VALUES ('Stranger',0,'New face in Ancoats','Known only through conversation','Human player',
                 'Meet the neighbours','curious','Not in the world','player')""")
+
+        from evorium.relationships import seed
+        seed(connection)

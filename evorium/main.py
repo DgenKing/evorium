@@ -12,7 +12,7 @@ from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
-from evorium import tick, world, timeline, player
+from evorium import tick, world, timeline, player, relationships
 from evorium.db import DEFAULT_DB_PATH, connect, init_db, npc_agents
 from evorium.events import emit, since
 from evorium.llm import DeepSeekClient, LLMError, get_usage
@@ -132,7 +132,7 @@ async def agents():
             resolved = [dict(c) for c in connection.execute(
                 "SELECT content, status, outcome FROM commitments WHERE agent_id=? AND status!='open' ORDER BY id DESC LIMIT 3", (aid,))]
             out.append({**dict(r), "in_pub": r["location"] == world.PUB, "facts": facts, "fact_counts": counts,
-                        "promises": open_commitments(connection, aid), "resolved": resolved, "memories": memories})
+                        "relationships": relationships.for_card(connection, aid), "promises": open_commitments(connection, aid), "resolved": resolved, "memories": memories})
     return out
 
 

@@ -152,6 +152,7 @@ async function loadAgents(){
       <div class="row"><b>Goal</b>${esc(a.current_goal)}</div>
       <div class="row"><b>Now</b><span style="color:${a.in_pub?'var(--ok)':'var(--muted)'}">${esc(a.activity||'—')} · ${esc((a.location||'').split(',')[0])}</span></div>
       <div class="row"><b>Knowledge</b>${fc.seed||0} known · ${fc.told||0} told · <span style="color:var(--err)">${fc.claim||0} rumour</span></div>
+      <div class="mem"><b>Relationships</b>${(a.relationships||[]).map(r=>`<div title="${esc(r.reason)}">${esc(r.name)}: ${esc(r.trust)} · ${esc(r.warmth)}</div>`).join('')}</div>
       ${a.resolved && a.resolved.length ? `<div class="mem"><b>Promises kept / broken</b>${a.resolved.map(p=>`<div>• <span style="color:${p.status==='done'?'var(--ok)':'var(--err)'}">[${p.status}]</span> ${esc(p.content)}${p.outcome?' — <i>'+esc(p.outcome)+'</i>':''}</div>`).join('')}</div>` : ''}
       ${a.promises.length ? `<div class="mem"><b>Open promises</b>${a.promises.map(p=>`<div>• ${esc(p.content)}${p.to_name?' <i>(to '+esc(p.to_name)+')</i>':''}</div>`).join('')}</div>` : ''}
       ${learned.length ? `<div class="mem"><b>Recently learned</b>${learned.map(f=>`<div>• <span style="color:${f.source==='claim'?'var(--err)':'var(--accent)'}">[${tag(f.source)}${f.by_name?' by '+esc(f.by_name.split(' ')[0]):''}]</span> ${esc(f.content)}</div>`).join('')}</div>` : ''}

@@ -87,8 +87,16 @@ class PersonOut(BaseModel):
     description: str = Field(min_length=1, max_length=200)
 
 
+class Feeling(BaseModel):
+    model_config = ConfigDict(extra='forbid',strict=True,str_strip_whitespace=True)
+    trust_change: int = Field(ge=-2,le=2)
+    warmth_change: int = Field(ge=-2,le=2)
+    reason: str = Field(max_length=300)
+
+
 class AgentExtraction(BaseModel):
     model_config = ConfigDict(extra="ignore")
+    feeling: Feeling | None = None
     facts: list[FactOut] = Field(default_factory=list, max_length=8)
     commitments: list[CommitmentOut] = Field(default_factory=list, max_length=5)
     new_people: list[PersonOut] = Field(default_factory=list, max_length=3)
@@ -148,7 +156,15 @@ def _normalise_extraction(data):
                                 "replaces": replaces})
         people = [{"name": _clip(str(p["name"]), 60), "description": _clip(str(p.get("description") or "mentioned in passing"), 200)}
                   for p in (ext.get("new_people") or [])[:3] if isinstance(p, dict) and p.get("name")]
-        cleaned[str(name)] = {"facts": facts, "commitments": commitments, "new_people": people}
+        feeling = ext.get('feeling')
+        if feeling is not None:
+            try:
+                feeling = Feeling.model_validate(feeling).model_dump()
+            except ValueError:
+                from evorium.events import emit
+                emit('Invalid feeling proposal dropped.', 'error')
+                feeling = None
+        cleaned[str(name)] = {"facts": facts, "commitments": commitments, "new_people": people, "feeling": feeling}
     data["per_agent"] = cleaned
     done = []
     for x in data.get("commitments_done") or []:

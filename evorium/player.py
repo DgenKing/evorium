@@ -2,7 +2,7 @@
 import threading
 from datetime import datetime, timedelta, timezone
 from fastapi import HTTPException
-from evorium import world, places, timeline
+from evorium import world, places, timeline, relationships
 from evorium.db import DEFAULT_DB_PATH, connect
 from evorium.memory import DUE_FMT, knowledge_for_prompt, open_commitments, resolve_commitment
 from evorium.llm import InvalidProposal, LLMError
@@ -56,6 +56,7 @@ def close(client, db_path=DEFAULT_DB_PATH):
         sim._set_status(db_path,conv['id'],'completed',summary)
         now=world.now(db_path)
         with connect(db_path) as c:
+            relationships.familiar(c,a['id'],b['id'])
             timeline.record(c,now,'conversation',summary,2,a['id'],b['id'],conv['id'])
             timeline.record(c,now,'player',f"{a['name']} finished talking with {b['name']}.",3,a['id'],b['id'],conv['id'])
         return conv['id']

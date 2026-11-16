@@ -5,7 +5,7 @@ import sqlite3
 from datetime import datetime, timedelta
 
 from evorium.models import Extraction
-from evorium import timeline
+from evorium import timeline, relationships
 
 DUE_FMT = "%Y-%m-%d %H:%M"
 
@@ -65,7 +65,12 @@ def knowledge_for_prompt(connection: sqlite3.Connection, speaker: dict, listener
     recent = _rows(connection,
         "SELECT content FROM memories WHERE agent_id=? ORDER BY id DESC LIMIT ?", (sid, MAX_RECENT))
 
+    rel = relationships.get(connection, sid, lid)
+    reasons = [r[0] for r in connection.execute('SELECT reason FROM relationship_events WHERE agent_id=? AND other_id=? ORDER BY id DESC LIMIT 2',(sid,lid))]
+    broken = [r[0] for r in connection.execute("SELECT content FROM commitments WHERE agent_id=? AND to_agent_id=? AND status='broken' ORDER BY id DESC LIMIT 2",(lid,sid))]
     return {
+        "relationship": [relationships.describe(rel), *reasons],
+        "broken_promises": broken,
         "certain": [c["content"] for c in certain],
         "told": [f'{t["content"]} (told to me by {t["by_name"] or "someone"})' for t in told],
         "claims": [c["content"] for c in claims],
@@ -95,6 +100,10 @@ def store_extraction(connection: sqlite3.Connection, conversation_id: int, parti
         me = agent_id_for(name)
         if me is None or name not in participants and me not in {p["id"] for p in participants.values()}:
             continue
+        feeling = ext.feeling
+        if feeling and feeling.reason.strip() and (feeling.trust_change or feeling.warmth_change):
+            other = next(p['id'] for p in participants.values() if p['id'] != me)
+            relationships.adjust(connection,me,other,feeling.trust_change*2,feeling.warmth_change*2,feeling.reason,now,conversation_id)
         for f in ext.facts:
             told_by = agent_id_for(f.told_by)
             if told_by == me or told_by not in {p["id"] for p in participants.values()}:
@@ -155,6 +164,8 @@ def resolve_commitment(connection, cid, status, outcome, now, conversation_id=No
         f"{row['name']} {'kept' if status=='done' else 'broke'} a promise: {row['content']} — {outcome}",
         3 if status=='done' else 4, row['agent_id'], row['to_agent_id'], conversation_id)
     if row['to_agent_id']:
+        relationships.adjust(connection,row['to_agent_id'],row['agent_id'],8 if status=='done' else -12,2 if status=='done' else -4,
+            f"{'Kept' if status=='done' else 'Broke'} a promise: {row['content']} — {outcome}",now,conversation_id)
         if connection.execute("SELECT kind FROM agents WHERE id=?",(row['agent_id'],)).fetchone()[0]=='player':
             text=(f"{row['name']} did what they promised: {row['content']}" if status=='done' else f"{row['name']} promised to {row['content']} and didn't.")
             connection.execute("INSERT INTO facts(agent_id,subject,content,source) VALUES (?,'promise',?,'observed')",(row['to_agent_id'],text))

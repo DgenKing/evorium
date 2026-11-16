@@ -134,6 +134,16 @@ MIGRATIONS = (
         """CREATE TABLE digests(day TEXT PRIMARY KEY, text TEXT NOT NULL,
         created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')))""",
     ),
+    # Migration 6: directed relationships and their evidence.
+    (
+        """CREATE TABLE relationships(agent_id INTEGER REFERENCES agents(id),other_id INTEGER REFERENCES agents(id),
+        trust INTEGER NOT NULL DEFAULT 50 CHECK(trust BETWEEN 0 AND 100),warmth INTEGER NOT NULL DEFAULT 50 CHECK(warmth BETWEEN 0 AND 100),
+        familiarity INTEGER NOT NULL DEFAULT 0 CHECK(familiarity BETWEEN 0 AND 100),
+        updated_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),PRIMARY KEY(agent_id,other_id))""",
+        """CREATE TABLE relationship_events(id INTEGER PRIMARY KEY,agent_id INTEGER REFERENCES agents(id),other_id INTEGER REFERENCES agents(id),
+        d_trust INTEGER,d_warmth INTEGER,reason TEXT NOT NULL,conversation_id INTEGER REFERENCES conversations(id),sim_at TEXT,
+        created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')))""",
+    ),
 )
 
 
