@@ -12,7 +12,7 @@ from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
-from evorium import tick, world
+from evorium import tick, world, timeline
 from evorium.db import DEFAULT_DB_PATH, connect, init_db, npc_agents
 from evorium.events import emit, since
 from evorium.llm import DeepSeekClient, LLMError, get_usage
@@ -39,6 +39,7 @@ def _tick_loop():
             if _state["auto"]:
                 try:
                     client = DeepSeekClient(DEFAULT_DB_PATH)
+                    timeline.daily_digest(client, now, DEFAULT_DB_PATH)
                     tick.check_due_promises(client, now, DEFAULT_DB_PATH)
                     present = tick.who_is_in_the_pub(now, DEFAULT_DB_PATH)
                     if len(present) >= 2 and tick.conversation_due(now, _state["gap_minutes"], DEFAULT_DB_PATH) \
@@ -229,3 +230,13 @@ async def run(req: RunRequest):
         raise HTTPException(502, str(exc))
     finally:
         _run_lock.release()
+
+
+@app.get('/timeline')
+async def timeline_data(since: str | None = None, until: str | None = None, agent_id: int | None = None, min_importance: int = 1):
+    return timeline.days(DEFAULT_DB_PATH, since=since, until=until, agent_id=agent_id, min_importance=min_importance)
+
+
+@app.get('/timeline-page')
+async def timeline_page():
+    return FileResponse(STATIC / 'timeline.html')

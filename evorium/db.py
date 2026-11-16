@@ -124,6 +124,16 @@ MIGRATIONS = (
         "ALTER TABLE agents ADD COLUMN kind TEXT NOT NULL DEFAULT 'npc' CHECK (kind IN ('npc','player','system'))",
         "ALTER TABLE conversations ADD COLUMN sim_at TEXT",
     ),
+    # Migration 5: permanent timeline and daily digests.
+    (
+        """CREATE TABLE timeline (id INTEGER PRIMARY KEY, sim_at TEXT NOT NULL, kind TEXT NOT NULL,
+        agent_id INTEGER REFERENCES agents(id), other_id INTEGER REFERENCES agents(id), text TEXT NOT NULL,
+        importance INTEGER NOT NULL CHECK (importance BETWEEN 1 AND 5), conversation_id INTEGER REFERENCES conversations(id),
+        created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')))""",
+        "CREATE INDEX timeline_sim_at ON timeline(sim_at)",
+        """CREATE TABLE digests(day TEXT PRIMARY KEY, text TEXT NOT NULL,
+        created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')))""",
+    ),
 )
 
 

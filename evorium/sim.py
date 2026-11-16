@@ -4,7 +4,7 @@ import logging
 import random
 from pathlib import Path
 
-from evorium import world
+from evorium import world, timeline
 from evorium.db import DEFAULT_DB_PATH, connect
 from evorium.events import emit
 from evorium.llm import InvalidProposal, LLMError
@@ -138,5 +138,7 @@ def run_conversation(client, agent_a_id: int, agent_b_id: int, turns: int = 4,
             emit(f"Note-taking crashed ({type(exc).__name__}); conversation saved without notes.", "error")
             summary = f"{a['name']} and {b['name']} talked (notes unavailable)."
     _set_status(db_path, conversation_id, "completed", summary)
+    with connect(db_path) as connection:
+        timeline.record(connection, world.now(db_path), 'conversation', summary or f"{a['name']} and {b['name']} exchanged no lines.", 2, a['id'], b['id'], conversation_id)
     emit(f"Conversation #{conversation_id} completed with {len(transcript)} lines.")
     return conversation_id

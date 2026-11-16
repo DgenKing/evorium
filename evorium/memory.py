@@ -5,6 +5,7 @@ import sqlite3
 from datetime import datetime, timedelta
 
 from evorium.models import Extraction
+from evorium import timeline
 
 DUE_FMT = "%Y-%m-%d %H:%M"
 
@@ -106,6 +107,8 @@ def store_extraction(connection: sqlite3.Connection, conversation_id: int, parti
                 """INSERT INTO facts (agent_id, subject, content, source, source_agent_id, source_conversation_id)
                    VALUES (?, ?, ?, ?, ?, ?)""",
                 (me, f.subject.lower(), f.content, source, told_by, conversation_id))
+            if source == "claim":
+                timeline.record(connection, now, 'rumour', f"{name}: {f.content}", 3, me, conversation_id=conversation_id)
             counts["facts"] += 1
         for c in ext.commitments:
             due_at = (now + timedelta(hours=c.due_hours or DEFAULT_DUE_HOURS)).strftime(DUE_FMT)
@@ -117,11 +120,13 @@ def store_extraction(connection: sqlite3.Connection, conversation_id: int, parti
                     (c.content, due_at, agent_id_for(c.to), c.replaces, me))
                 if cur.rowcount:
                     restated.add(c.replaces)
+                    timeline.record(connection, now, 'promise_updated', f"{name}: {c.content}", 2, me, agent_id_for(c.to), conversation_id)
                     counts["updated"] += 1
                     continue
             connection.execute(
                 "INSERT INTO commitments (agent_id, to_agent_id, content, source_conversation_id, due_at) VALUES (?, ?, ?, ?, ?)",
                 (me, agent_id_for(c.to), c.content, conversation_id, due_at))
+            timeline.record(connection, now, 'promise_made', f"{name} promised: {c.content}", 2, me, agent_id_for(c.to), conversation_id)
             counts["commitments"] += 1
         for p in ext.new_people:
             if agent_id_for(p.name) is not None:
@@ -135,9 +140,18 @@ def store_extraction(connection: sqlite3.Connection, conversation_id: int, parti
     for cid in extraction.commitments_done:
         if cid in restated:
             continue  # restated in this conversation, so it is plainly not finished
-        cur = connection.execute(
-            f"""UPDATE commitments SET status='done', resolved_at=strftime('%Y-%m-%dT%H:%M:%fZ','now')
-                WHERE id=? AND status='open' AND agent_id IN ({",".join("?" * len(participant_ids))})""",
-            (cid, *participant_ids))
-        counts["resolved"] += cur.rowcount
+        row = connection.execute("SELECT * FROM commitments WHERE id=?", (cid,)).fetchone()
+        if row and row['agent_id'] in participant_ids:
+            counts['resolved'] += resolve_commitment(connection, cid, 'done', 'Reported completed in conversation.', now, conversation_id)
     return counts
+
+
+def resolve_commitment(connection, cid, status, outcome, now, conversation_id=None):
+    """One idempotent path for every promise outcome."""
+    row = connection.execute("SELECT c.*, a.name FROM commitments c JOIN agents a ON a.id=c.agent_id WHERE c.id=? AND c.status='open'",(cid,)).fetchone()
+    if not row: return 0
+    connection.execute("UPDATE commitments SET status=?, outcome=?, resolved_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id=?",(status,outcome,cid))
+    timeline.record(connection, now, 'promise_kept' if status=='done' else 'promise_broken',
+        f"{row['name']} {'kept' if status=='done' else 'broke'} a promise: {row['content']} — {outcome}",
+        3 if status=='done' else 4, row['agent_id'], row['to_agent_id'], conversation_id)
+    return 1

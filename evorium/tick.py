@@ -10,11 +10,11 @@ import logging
 from datetime import datetime, timedelta
 from pathlib import Path
 
-from evorium import world
+from evorium import world, timeline
 from evorium.db import DEFAULT_DB_PATH, connect, npc_agents
 from evorium.events import emit
 from evorium.llm import InvalidProposal, LLMError
-from evorium.memory import DUE_FMT
+from evorium.memory import DUE_FMT, resolve_commitment
 from evorium.models import PromiseCheck
 from evorium.prompts import build_promise_check_messages
 
@@ -36,6 +36,8 @@ def update_routines(now: datetime, db_path: str | Path = DEFAULT_DB_PATH) -> lis
             loc, act = world.routine(a["name"], now)
             if loc != a["location"] or act != a["activity"]:
                 connection.execute("UPDATE agents SET location=?, activity=? WHERE id=?", (loc, act, a["id"]))
+                if loc != a['location'] and (loc == world.PUB or a['location'] == world.PUB or "Patel's News" in (loc,a['location'])):
+                    timeline.record(connection, now, 'arrival', f"{a['name']} → {act} ({loc})", 1, a['id'])
                 changes.append(f"{a['name'].split()[0]} → {act} ({loc.split(',')[0]})")
     return changes
 
@@ -53,6 +55,7 @@ def deliver_events(now: datetime, db_path: str | Path = DEFAULT_DB_PATH) -> int:
             connection.execute("INSERT INTO memories (agent_id, content, importance, source_conversation_id) "
                                "SELECT ?, ?, 8, id FROM conversations ORDER BY id LIMIT 1", (r["agent_id"], r["content"]))
             connection.execute("UPDATE scheduled_events SET delivered=1 WHERE id=?", (r["id"],))
+            timeline.record(connection, now, 'world_event', f"{r['name']}: {r['content']}", 5, r['agent_id'])
             emit(f"WORLD EVENT for {r['name']}: {r['content']}")
             delivered += 1
     return delivered
@@ -86,9 +89,7 @@ def check_due_promises(client, now: datetime, db_path: str | Path = DEFAULT_DB_P
                 connection.execute("UPDATE commitments SET due_at=? WHERE id=?", (later, p["id"]))
                 continue
             status = "done" if result.done else "broken"
-            connection.execute(
-                "UPDATE commitments SET status=?, outcome=?, resolved_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id=?",
-                (status, result.what_happened, p["id"]))
+            resolve_commitment(connection, p["id"], status, result.what_happened, now)
             connection.execute("INSERT INTO facts (agent_id, subject, content, source) VALUES (?, 'promise', ?, 'observed')",
                                (agent["id"], f"About my promise to {p['content'][0].lower() + p['content'][1:]}: {result.what_happened}"))
             connection.execute("UPDATE agents SET mood=? WHERE id=?", (result.mood.lower(), agent["id"]))
