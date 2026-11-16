@@ -33,3 +33,18 @@ def test_expanded_seed_is_idempotent_and_cast_in_notes(tmp_path):
         assert get(c,names['Mohammed "Mo" Iqbal'],names['Raj Patel'])['trust']==65
         prompt=build_extraction_messages(cast[0],cast[1],[],[],[],list(names),'now')[0]['content']
         assert all(name in prompt for name in ['Simon Ferris','Brenda Ashworth','Mohammed "Mo" Iqbal'])
+
+
+def test_note_taker_cast_excludes_player_and_system(tmp_path):
+    from evorium.sim import run_conversation
+    from evorium.models import ActionProposal,Extraction
+    path=tmp_path/'world.sqlite3';init_db(path);seed_agents(path)
+    class Fake:
+        def propose(self,aid,messages,schema=ActionProposal,max_tokens=300):
+            if schema is Extraction:
+                line=next(line for line in messages[0]['content'].splitlines() if line.startswith('- "new_people"'))
+                assert 'World' not in line and 'Stranger' not in line
+                assert 'Simon Ferris' in line and 'Brenda Ashworth' in line
+                return Extraction(summary='Dez and Tommy talked.')
+            return ActionProposal(say='Hello.',rationale='Greeting.',mood='happy')
+    run_conversation(Fake(),1,3,1,path)

@@ -20,7 +20,7 @@
   .character-heading:focus-visible { outline:2px solid var(--accent); outline-offset:5px; }
   .character-heading::after { content:'⌄'; margin-left:auto; color:var(--muted); }
   .character-card[open] > .character-heading::after { content:'⌃'; }
-  .character-info { min-width:0; flex:1; }
+  .character-info { min-width:0; flex:1 1 0; }
   .character-status { display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
   .character-preview { order:1; flex-basis:100%; min-width:0; color:var(--muted); font-size:12px; line-height:1.6; }
   .character-preview div { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
@@ -130,7 +130,7 @@ async function loadAgents(){
   if(list[0]) $('location').dataset.loc = list[0].location;
   for (const sel of [$('who-a'), $('who-b')]) {
     const keep = sel.value;
-    sel.innerHTML = '<option value="">random</option>' + list.map(a=>`<option value="${a.id}">${esc(a.name.split(' ')[0])}</option>`).join('');
+    sel.innerHTML = '<option value="">random</option>' + list.map(a=>`<option value="${esc(a.id)}">${esc(a.name.split(' ')[0])}</option>`).join('');
     sel.value = keep;
   }
   const tag = s => ({seed:'knows',observed:'saw',told:'told',claim:'RUMOUR'}[s]||s);
@@ -143,7 +143,7 @@ async function loadAgents(){
     <details class="card character-card" data-agent-id="${esc(a.id)}"${openCards.has(String(a.id))?' open':''}>
       <summary class="character-heading">${avatar(a.name,true)}<div class="character-info">
         <h2>${esc(a.name)}</h2>
-        <div class="character-status"><span class="mood">${esc(a.mood)}</span><span class="sub">${a.in_pub?'In the pub':'Away'}</span></div>
+        <div class="character-status"><span class="mood">${esc(a.mood)}</span><span class="sub">${a.in_pub?'In the pub':a.location==="Patel's News, Ancoats"?'In the shop':'Away'}</span></div>
       </div>
       <div class="character-preview">
         <div title="${esc(a.activity||'—')}"><b>Now</b> ${esc(a.activity||'—')}</div>
@@ -287,7 +287,7 @@ async function pollEvents(){
       lastEvent = e.id;
       const d = document.createElement('div');
       if (e.level==='error') d.className='err';
-      d.innerHTML = '<span class="ts">'+e.ts+'</span>'+esc(e.text);
+      d.innerHTML = '<span class="ts">'+esc(e.ts)+'</span>'+esc(e.text);
       $('log').prepend(d);
     }
   } catch(e){ /* server restarting; try again next tick */ }

@@ -1,4 +1,4 @@
-"""FastAPI app: five characters, a real-time world, a dashboard."""
+"""FastAPI dashboard and the persistent neighbourhood heartbeat."""
 
 import base64
 import binascii
@@ -19,7 +19,7 @@ from pydantic import BaseModel, Field
 from evorium import tick, world, timeline, player, relationships, places, plans, director
 from evorium.db import DEFAULT_DB_PATH, connect, init_db, npc_agents
 from evorium.events import emit, since
-from evorium.llm import DeepSeekClient, LLMError, get_usage
+from evorium.llm import DeepSeekClient, DeferredClient, LLMError, get_usage
 from evorium.memory import open_commitments
 from evorium.seed import seed_agents, seed_events
 from evorium.sim import get_conversation, latest_conversation_id, mark_interrupted, run_conversation
@@ -42,7 +42,7 @@ def _tick_loop():
             for change in tick.update_routines(now, DEFAULT_DB_PATH):
                 emit(f"[{world.describe(now)}] {change}")
             tick.deliver_events(now, DEFAULT_DB_PATH)
-            player.maintenance(DeepSeekClient(DEFAULT_DB_PATH), now, DEFAULT_DB_PATH)
+            player.maintenance(DeferredClient(DEFAULT_DB_PATH), now, DEFAULT_DB_PATH)
             if _state["auto"]:
                 try:
                     client = DeepSeekClient(DEFAULT_DB_PATH)
@@ -78,7 +78,7 @@ async def lifespan(app: FastAPI):
     init_db(DEFAULT_DB_PATH)
     seed_agents(DEFAULT_DB_PATH)
     seed_events(DEFAULT_DB_PATH, world.now(DEFAULT_DB_PATH))
-    player.maintenance(DeepSeekClient(DEFAULT_DB_PATH), world.now(DEFAULT_DB_PATH), DEFAULT_DB_PATH, startup=True)
+    player.maintenance(DeferredClient(DEFAULT_DB_PATH), world.now(DEFAULT_DB_PATH), DEFAULT_DB_PATH, startup=True)
     stuck = mark_interrupted(DEFAULT_DB_PATH)
     now = world.now(DEFAULT_DB_PATH)
     tick.update_routines(now, DEFAULT_DB_PATH)
@@ -247,7 +247,7 @@ async def run(req: RunRequest):
             if a not in ids or b not in ids:
                 with connect(DEFAULT_DB_PATH) as connection:
                     names = {r["id"]: r["name"].split()[0] for r in connection.execute("SELECT id, name FROM agents")}
-                missing = [names[x] for x in (a, b) if x not in ids]
+                missing = [names.get(x,"Unknown character") for x in (a, b) if x not in ids]
                 raise HTTPException(409, f"{' and '.join(missing)} not in the pub right now ({world.describe(now)}). "
                                          f"In: {', '.join(names[i] for i in ids) or 'nobody'}.")
         else:
@@ -302,19 +302,19 @@ def player_profile(req: ProfileRequest):
 
 @app.post('/player/enter')
 def player_enter(req: EnterRequest):
-    return player.enter(DeepSeekClient(DEFAULT_DB_PATH),req.place,DEFAULT_DB_PATH)
+    return player.enter(DeferredClient(DEFAULT_DB_PATH),req.place,DEFAULT_DB_PATH)
 
 @app.post('/player/leave')
 def player_leave():
-    return player.leave(DeepSeekClient(DEFAULT_DB_PATH),DEFAULT_DB_PATH)
+    return player.leave(DeferredClient(DEFAULT_DB_PATH),DEFAULT_DB_PATH)
 
 @app.post('/player/say')
 def player_say(req: SayRequest):
-    return player.say(DeepSeekClient(DEFAULT_DB_PATH),req.to_agent_id,req.text,DEFAULT_DB_PATH)
+    return player.say(DeferredClient(DEFAULT_DB_PATH),req.to_agent_id,req.text,DEFAULT_DB_PATH)
 
 @app.post('/player/end')
 def player_end():
-    player.close(DeepSeekClient(DEFAULT_DB_PATH),DEFAULT_DB_PATH)
+    player.close(DeferredClient(DEFAULT_DB_PATH),DEFAULT_DB_PATH)
     return player.state(DEFAULT_DB_PATH)
 
 @app.post('/player/promises/{promise_id}')

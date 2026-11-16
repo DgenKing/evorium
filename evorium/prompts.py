@@ -90,8 +90,8 @@ For EACH of the two speakers, record:
   "replaces": if this is the same promise as one in the OPEN COMMITMENTS list, restated with more detail or a new
   deadline, give that id here (integer) so it is updated instead of duplicated; otherwise null. If an open
   commitment is merely mentioned again with nothing new, do not record it at all.
-- "feeling": {{"trust_change": -2 to 2, "warmth_change": -2 to 2, "reason": "one short sentence citing what the other person actually said or did in this conversation"}}.
-  Most conversations change nothing; use 0 unless something in this conversation clearly earned or cost trust or warmth.
+- "feeling": {{"trust_change": 0, "warmth_change": 0, "reason": "one short sentence citing what the other person actually said or did in this conversation"}}.
+  Changes must be integers from -2 to 2. Most conversations change nothing; use 0 unless something in this conversation clearly earned or cost trust or warmth.
 - "new_people": any named person mentioned who is NOT in this list: {cast}. Give a short description of what was said about them.
 
 Also give:

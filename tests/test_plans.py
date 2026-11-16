@@ -86,3 +86,24 @@ def test_planning_once_daily_and_per_place_gap(db):
     assert not tick.conversation_due(now,20,db,world.PUB)
     assert tick.conversation_due(now,20,db,places.REGISTRY['shop'])
     assert not places.present(now.replace(hour=20),db)['shop']
+
+
+def test_two_plan_limit_overlap_and_stay_home(db):
+    now=datetime(2026,11,17,8);a=agent(db,2)
+    p=plans.validate(proposal(action='stay_home',hour=19,place=None),a,now,db)
+    with connect(db) as c:plans.insert(c,p)
+    with pytest.raises(ValueError):plans.validate(proposal(action='stay_home',hour=19,place=None),a,now,db)
+    p=plans.validate(proposal(action='phone',person='Dez Whitworth',hour=21,place=None),a,now,db)
+    with connect(db) as c:plans.insert(c,p)
+    with pytest.raises(ValueError):plans.validate(proposal(action='phone',person='Raj Patel',hour=22,place=None),a,now,db)
+
+
+def test_failed_daily_planning_is_not_repeated(db):
+    from evorium.llm import LLMError
+    class Bad:
+        calls=0
+        def propose(self,*a,**k):self.calls+=1;raise LLMError('unavailable')
+    client=Bad();now=datetime(2026,11,16,8)
+    assert plans.daily(client,now,db)==8
+    assert plans.daily(client,now+timedelta(hours=1),db)==0
+    assert client.calls==8

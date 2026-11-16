@@ -49,3 +49,26 @@ def test_digest_once_and_bounded_failures(db):
     assert not timeline.daily_digest(client,now,db)
     assert client.calls==2
     assert timeline.days(db)['days'][0]['digest']
+
+
+def test_digest_gives_up_after_two_failures(db):
+    now=datetime(2026,11,17,0,1)
+    with connect(db) as c:
+        for _ in range(3):timeline.record(c,now-timedelta(hours=1),'conversation','Dez and Tommy talked.',2,1,3)
+    class Bad:
+        calls=0
+        def propose(self,*a,**k):self.calls+=1;raise InvalidProposal('bad')
+    client=Bad()
+    for _ in range(5):assert not timeline.daily_digest(client,now,db)
+    assert client.calls==2
+
+
+def test_shop_departure_records_an_arrival(db):
+    from evorium import places
+    morning=datetime(2026,11,17,9,15)
+    tick.update_routines(morning,db)
+    before=len(timeline.entries(db,kinds=['arrival']))
+    tick.update_routines(morning.replace(minute=35),db)
+    arrivals=timeline.entries(db,kinds=['arrival'])
+    assert len(arrivals)==before+1
+    assert arrivals[0]['agent_name']=='Brenda Ashworth'

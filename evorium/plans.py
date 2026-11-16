@@ -81,8 +81,8 @@ def daily(client,now,db_path=DEFAULT_DB_PATH):
             timetable.append(f"{hour:02d}:00 {act} at {loc} ({'free' if world.is_free(a['name'],t) else 'working or asleep'})")
         prompt=f'''You are {a['name']}, {a['occupation']}. {a['personality']} Goal: {a['current_goal']}.
 It is {now.strftime(DUE_FMT)}. Most days you simply follow your routine; return an empty list unless you have a real reason.
-Return JSON {{"plans": [{{"action":"visit|phone|stay_home","place":"pub|shop|null","person":"full NPC name or null","hour":0,"minute":0,"duration_minutes":30,"fulfils":null,"reason":"one sentence"}}]}}.
-Use actual JSON null, zero to two plans, minute 0 or 30, duration 30–180. Only later today, while free; places must be open throughout. Phone another NPC; stay_home only replaces an evening pub customer visit.
+Return JSON {{"plans": [{{"action":"visit","place":"shop","person":null,"hour":0,"minute":0,"duration_minutes":30,"fulfils":null,"reason":"one sentence"}}]}}.
+Actions: visit, phone, stay_home. Places: pub, shop or null. Person: another NPC full name or null. Use actual JSON null, zero to two plans, minute 0 or 30, duration 30–180. Only later today, while free; places must be open throughout. Phone another NPC; stay_home only replaces an evening pub customer visit.
 Timetable: {json.dumps(timetable)}
 Public places: pub (Mon–Thu 16–23, Fri–Sat 12–24, Sun 12–22:30); shop (Mon–Sat 07–19).
 Open promises with ids and deadlines: {json.dumps(promises)}

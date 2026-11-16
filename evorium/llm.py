@@ -185,3 +185,12 @@ class DeepSeekClient:
         emit(f"DeepSeek replied: {input_tokens} in / {output_tokens} out tokens, "
              f"≈${float(estimate_cost(input_tokens, output_tokens, self.settings)):.5f}")
         return proposal
+
+
+class DeferredClient:
+    """Construct the real client only when a conversation actually needs the API."""
+    def __init__(self,db_path=DEFAULT_DB_PATH):
+        self.db_path=db_path
+
+    def propose(self,*args,**kwargs):
+        return DeepSeekClient(self.db_path).propose(*args,**kwargs)

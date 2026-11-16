@@ -27,7 +27,7 @@ def state(db_path=DEFAULT_DB_PATH):
         me=row(c);conv=opened(c)
         learned=[dict(r) for r in c.execute('''SELECT f.*,a.name AS by_name FROM facts f
             LEFT JOIN agents a ON a.id=f.source_agent_id WHERE f.agent_id=? ORDER BY f.id DESC LIMIT 15''',(me['id'],))]
-        promises=open_commitments(c,me['id'])
+        promises=open_commitments(c,me['id'],limit=None)
     return {'id':me['id'],'name':me['name'],'about':me['occupation'], 'place':world.get_setting('player_place','',db_path),
             'conversation':sim.get_conversation(conv['id'],db_path) if conv else None,
             'promises':promises,'learned':learned,'places':places.describe(now,db_path)}
@@ -104,8 +104,8 @@ def say(client,to_agent_id,text,db_path=DEFAULT_DB_PATH):
             if busy:
                 other=busy['b_name'] if busy['agent_a_id']==to_agent_id else busy['a_name']
                 raise HTTPException(409,f"{target['name'].split()[0]} is talking to {other.split()[0]} at the moment. Try again in a minute.")
-            if current and c.execute('SELECT count(*) FROM messages WHERE conversation_id=?',(current['id'],)).fetchone()[0]>=40:
-                raise HTTPException(409,'This conversation has reached 40 messages. End it before starting another.')
+            if current and c.execute('SELECT count(*) FROM messages WHERE conversation_id=?',(current['id'],)).fetchone()[0]+2>40:
+                raise HTTPException(409,'This conversation has no room for another exchange within the 40-message limit. End it before starting another.')
             cid=current['id'] if current else c.execute('''INSERT INTO conversations
                 (location,status,sim_time,sim_at,agent_a_id,agent_b_id) VALUES (?,'running',?,?,?,?)''',
                 (places.REGISTRY[place],world.describe(now),now.strftime(DUE_FMT),me['id'],to_agent_id)).lastrowid
@@ -139,7 +139,7 @@ def maintenance(client,now,db_path=DEFAULT_DB_PATH,startup=False):
         with connect(db_path) as c:
             current=opened(c)
             if current:
-                last=c.execute('SELECT max(created_at) FROM messages WHERE conversation_id=?',(current['id'],)).fetchone()[0] or current['started_at']
+                last=c.execute('SELECT max(created_at) FROM messages WHERE conversation_id=? AND speaker_id=?',(current['id'],current['agent_a_id'])).fetchone()[0] or current['started_at']
                 inactive=datetime.now(timezone.utc)-datetime.fromisoformat(last.replace('Z','+00:00'))>=timedelta(minutes=5)
             else:inactive=False
             due=c.execute("""SELECT p.id FROM commitments p JOIN agents a ON a.id=p.agent_id

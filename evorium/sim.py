@@ -64,7 +64,7 @@ def _set_status(db_path, conversation_id, status, summary=None):
 def _take_notes(client, db_path, conversation_id, a, b, transcript, sim_label):
     """Second model call: extract facts, commitments, people. Falls back to a plain summary."""
     with connect(db_path) as connection:
-        cast = [r["name"] for r in connection.execute("SELECT name FROM agents WHERE kind!='system'")]
+        cast = [r["name"] for r in connection.execute("SELECT name FROM agents WHERE kind='npc'")]
         known = [f"{r['name']}: {r['content']}" for r in connection.execute(
             """SELECT ag.name, f.content FROM facts f JOIN agents ag ON ag.id=f.agent_id
                WHERE f.agent_id IN (?, ?) AND f.source IN ('seed','observed') ORDER BY f.id""", (a["id"], b["id"]))]

@@ -79,8 +79,8 @@ def check(client,now,db_path=DEFAULT_DB_PATH):
         known=[r[0] for r in c.execute('SELECT name FROM npcs')]
     recent=timeline.entries(db_path,since=(now-timedelta(days=3)).strftime(DUE_FMT),until=now.strftime(DUE_FMT))
     prompt='''Nudge a stalled Manchester neighbourhood with one mundane event. Invent no people or money terms, and do not contradict existing facts.
-Return JSON {"type":"letter|phone_call|small_incident|chance_meeting","for":"full cast name","with":null,"content":"one or two sentences in second person, at most 300 characters","in_hours":1,"rationale":"why this helps"}.
-For a letter or phone call name an established sender, asking for an update or arranging an ordinary appointment; do not settle offers, leases or planning decisions.
+Return JSON {"type":"small_incident","for":"full cast name","with":null,"content":"one or two sentences in second person, at most 300 characters","in_hours":1,"rationale":"why this helps"}.
+Allowed types: letter, phone_call, small_incident, chance_meeting. For a letter or phone call name an established sender, asking for an update or arranging an ordinary appointment; do not settle offers, leases or planning decisions.
 Small incidents ONLY: a barrel going off, late delivery, burst pipe, child off school ill. Chance meetings require two cast members and free time in an open pub or shop. No new fact is created for a meeting.
 '''+f"Now: {now.strftime(DUE_FMT)}. Cast: {json.dumps([{'name':a['name'],'occupation':a['occupation']} for a in cast])}. Other known people: {json.dumps(known)}. Established organisation: Northgate Estates.\nRecent timeline: {json.dumps([{'at':e['sim_at'],'text':e['text']} for e in recent])}"
     try:

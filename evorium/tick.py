@@ -10,7 +10,7 @@ import logging
 from datetime import datetime, timedelta
 from pathlib import Path
 
-from evorium import world, timeline
+from evorium import world, timeline, places
 from evorium.db import DEFAULT_DB_PATH, connect, npc_agents
 from evorium.events import emit
 from evorium.llm import InvalidProposal, LLMError
@@ -36,7 +36,7 @@ def update_routines(now: datetime, db_path: str | Path = DEFAULT_DB_PATH) -> lis
             loc, act = world.whereabouts(a, now, db_path)
             if loc != a["location"] or act != a["activity"]:
                 connection.execute("UPDATE agents SET location=?, activity=? WHERE id=?", (loc, act, a["id"]))
-                if loc != a['location'] and (loc == world.PUB or a['location'] == world.PUB or "Patel's News" in (loc,a['location'])):
+                if loc != a['location'] and (loc in places.REGISTRY.values() or a['location'] in places.REGISTRY.values()):
                     timeline.record(connection, now, 'arrival', f"{a['name']} → {act} ({loc})", 1, a['id'])
                 changes.append(f"{a['name'].split()[0]} → {act} ({loc.split(',')[0]})")
     return changes
@@ -111,7 +111,7 @@ def conversation_due(now: datetime, gap_minutes: int, db_path: str | Path = DEFA
                 datetime.strptime(row["sim_time"], "%A %d %B, %H:%M").replace(year=now.year))
     except ValueError:
         return True
-    if last > now + timedelta(days=300):  # year boundary
+    if not row["sim_at"] and last > now + timedelta(days=300):  # year boundary
         last = last.replace(year=now.year - 1)
     if last > now:  # history is "ahead" because the clock was fast-forwarded then snapped back to real time
         return True

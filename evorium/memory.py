@@ -27,12 +27,12 @@ def _mentions(text: str, name: str) -> bool:
     return name.split()[0].lower() in text.lower()
 
 
-def open_commitments(connection: sqlite3.Connection, agent_id: int) -> list[dict]:
+def open_commitments(connection: sqlite3.Connection, agent_id: int, limit=MAX_PROMISES) -> list[dict]:
     return _rows(connection,
         """SELECT c.id, c.content, c.to_agent_id, a.name AS to_name, c.due_at
            FROM commitments c LEFT JOIN agents a ON a.id = c.to_agent_id
            WHERE c.agent_id = ? AND c.status = 'open' ORDER BY c.id DESC LIMIT ?""",
-        (agent_id, MAX_PROMISES))
+        (agent_id, -1 if limit is None else limit))
 
 
 def knowledge_for_prompt(connection: sqlite3.Connection, speaker: dict, listener: dict, now=None) -> dict:
@@ -100,12 +100,14 @@ def store_extraction(connection: sqlite3.Connection, conversation_id: int, parti
             return None
         return all_agents.get(name) or first_names.get(name.split()[0].lower())
 
+    feelings_applied = set()
     for name, ext in extraction.per_agent.items():
         me = agent_id_for(name)
         if me is None or name not in participants and me not in {p["id"] for p in participants.values()}:
             continue
         feeling = ext.feeling
-        if feeling and feeling.reason.strip() and (feeling.trust_change or feeling.warmth_change):
+        if me not in feelings_applied and feeling and feeling.reason.strip() and (feeling.trust_change or feeling.warmth_change):
+            feelings_applied.add(me)
             other = next(p['id'] for p in participants.values() if p['id'] != me)
             relationships.adjust(connection,me,other,feeling.trust_change*2,feeling.warmth_change*2,feeling.reason,now,conversation_id)
         for f in ext.facts:
