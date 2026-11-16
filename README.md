@@ -23,6 +23,18 @@ Edit `config.py` locally to set `DEEPSEEK_API_KEY`. The key is hardcoded only in
 that ignored file; no `.env` files are used.
 Do not put credentials in frontend code, logs, or version control.
 
+## Preparing for GitHub
+
+Commit `config.example.py`, which contains only a placeholder. Keep your real
+key in `config.py`; `.gitignore` excludes that file, local environment files,
+databases, logs, backups, and virtual environments. Each person cloning the
+repository must create their own local `config.py` using the setup above.
+
+Before committing, check `git status --short` and `git diff --cached`.
+`config.py` must not appear among the files being committed. Do not use
+`git add -f` for ignored local files, or upload the entire working directory
+through GitHub's browser uploader: that bypasses `.gitignore`.
+
 ## Status: Milestone 1 complete (2026-11-15)
 
 All five steps of `EVORIUM_BUILD_BRIEF_M1.md` are done:

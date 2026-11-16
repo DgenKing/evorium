@@ -1,8 +1,41 @@
+# Local credentials and configuration (keep config.example.py public).
 config.py
+config.py.*
+.env
+.env.*
+!.env.example
+.aws/
+.ssh/
+*.pem
+*.key
+
+# Local agent settings.
+.agents/
+.codex/
+
+# Runtime data, logs, and backups.
 *.sqlite3
 *.sqlite3-wal
 *.sqlite3-shm
+*.sqlite3-journal
+*.sqlite
+*.sqlite-*
+*.db
+*.db-*
+*.log
+*.bak
+*.backup
+*.swp
+*~
+
+# Python environments and caches.
 __pycache__/
 .pytest_cache/
 .venv/
+venv/
 *.py[cod]
+
+# Local exports and OS files.
+evorium-github.zip
+.DS_Store
+Thumbs.db
