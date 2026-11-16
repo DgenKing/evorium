@@ -1,0 +1,238 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Evorium</title>
+<style>
+  :root { --bg:#141414; --card:#1e1e1e; --fg:#e8e8e8; --muted:#8a8a8a; --accent:#d4a24c; --err:#e06060; --ok:#6fbf73; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:15px/1.45 system-ui, sans-serif; }
+  header { display:flex; align-items:center; gap:16px; padding:14px 20px; border-bottom:1px solid #2a2a2a; }
+  header h1 { margin:0; font-size:20px; color:var(--accent); letter-spacing:.5px; }
+  header .loc { color:var(--muted); font-size:13px; }
+  main { display:grid; grid-template-columns: 300px 1fr; gap:16px; padding:16px 20px; max-width:1200px; }
+  @media (max-width:800px){ main{ grid-template-columns:1fr; } }
+  .card { background:var(--card); border:1px solid #2a2a2a; border-radius:8px; padding:14px; margin-bottom:12px; }
+  .card h2 { margin:0 0 4px; font-size:16px; }
+  .character-heading { display:flex; align-items:center; flex-wrap:wrap; gap:10px; cursor:pointer; list-style:none; border-radius:4px; }
+  .character-heading::-webkit-details-marker { display:none; }
+  .character-heading:focus-visible { outline:2px solid var(--accent); outline-offset:5px; }
+  .character-heading::after { content:'⌄'; margin-left:auto; color:var(--muted); }
+  .character-card[open] > .character-heading::after { content:'⌃'; }
+  .character-info { min-width:0; flex:1; }
+  .character-status { display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
+  .character-preview { order:1; flex-basis:100%; min-width:0; color:var(--muted); font-size:12px; line-height:1.6; }
+  .character-preview div { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .character-preview b { color:var(--fg); font-weight:500; }
+  .character-details { margin-top:12px; padding-top:4px; border-top:1px solid #2a2a2a; }
+  .avatar { display:inline-flex; position:relative; width:56px; height:56px; flex:0 0 56px; border-radius:50%; overflow:hidden; background:#353029; border:1px solid #665137; vertical-align:middle; }
+  .avatar img { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; z-index:1; }
+  .avatar-initials { display:flex; align-items:center; justify-content:center; width:100%; height:100%; color:var(--accent); font-size:17px; font-weight:600; }
+  .avatar.small { width:36px; height:36px; flex-basis:36px; }
+  .avatar.small .avatar-initials { font-size:12px; }
+  .speaker-heading { display:flex; align-items:center; gap:9px; margin-bottom:7px; }
+  .card .sub { color:var(--muted); font-size:13px; }
+  .card .row { margin-top:8px; font-size:13px; }
+  .card .row b { color:var(--muted); font-weight:500; margin-right:6px; }
+  .mood { display:inline-block; padding:1px 8px; border-radius:10px; background:#2b2b2b; color:var(--accent); font-size:12px; }
+  .mem { margin-top:8px; padding-top:8px; border-top:1px solid #2a2a2a; font-size:12px; color:var(--muted); }
+  .mem div { margin-top:4px; }
+  .controls { display:flex; gap:10px; align-items:center; margin-bottom:12px; flex-wrap:wrap; }
+  button { background:var(--accent); color:#111; border:0; border-radius:6px; padding:9px 16px; font-weight:600; cursor:pointer; }
+  button:disabled { opacity:.45; cursor:default; }
+  select { background:#222; color:var(--fg); border:1px solid #333; border-radius:6px; padding:8px; }
+  #status { color:var(--muted); font-size:13px; }
+  .msg { padding:10px 12px; border-left:3px solid #333; margin-bottom:8px; background:#191919; border-radius:0 6px 6px 0; }
+  .msg.a { border-color:#4c88d4; } .msg.b { border-color:#d46fa8; }
+  .msg .who { font-weight:600; font-size:13px; margin-bottom:2px; }
+  .msg .why { color:var(--muted); font-size:12px; margin-top:4px; font-style:italic; }
+  footer { display:flex; gap:22px; flex-wrap:wrap; padding:12px 20px; border-top:1px solid #2a2a2a; color:var(--muted); font-size:13px; }
+  footer b { color:var(--fg); font-weight:600; }
+  #error { color:var(--err); white-space:pre-wrap; margin-top:8px; font-size:13px; }
+  .empty { color:var(--muted); padding:20px 0; }
+  .log { font-family: ui-monospace, monospace; font-size:12.5px; color:#cfcfcf; max-height:320px; overflow:auto; line-height:1.5; }
+  .log .err { color:var(--err); }
+  .log .ts { color:var(--muted); margin-right:8px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>EVORIUM</h1>
+  <span class="loc" id="location">—</span>
+</header>
+<main>
+  <aside id="agents"></aside>
+  <section>
+    <div class="controls">
+      <button id="run">Run conversation</button>
+      <select id="who-a"><option value="">random</option></select>
+      <span>with</span>
+      <select id="who-b"><option value="">random</option></select>
+      <select id="turns"><option>2</option><option selected>4</option><option>6</option><option>8</option></select>
+      <span>turns</span>
+      <span style="width:12px"></span>
+      <button id="auto" style="background:#4c88d4;color:#fff">Let them live</button>
+      <button id="auto-stop" style="background:#444;color:#eee">Stop</button>
+      <span style="width:12px"></span>
+      <span>Clock</span>
+      <select id="speed"><option value="1">1× real time</option><option value="10">10×</option><option value="60">60× (1 min = 1 hr)</option><option value="600">600× (1 min = 10 hr)</option></select>
+      <span id="status"></span>
+    </div>
+    <div id="error"></div>
+    <div id="transcript" class="card"><div class="empty">No conversation yet. Press “Run conversation”.</div></div>
+    <div class="card"><div class="sub">Live feed — what the server is doing right now</div><div id="log" class="log"></div></div>
+  </section>
+</main>
+<footer>
+  <span>API calls <b id="u-calls">0</b></span>
+  <span>Tokens <b id="u-tokens">0</b></span>
+  <span>Est. spend <b id="u-spend">$0.0000</b></span>
+  <span>Cap <b id="u-cap">—</b></span>
+  <span>Remaining (of $5) <b id="u-left">—</b></span>
+</footer>
+<script>
+const $ = id => document.getElementById(id);
+let agentIds = [];
+function log(s){ const d=document.createElement('div'); d.textContent=new Date().toLocaleTimeString()+'  '+s; $('log').prepend(d); }
+function esc(s){ return String(s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+const portraits = {
+  'Dez Whitworth': 'dez', 'Chloe Barlow': 'chloe', 'Tommy Shaw': 'tommy',
+  'Jess Hartley': 'jess', 'Raj Patel': 'raj'
+};
+function avatar(name, small=false){
+  const portrait = portraits[name];
+  const initials = String(name).split(/\s+/).filter(Boolean).map(word=>word[0]).slice(0,2).join('');
+  return `<span class="avatar${small?' small':''}" aria-hidden="true"><span class="avatar-initials">${esc(initials)}</span>${portrait?`<img src="/static/portraits/${portrait}.png" alt="" loading="lazy" onerror="this.hidden=true">`:''}</span>`;
+}
+
+async function j(url, opts){ const r = await fetch(url, opts); const b = await r.json().catch(()=>({})); if(!r.ok) throw new Error(b.detail || r.statusText); return b; }
+
+async function loadAgents(){
+  const list = await j('/agents');
+  agentIds = list.map(a=>a.id);
+  if(list[0]) $('location').dataset.loc = list[0].location;
+  for (const sel of [$('who-a'), $('who-b')]) {
+    const keep = sel.value;
+    sel.innerHTML = '<option value="">random</option>' + list.map(a=>`<option value="${a.id}">${esc(a.name.split(' ')[0])}</option>`).join('');
+    sel.value = keep;
+  }
+  const tag = s => ({seed:'knows',observed:'saw',told:'told',claim:'RUMOUR'}[s]||s);
+  const openCards = new Set([...$('agents').querySelectorAll('details[open]')].map(card=>card.dataset.agentId));
+  const focusedCard = document.activeElement.closest('#agents summary')?.parentElement.dataset.agentId;
+  $('agents').innerHTML = list.map(a=>{
+    const fc = a.fact_counts||{};
+    const learned = a.facts.filter(f=>f.source!=='seed').slice(0,4);
+    return `
+    <details class="card character-card" data-agent-id="${esc(a.id)}"${openCards.has(String(a.id))?' open':''}>
+      <summary class="character-heading">${avatar(a.name,true)}<div class="character-info">
+        <h2>${esc(a.name)}</h2>
+        <div class="character-status"><span class="mood">${esc(a.mood)}</span><span class="sub">${a.in_pub?'In the pub':'Away'}</span></div>
+      </div>
+      <div class="character-preview">
+        <div title="${esc(a.activity||'—')}"><b>Now</b> ${esc(a.activity||'—')}</div>
+        <div title="${esc(a.current_goal||'—')}"><b>Goal</b> ${esc(a.current_goal||'—')}</div>
+      </div></summary>
+      <div class="character-details">
+      <div class="sub">${a.age}, ${esc(a.occupation)}</div>
+      <div class="row"><b>Goal</b>${esc(a.current_goal)}</div>
+      <div class="row"><b>Now</b><span style="color:${a.in_pub?'var(--ok)':'var(--muted)'}">${esc(a.activity||'—')} · ${esc((a.location||'').split(',')[0])}</span></div>
+      <div class="row"><b>Knowledge</b>${fc.seed||0} known · ${fc.told||0} told · <span style="color:var(--err)">${fc.claim||0} rumour</span></div>
+      ${a.resolved && a.resolved.length ? `<div class="mem"><b>Promises kept / broken</b>${a.resolved.map(p=>`<div>• <span style="color:${p.status==='done'?'var(--ok)':'var(--err)'}">[${p.status}]</span> ${esc(p.content)}${p.outcome?' — <i>'+esc(p.outcome)+'</i>':''}</div>`).join('')}</div>` : ''}
+      ${a.promises.length ? `<div class="mem"><b>Open promises</b>${a.promises.map(p=>`<div>• ${esc(p.content)}${p.to_name?' <i>(to '+esc(p.to_name)+')</i>':''}</div>`).join('')}</div>` : ''}
+      ${learned.length ? `<div class="mem"><b>Recently learned</b>${learned.map(f=>`<div>• <span style="color:${f.source==='claim'?'var(--err)':'var(--accent)'}">[${tag(f.source)}${f.by_name?' by '+esc(f.by_name.split(' ')[0]):''}]</span> ${esc(f.content)}</div>`).join('')}</div>` : ''}
+      ${a.memories.length ? `<div class="mem"><b>Last conversations</b>${a.memories.map(m=>`<div>• ${esc(m.content)}</div>`).join('')}</div>` : ''}
+      </div>
+    </details>`;}).join('');
+  if (focusedCard) {
+    const card = [...$('agents').querySelectorAll('details')].find(card=>card.dataset.agentId===focusedCard);
+    card?.querySelector('summary').focus({preventScroll:true});
+  }
+}
+
+function renderConv(c){
+  if(!c || !c.id){ return; }
+  const first = c.messages.length ? c.messages[0].speaker_id : null;
+  const cls = id => id===first ? 'a' : 'b';
+  $('transcript').innerHTML =
+    `<div class="sub">Conversation #${c.id} · ${esc(c.status)} · ${c.messages.length} lines</div>` +
+    (c.messages.length ? c.messages.map(m=>`
+      <div class="msg ${cls(m.speaker_id)}">
+        <div class="speaker-heading">${avatar(m.speaker_name,true)}<div class="who">${esc(m.speaker_name)}</div></div>
+        <div>${esc(m.text)}</div>
+        <div class="why">why: ${esc(m.rationale)}</div>
+      </div>`).join('') : '<div class="empty">No lines recorded.</div>');
+}
+
+async function loadUsage(){
+  const u = await j('/usage');
+  $('u-calls').textContent = u.api_calls;
+  $('u-tokens').textContent = u.total_tokens;
+  $('u-spend').textContent = '$' + u.estimated_spend_usd.toFixed(4);
+  $('u-cap').textContent = u.max_spend_usd==null ? 'no config' : '$'+u.max_spend_usd.toFixed(2);
+  $('u-left').textContent = '$' + u.estimated_remaining_usd.toFixed(4);
+  $('location').textContent = `${u.sim_time}${u.speed!=1?' · '+u.speed+'×':''} · pub ${u.pub_open?'OPEN':'SHUT'} · in: ${u.present.length?u.present.join(', '):'nobody'}${u.tick_alive?'':' · ⚠ tick stalled'}`;
+  if (document.activeElement !== $('speed')) $('speed').value = String(u.speed);
+  $('error').textContent = u.last_error || '';
+  $('run').disabled = u.running;
+  $('auto').disabled = u.auto;
+  $('auto-stop').disabled = !u.auto;
+  if (u.auto) {
+    $('status').textContent = `LIVE · ${u.auto_conversations} conversations this session · ` +
+      (u.running ? 'talking to DeepSeek…' : (u.present.length>=2 ? `next chat within ${u.gap_minutes} sim-min` : 'waiting for people to arrive'));
+  } else {
+    $('status').textContent = u.running ? 'Running… talking to DeepSeek' : '';
+  }
+}
+
+$('auto').onclick = async () => {
+  $('error').textContent='';
+  try { await j('/auto/start', {method:'POST', headers:{'Content-Type':'application/json'}, body: '{}'}); }
+  catch(e){ $('error').textContent = e.message; }
+  loadUsage();
+};
+$('auto-stop').onclick = async () => { try { await j('/auto/stop', {method:'POST'}); } catch(e){} loadUsage(); };
+$('speed').onchange = async () => {
+  try { await j('/speed', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({speed:+$('speed').value})}); }
+  catch(e){ $('error').textContent = e.message; }
+  loadUsage();
+};
+
+async function refresh(){
+  try { await Promise.all([loadAgents(), loadUsage(), j('/conversations/latest').then(renderConv)]); }
+  catch(e){ $('error').textContent = e.message; }
+}
+
+$('run').onclick = async () => {
+  $('run').disabled = true; $('error').textContent='';
+  $('status').textContent = 'Running… talking to DeepSeek';
+  log('Run requested, '+$('turns').value+' turns');
+  try {
+    const body = {turns:+$('turns').value};
+    if ($('who-a').value) body.agent_a_id = +$('who-a').value;
+    if ($('who-b').value) body.agent_b_id = +$('who-b').value;
+    const c = await j('/conversations/run', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)});
+    renderConv(c); log('Conversation #'+c.id+' '+c.status+', '+c.messages.length+' lines');
+  } catch(e){ $('error').textContent = e.message; log('ERROR: '+e.message); }
+  finally { $('status').textContent=''; $('run').disabled=false; refresh(); }
+};
+
+let lastEvent = 0;
+async function pollEvents(){
+  try {
+    const evs = await j('/events?after='+lastEvent);
+    for (const e of evs){
+      lastEvent = e.id;
+      const d = document.createElement('div');
+      if (e.level==='error') d.className='err';
+      d.innerHTML = '<span class="ts">'+e.ts+'</span>'+esc(e.text);
+      $('log').prepend(d);
+    }
+  } catch(e){ /* server restarting; try again next tick */ }
+}
+
+refresh(); setInterval(refresh, 2000);
+pollEvents(); setInterval(pollEvents, 1000);
+</script>
+</body>
+</html>

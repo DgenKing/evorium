@@ -1,0 +1,129 @@
+"""What an agent knows, has been told, has promised — and how new knowledge is stored."""
+
+import logging
+import sqlite3
+from datetime import datetime, timedelta
+
+from evorium.models import Extraction
+
+DUE_FMT = "%Y-%m-%d %H:%M"
+
+logger = logging.getLogger(__name__)
+
+MAX_CERTAIN = 12
+MAX_TOLD = 8
+MAX_CLAIMS = 3
+MAX_PROMISES = 6
+MAX_RECENT = 3
+
+
+def _rows(connection, sql, params=()):
+    return [dict(r) for r in connection.execute(sql, params).fetchall()]
+
+
+def _mentions(text: str, name: str) -> bool:
+    return name.split()[0].lower() in text.lower()
+
+
+def open_commitments(connection: sqlite3.Connection, agent_id: int) -> list[dict]:
+    return _rows(connection,
+        """SELECT c.id, c.content, c.to_agent_id, a.name AS to_name, c.due_at
+           FROM commitments c LEFT JOIN agents a ON a.id = c.to_agent_id
+           WHERE c.agent_id = ? AND c.status = 'open' ORDER BY c.id DESC LIMIT ?""",
+        (agent_id, MAX_PROMISES))
+
+
+def knowledge_for_prompt(connection: sqlite3.Connection, speaker: dict, listener: dict) -> dict:
+    sid, lid = speaker["id"], listener["id"]
+
+    certain = _rows(connection,
+        "SELECT content FROM facts WHERE agent_id=? AND source IN ('seed','observed') ORDER BY source DESC, id DESC LIMIT ?",
+        (sid, MAX_CERTAIN))
+    told = _rows(connection,
+        """SELECT f.content, a.name AS by_name FROM facts f LEFT JOIN agents a ON a.id = f.source_agent_id
+           WHERE f.agent_id=? AND f.source='told' ORDER BY f.id DESC LIMIT 20""", (sid,))
+    # Prioritise what the listener told me or what concerns them, then most recent.
+    told.sort(key=lambda t: not ((t["by_name"] and t["by_name"] == listener["name"]) or _mentions(t["content"], listener["name"])))
+    told = told[:MAX_TOLD]
+    claims = _rows(connection,
+        "SELECT content FROM facts WHERE agent_id=? AND source='claim' ORDER BY id DESC LIMIT ?", (sid, MAX_CLAIMS))
+    promises = open_commitments(connection, sid)
+    their_promises = _rows(connection,
+        "SELECT content FROM commitments WHERE agent_id=? AND to_agent_id=? AND status='open' ORDER BY id DESC LIMIT 4",
+        (lid, sid))
+    people = _rows(connection,
+        """SELECT n.name, n.description FROM npcs n
+           WHERE n.introduced_by = ? OR EXISTS (
+               SELECT 1 FROM facts f WHERE f.agent_id = ? AND lower(f.content) LIKE '%' || lower(n.name) || '%')
+           ORDER BY n.id DESC LIMIT 4""", (sid, sid))
+    last_with = connection.execute(
+        """SELECT summary, sim_time FROM conversations
+           WHERE summary IS NOT NULL AND ((agent_a_id=? AND agent_b_id=?) OR (agent_a_id=? AND agent_b_id=?))
+           ORDER BY id DESC LIMIT 1""", (sid, lid, lid, sid)).fetchone()
+    recent = _rows(connection,
+        "SELECT content FROM memories WHERE agent_id=? ORDER BY id DESC LIMIT ?", (sid, MAX_RECENT))
+
+    return {
+        "certain": [c["content"] for c in certain],
+        "told": [f'{t["content"]} (told to me by {t["by_name"] or "someone"})' for t in told],
+        "claims": [c["content"] for c in claims],
+        "promises": [p["content"] + (f" (to {p['to_name']})" if p["to_name"] else "") for p in promises],
+        "their_promises": [p["content"] for p in their_promises],
+        "people": [f'{p["name"]} — {p["description"]}' for p in people],
+        "last_with_listener": (f'{last_with["sim_time"]}: {last_with["summary"]}' if last_with else None),
+        "recent": [r["content"] for r in recent],
+    }
+
+
+def store_extraction(connection: sqlite3.Connection, conversation_id: int, participants: dict[str, dict],
+                     extraction: Extraction, now: datetime | None = None) -> dict:
+    """Persist facts, commitments and new people. Returns counts for the live feed."""
+    now = now or datetime.now()
+    counts = {"facts": 0, "commitments": 0, "people": 0, "resolved": 0}
+    all_agents = {r["name"]: r["id"] for r in connection.execute("SELECT id, name FROM agents")}
+    first_names = {n.split()[0].lower(): i for n, i in all_agents.items()}
+
+    def agent_id_for(name: str | None) -> int | None:
+        if not name:
+            return None
+        return all_agents.get(name) or first_names.get(name.split()[0].lower())
+
+    for name, ext in extraction.per_agent.items():
+        me = agent_id_for(name)
+        if me is None or name not in participants and me not in {p["id"] for p in participants.values()}:
+            continue
+        for f in ext.facts:
+            told_by = agent_id_for(f.told_by)
+            if told_by == me:
+                told_by = None
+            source = f.source
+            # A 'told' fact with no identifiable teller inside the conversation is just a claim.
+            if source == "told" and told_by is None:
+                source = "claim"
+            connection.execute(
+                """INSERT INTO facts (agent_id, subject, content, source, source_agent_id, source_conversation_id)
+                   VALUES (?, ?, ?, ?, ?, ?)""",
+                (me, f.subject.lower(), f.content, source, told_by, conversation_id))
+            counts["facts"] += 1
+        for c in ext.commitments:
+            due_at = (now + timedelta(hours=c.due_hours)).strftime(DUE_FMT) if c.due_hours else None
+            connection.execute(
+                "INSERT INTO commitments (agent_id, to_agent_id, content, source_conversation_id, due_at) VALUES (?, ?, ?, ?, ?)",
+                (me, agent_id_for(c.to), c.content, conversation_id, due_at))
+            counts["commitments"] += 1
+        for p in ext.new_people:
+            if agent_id_for(p.name) is not None:
+                continue  # not new — it's one of the cast
+            cur = connection.execute(
+                """INSERT INTO npcs (name, description, introduced_by, source_conversation_id)
+                   VALUES (?, ?, ?, ?) ON CONFLICT(name) DO NOTHING""",
+                (p.name, p.description, me, conversation_id))
+            counts["people"] += cur.rowcount
+    participant_ids = tuple(p["id"] for p in participants.values())
+    for cid in extraction.commitments_done:
+        cur = connection.execute(
+            f"""UPDATE commitments SET status='done', resolved_at=strftime('%Y-%m-%dT%H:%M:%fZ','now')
+                WHERE id=? AND status='open' AND agent_id IN ({",".join("?" * len(participant_ids))})""",
+            (cid, *participant_ids))
+        counts["resolved"] += cur.rowcount
+    return counts
