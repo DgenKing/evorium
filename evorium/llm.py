@@ -2,7 +2,6 @@
 
 import logging
 import math
-import runpy
 from dataclasses import dataclass
 from decimal import Decimal
 from pathlib import Path
@@ -11,6 +10,7 @@ import httpx
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from evorium.db import DEFAULT_DB_PATH, connect
+from evorium.configuration import load
 from evorium.events import emit
 from evorium.models import ActionProposal
 
@@ -46,13 +46,13 @@ class Settings:
         path = Path(__file__).resolve().parent.parent / "config.py"
         if not path.is_file():
             raise LLMError("Copy config.example.py to config.py and set your DeepSeek API key.")
-        values = runpy.run_path(str(path))
+        config = load()
         return cls(
-            api_key=values.get("DEEPSEEK_API_KEY", ""),
-            model=values.get("DEEPSEEK_MODEL", "deepseek-flash"),
-            input_usd_per_million=values.get("INPUT_USD_PER_MILLION", 0.30),
-            output_usd_per_million=values.get("OUTPUT_USD_PER_MILLION", 1.20),
-            max_spend_usd=values.get("MAX_SPEND_USD", 4.00),
+            api_key=getattr(config, "DEEPSEEK_API_KEY", ""),
+            model=getattr(config, "DEEPSEEK_MODEL", "deepseek-flash"),
+            input_usd_per_million=getattr(config, "INPUT_USD_PER_MILLION", 0.30),
+            output_usd_per_million=getattr(config, "OUTPUT_USD_PER_MILLION", 1.20),
+            max_spend_usd=getattr(config, "MAX_SPEND_USD", 4.00),
         )
 
 

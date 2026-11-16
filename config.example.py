@@ -9,3 +9,7 @@ OUTPUT_USD_PER_MILLION = 1.20
 
 # Local hard stop on new requests once estimated spend reaches this (USD).
 MAX_SPEND_USD = 4.00
+
+# Optional HTTP Basic password for every page, static asset and API route.
+# Leave empty for local development. Restart after changing your local config.
+DASHBOARD_PASSWORD = ""

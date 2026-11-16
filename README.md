@@ -1,7 +1,7 @@
-# Evorium — Milestone 1
+# Evorium — Milestone 3
 
-Two persistent characters in a Manchester pub. Built with Python 3.11+,
-FastAPI, SQLite and (in step 4) plain HTML/JavaScript.
+Eight persistent characters in an Ancoats neighbourhood, with player chat,
+memories, relationships and plans. Python 3.11+, FastAPI, SQLite and plain HTML/JavaScript.
 
 ## Run locally
 
@@ -16,7 +16,7 @@ uvicorn evorium.main:app --host 127.0.0.1 --port 8000
 ```
 
 Open http://127.0.0.1:8000. Startup creates `evorium.sqlite3` alongside this
-README and seeds Dez Whitworth and Chloe Barlow if absent. Stop with Ctrl+C;
+README and seeds eight NPCs, a player and a system row if absent. Stop with Ctrl+C;
 restarting reuses the database and preserves existing character state.
 
 Edit `config.py` locally to set `DEEPSEEK_API_KEY`. The key is hardcoded only in
@@ -70,7 +70,56 @@ figure assumes the initial $5 funding and is not a live balance.
   conversation every N sim-minutes when two or more people are in.
 - `Let them live` runs until stopped. `Run conversation` works any time two people are in.
 
-Next: Milestone 3 — the player walks into the pub.
+## Milestone 3: player, relationships, actions and history
+
+- **You:** edit your name and about, enter the pub or shop, choose someone present
+  and type a message. Send with Enter, then end the conversation to save notes.
+  Others learn what you said only through attributed conversation memories.
+  Silence for five real minutes, leaving, and server restarts close your chat.
+- **Your promises:** mark them Done or Didn't do it. Unanswered promises more
+  than 24 sim-hours overdue break automatically. What you've learned shows your
+  own most recent 15 facts; nobody receives another character's private knowledge.
+- **Relationships:** directed trust, warmth and familiarity persist. Kept and
+  broken promises change the promisee's trust; small evidenced feelings from
+  notes may also change it. Cards and prompts show descriptive bands.
+- **Places and plans:** the pub keeps its existing hours; Patel's News opens
+  Monday–Saturday 07:00–19:00. In auto mode, NPCs can make up to two plans per
+  day after 07:00, often none. Visits and staying home must fit free time;
+  phone calls retry once if unanswered. Completed plans can fulfil promises.
+  Pub and shop encounters have independent cooldowns (four and two turns).
+- **Timeline:** open [Timeline](http://127.0.0.1:8000/timeline-page) in the header
+  for permanent conversations, promises, arrivals, rumours and world events.
+  Filter by character or importance. A daily digest summarises yesterday when
+  auto mode is on and at least three significant records exist; at most two
+  attempts per day. Your last visit is remembered in this browser.
+- **Director:** the persisted toggle defaults on, acts only in auto mode, and
+  checks for a stall every six sim-hours. Recent important events or a seed
+  event due within 24 hours suppress it. Validated mundane events occur at most
+  once per sim day; it cannot set money terms or introduce unknown people.
+- **Cast:** Simon Ferris, Brenda Ashworth and Mohammed "Mo" Iqbal join the five
+  original characters. Their private seed knowledge is kept separate. New
+  characters use initials; existing portraits are 256×256 PNGs.
+
+New API routes: `GET /timeline`, `GET /player`, `POST /player/profile`,
+`POST /player/enter`, `/player/leave`, `/player/say`, `/player/end`,
+`POST /player/promises/{id}`, and `POST /director`. Player messages accept
+`{to_agent_id, text}`; the profile accepts `{name, about}`; promises accept
+`{done, note}`; director accepts `{enabled}`. Validation errors explain why an
+action is unavailable. Timeline query filters: `since`, `until`, `agent_id`,
+`min_importance` (timestamps `YYYY-MM-DD HH:MM`).
+
+A non-empty value requires HTTP Basic auth for every route, with any username.
+Restart after changing it. `EVORIUM_DB_PATH` optionally selects a separate world
+file; use that for smoke tests. Existing saves migrate in place, never reset.
+See [deploy/README.md](deploy/README.md) for the optional Linux home-LAN service.
+No voice, group chat or new hosting service is included.
+
+New model call limits: player replies 300 tokens; daily planning 300 per NPC;
+director 300; digest 250; phone dialogue 300 per turn. The existing note-taking
+call stays at 900 and due-promise checks at 200. The ordinary daily planning,
+director and digest overhead is about ten calls for eight NPCs, excluding
+conversation replies and existing promise checks. Failed daily planning is not
+repeated that day; cancelled marker rows record that it was attempted.
 
 Token-rate constants are editable in `config.py`. Verified on 2026-11-15 against
 [DeepSeek pricing](https://api-docs.deepseek.com/quick_start/pricing/): peak uncached

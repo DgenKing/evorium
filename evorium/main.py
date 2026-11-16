@@ -1,5 +1,8 @@
 """FastAPI app: five characters, a real-time world, a dashboard."""
 
+import base64
+import binascii
+import hmac
 import logging
 import threading
 import time
@@ -9,7 +12,8 @@ from pathlib import Path
 from fastapi import FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
 from fastapi.concurrency import run_in_threadpool
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
+from evorium.configuration import load
 from pydantic import BaseModel, Field
 
 from evorium import tick, world, timeline, player, relationships, places, plans, director
@@ -32,6 +36,7 @@ TICK_REAL_SECONDS = 5
 def _tick_loop():
     while not _state["stop"].is_set():
         try:
+            _state["last_tick"] = time.time()
             now = world.now(DEFAULT_DB_PATH)
             plans.execute(None,now,DEFAULT_DB_PATH,auto=False)
             for change in tick.update_routines(now, DEFAULT_DB_PATH):
@@ -70,11 +75,11 @@ def _tick_loop():
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    init_db()
-    seed_agents()
+    init_db(DEFAULT_DB_PATH)
+    seed_agents(DEFAULT_DB_PATH)
     seed_events(DEFAULT_DB_PATH, world.now(DEFAULT_DB_PATH))
     player.maintenance(DeepSeekClient(DEFAULT_DB_PATH), world.now(DEFAULT_DB_PATH), DEFAULT_DB_PATH, startup=True)
-    stuck = mark_interrupted()
+    stuck = mark_interrupted(DEFAULT_DB_PATH)
     now = world.now(DEFAULT_DB_PATH)
     tick.update_routines(now, DEFAULT_DB_PATH)
     emit(f"Server started. Sim clock {world.describe(now)} at {world.get_speed(DEFAULT_DB_PATH):g}× real time. "
@@ -92,9 +97,29 @@ async def lifespan(app: FastAPI):
     t.start()
     yield
     _state["stop"].set()
+    await run_in_threadpool(t.join, 30)
 
 
 app = FastAPI(title="Evorium", lifespan=lifespan)
+DASHBOARD_PASSWORD = getattr(load(), 'DASHBOARD_PASSWORD', '')
+
+
+@app.middleware('http')
+async def dashboard_auth(request, call_next):
+    if DASHBOARD_PASSWORD:
+        supplied = None
+        try:
+            scheme,encoded=request.headers.get('authorization','').split(' ',1)
+            if scheme.lower()=='basic':
+                decoded=base64.b64decode(encoded,validate=True).decode('utf-8')
+                if ':' in decoded:supplied=decoded.split(':',1)[1]
+        except (ValueError,UnicodeDecodeError,binascii.Error):
+            pass
+        if supplied is None or not hmac.compare_digest(supplied.encode('utf-8'),str(DASHBOARD_PASSWORD).encode('utf-8')):
+            return Response('Authentication required.',status_code=401,headers={'WWW-Authenticate':'Basic realm="Evorium", charset="UTF-8"'})
+    return await call_next(request)
+
+
 app.mount("/static", StaticFiles(directory=STATIC), name="static")
 
 
@@ -147,7 +172,7 @@ async def events(after: int = 0):
 async def usage():
     data = get_usage(DEFAULT_DB_PATH)
     try:
-        cap = DeepSeekClient().settings.max_spend_usd
+        cap = DeepSeekClient(DEFAULT_DB_PATH).settings.max_spend_usd
     except LLMError:
         cap = None
     now = world.now(DEFAULT_DB_PATH)

@@ -1,0 +1,24 @@
+[Unit]
+Description=Evorium neighbourhood simulation
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=evorium
+Group=evorium
+WorkingDirectory=/opt/evorium
+# Replace this example LAN address with the machine's actual reserved LAN address.
+ExecStart=/opt/evorium/.venv/bin/python -m uvicorn evorium.main:app --host 192.168.1.50 --port 8000
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=120
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/evorium
+
+[Install]
+WantedBy=multi-user.target
