@@ -50,9 +50,11 @@ def seed(c):
     names={r['name']:r['id'] for r in c.execute("SELECT id,name FROM agents WHERE kind!='system'")}
     def insert(a,b,trust,warmth):
         if a in names and b in names:c.execute('INSERT INTO relationships(agent_id,other_id,trust,warmth) VALUES (?,?,?,?) ON CONFLICT DO NOTHING',(names[a],names[b],trust,warmth))
-    pairs=[('Dez Whitworth','Tommy Shaw',80,75),('Tommy Shaw','Jess Hartley',65,70),('Raj Patel','Dez Whitworth',60,55),('Raj Patel','Tommy Shaw',55,55)]
+    pairs=[('Dez Whitworth','Tommy Shaw',80,75),('Tommy Shaw','Jess Hartley',65,70),('Raj Patel','Dez Whitworth',60,55),('Raj Patel','Tommy Shaw',55,55),('Brenda Ashworth','Tommy Shaw',75,70),('Brenda Ashworth','Dez Whitworth',60,60),('Mohammed "Mo" Iqbal','Raj Patel',65,65),('Mohammed "Mo" Iqbal','Dez Whitworth',55,60)]
     for a,b,t,w in pairs:insert(a,b,t,w);insert(b,a,t,w)
     insert('Dez Whitworth','Jess Hartley',75,65);insert('Jess Hartley','Dez Whitworth',65,65)
+    for name in names:
+        if name!='Simon Ferris':insert('Simon Ferris',name,40,45);insert(name,'Simon Ferris',40,45)
     for a in names:
         for b in names:
             if a!=b:insert(a,b,50,50)

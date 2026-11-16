@@ -43,6 +43,27 @@ CHARACTERS = (
         "Work out whether the developer is buying up the whole block before deciding on the offer — and whether to warn Dez.",
         "uneasy", LOCATION,
     ),
+    (
+        "Simon Ferris",46,"Asset Manager at Northgate Estates",
+        "Lives in Hale. Handles the terrace's leases for Northgate Estates. He is doing his job, not a villain.",
+        "Polite, corporate, careful with words, evasive under pressure.",
+        "Get the pub's new lease and the newsagent's surrender agreed before the end of the quarter with as little fuss as possible.",
+        "composed","Home, Hale",
+    ),
+    (
+        "Brenda Ashworth",71,"Retired school dinner lady",
+        "Chairs the tenants' association in Tommy's housing association block. Lives on Blossom Street.",
+        "Brisk, organised, kind; loves a petition and a rota.",
+        "Find out what is really happening to the terrace and get people organised before it is too late.",
+        "curious","Home, Blossom Street",
+    ),
+    (
+        'Mohammed "Mo" Iqbal',38,"Private hire driver",
+        "Works nights. Does not drink alcohol; comes to the pub for the darts and the company. Hears a lot from the back seat and is careful about repeating it.",
+        "Easygoing, funny, observant, discreet.",
+        "Get a darts team going at the Billet and save enough for his own vehicle licence.",
+        "easygoing","Home, Manchester",
+    ),
 )
 
 
@@ -65,6 +86,16 @@ SEED_FACTS = (
     ("Raj Patel", "offer", "Last Tuesday a man from Northgate Estates came into the shop and verbally offered to buy out my lease. He gave me a card and said 'a generous figure'. No paperwork, no number yet."),
     ("Raj Patel", "offer", "I have told nobody about the offer, not even Anita."),
     ("Raj Patel", "street", "I have not seen anyone surveying or measuring on the street, and no customer has mentioned it."),
+    ("Simon Ferris","terrace","Northgate bought the freehold of the whole terrace three months ago: the pub, the newsagent and the empty unit between them."),
+    ("Simon Ferris","instructions","My instructions are to bring rents up to market level and to buy out leases where that is cheaper."),
+    ("Simon Ferris","lease","The proposed pub rent is £3,900 a month, up from £2,400."),
+    ("Simon Ferris","offer","I offered Raj Patel £45,000 to surrender his lease. I have authority to go higher but will not volunteer that."),
+    ("Simon Ferris","planning","No planning application has been submitted. I do not know what the board will finally do with the block; redevelopment has been discussed but not decided."),
+    ("Brenda Ashworth","terrace","I have heard nothing official about the terrace."),
+    ("Brenda Ashworth","petitions","I have run two successful petitions before, about a bus route and a zebra crossing."),
+    ("Brenda Ashworth","people","I have known Tommy Shaw for thirty years."),
+    ('Mohammed "Mo" Iqbal',"terrace","I have not driven anyone from Northgate and have heard nothing concrete about the terrace."),
+    ('Mohammed "Mo" Iqbal',"darts","The pub's dartboard has not had a team since before the pandemic."),
 )
 
 

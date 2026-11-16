@@ -148,6 +148,20 @@ def _routine_location(name: str, dt: datetime) -> tuple[str, str]:
         if wd == 5 and _between(dt, 10, 15):
             return "Various flats, Ancoats", "flat viewings"
         return "Rented room, Stockport", "at home" if _between(dt, 7, 23) else "asleep"
+    if first == 'Simon':
+        if wd==3 and _between(dt,14,14.5):return "Patel's News, Ancoats",'visiting the newsagent'
+        if wd<5 and _between(dt,9,17.5):return 'Northgate Estates office, Spinningfields','at the office'
+        return 'Home, Hale','at home' if _between(dt,7,23) else 'asleep'
+    if first == 'Brenda':
+        if wd<6 and _between(dt,9,9.5):return "Patel's News, Ancoats",'buying the morning paper'
+        if ((wd==2 and _between(dt,19,21)) or (wd==6 and _between(dt,13,15))) and pub_open(dt):return PUB,'catching up with the neighbours'
+        return 'Home, Blossom Street','at home' if _between(dt,7,23) else 'asleep'
+    if first == 'Mohammed':
+        if _between(dt,5,12):return 'Home, Manchester','asleep'
+        if wd<6 and _between(dt,16,16+20/60):return "Patel's News, Ancoats",'picking up supplies before his shift'
+        if ((wd==1 and _between(dt,18,19.5)) or (wd==6 and _between(dt,14,16))) and pub_open(dt):return PUB,'here for darts and company'
+        if _between(dt,19.5,24) or _between(dt,0,4):return 'Manchester','driving'
+        return 'Home, Manchester','off duty'
     return "Ancoats", "about"
 
 

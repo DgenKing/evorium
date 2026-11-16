@@ -15,7 +15,7 @@ def test_database_override(tmp_path):
 def test_kinds_and_real_timestamp(tmp_path):
     path=tmp_path/'world.sqlite3'; init_db(path); seed_agents(path)
     with connect(path) as c:
-        assert len(npc_agents(c)) == 5
+        assert len(npc_agents(c)) == 8
         system=c.execute("SELECT id FROM agents WHERE kind='system'").fetchone()[0]
         c.execute("INSERT INTO conversations(location,status,sim_at) VALUES ('pub','completed','2026-11-16 19:55')")
     assert system not in world.pick_pair([1,2,system],path)

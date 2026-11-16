@@ -27,7 +27,7 @@ def test_restart_preserves_characters_and_changed_state(tmp_path):
     with connect(path) as connection:
         original = [dict(row) for row in connection.execute("SELECT * FROM agents WHERE kind='npc' ORDER BY id")]
         assert [row["name"] for row in original] == [
-            "Dez Whitworth", "Chloe Barlow", "Tommy Shaw", "Jess Hartley", "Raj Patel",
+            "Dez Whitworth", "Chloe Barlow", "Tommy Shaw", "Jess Hartley", 'Raj Patel', 'Simon Ferris', 'Brenda Ashworth', 'Mohammed "Mo" Iqbal',
         ]
         connection.execute("UPDATE agents SET mood = 'relieved' WHERE id = ?", (original[0]["id"],))
     init_db(path)

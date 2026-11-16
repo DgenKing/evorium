@@ -78,9 +78,9 @@ def test_phone_retries_once(db):
 
 def test_planning_once_daily_and_per_place_gap(db):
     now=datetime(2026,11,16,8);client=Fake();client.calls=[]
-    assert plans.daily(client,now,db)==5
+    assert plans.daily(client,now,db)==8
     assert plans.daily(client,now+timedelta(hours=1),db)==0
-    assert len(client.calls)==5
+    assert len(client.calls)==8
     with connect(db) as c:
         c.execute("insert into conversations(location,status,agent_a_id,agent_b_id,sim_at) values (?,'completed',1,3,?)",(world.PUB,now.strftime('%Y-%m-%d %H:%M')))
     assert not tick.conversation_due(now,20,db,world.PUB)
