@@ -125,3 +125,11 @@ def test_conversation_due_respects_gap(db):
                   (world.describe(now - timedelta(minutes=5)),))
     assert not tick.conversation_due(now, 20, db)
     assert tick.conversation_due(now + timedelta(minutes=16), 20, db)
+
+
+def test_settings_persist_in_the_database(db):
+    assert world.get_setting("auto", "0", db) == "0"
+    world.set_setting("auto", "1", db)
+    world.set_setting("gap_minutes", 30, db)
+    assert world.get_setting("auto", "0", db) == "1"
+    assert world.get_setting("gap_minutes", "20", db) == "30"

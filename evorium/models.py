@@ -70,6 +70,7 @@ class CommitmentOut(BaseModel):
     content: str = Field(min_length=1, max_length=200)
     to: str | None = None
     due_hours: int | None = Field(default=None, ge=1, le=24 * 60)
+    replaces: int | None = None  # id of an open commitment this one restates with new detail or a new deadline
 
 
 class PromiseCheck(BaseModel):
@@ -138,8 +139,13 @@ def _normalise_extraction(data):
                 due = min(max(due, 1), 24 * 60) if due is not None else None
             except (TypeError, ValueError):
                 due = None
+            try:
+                replaces = int(str(c.get("replaces")).strip().lower().removeprefix("id").strip()) if c.get("replaces") is not None else None
+            except (TypeError, ValueError):
+                replaces = None
             commitments.append({"content": _clip(str(c["content"]), 200),
-                                "to": _clip(c.get("to"), 60) if c.get("to") else None, "due_hours": due})
+                                "to": _clip(c.get("to"), 60) if c.get("to") else None, "due_hours": due,
+                                "replaces": replaces})
         people = [{"name": _clip(str(p["name"]), 60), "description": _clip(str(p.get("description") or "mentioned in passing"), 200)}
                   for p in (ext.get("new_people") or [])[:3] if isinstance(p, dict) and p.get("name")]
         cleaned[str(name)] = {"facts": facts, "commitments": commitments, "new_people": people}

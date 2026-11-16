@@ -74,15 +74,25 @@ For EACH of the two speakers, record:
   source "claim" (X made it up), and under the other speaker as source "told" with told_by X (they heard it).
   Never record X's own invention under the other speaker as a "claim".
   Personal opinions, tastes and plans about the speaker's own life ("I'd budget £900 a month") are "observed", not claims.
-- "commitments": concrete things that speaker promised or said they would do. "to": who they promised, or null.
-  "due_hours": your best estimate of how many hours from now it should reasonably be done by
-  ("tonight" = 4, "tomorrow" = 24, "by Friday" = hours until Friday, "keep an ear out" = 72). Integer, or null if truly open-ended.
+- "commitments": things that speaker promised to do AFTER this conversation and has not yet done. Write each as a
+  short instruction ("Ring Northgate's agent", "Write forty quiz questions"). "to": who they promised, or null.
+  Do NOT record: anything already done during the conversation (pouring or buying a drink, answering a question);
+  conditional or vague intentions ("I'd come if there was a quiz", "we should do that sometime"); ordinary parts
+  of their job.
+  "due_hours": REQUIRED integer — how many hours from now ({sim_time}) it should be done by
+  ("tonight" = 4, "first thing tomorrow" = 18, "tomorrow" = 24, "by Friday" = hours from now until Friday evening,
+  no time mentioned or "keep an ear out" = 72).
+  "replaces": if this is the same promise as one in the OPEN COMMITMENTS list, restated with more detail or a new
+  deadline, give that id here (integer) so it is updated instead of duplicated; otherwise null. If an open
+  commitment is merely mentioned again with nothing new, do not record it at all.
 - "new_people": any named person mentioned who is NOT in this list: {cast}. Give a short description of what was said about them.
 
 Also give:
 - "summary": one or two sentences summarising what happened, naming both speakers.
-- "commitments_done": ids (integers) from the OPEN COMMITMENTS list below that this conversation shows were clearly
-  fulfilled (e.g. the promise was to tell the other person something, and they did). Leave empty if unsure.
+- "commitments_done": ids (integers) from the OPEN COMMITMENTS list whose promised action has ACTUALLY BEEN CARRIED
+  OUT, as shown or reported in this conversation (the promise was to tell someone something and they have now told
+  them; the speaker says they made the call and what came of it). Agreeing to it again, discussing it, planning it,
+  or being reminded of it does NOT make it done. Never list an id you also gave as "replaces". Leave empty if unsure.
 
 KNOWN FACTS (ground truth; anything a speaker says beyond these about the world is a "claim"):
 {known_facts}

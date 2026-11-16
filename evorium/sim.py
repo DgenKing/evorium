@@ -85,7 +85,7 @@ def _take_notes(client, db_path, conversation_id, a, b, transcript, sim_label):
                 "INSERT INTO memories (agent_id, content, importance, source_conversation_id) VALUES (?, ?, 5, ?)",
                 (who["id"], f"{sim_label}: {extraction.summary}", conversation_id))
     emit(f"Notes: {counts['facts']} facts, {counts['commitments']} promises, {counts['people']} new people, "
-         f"{counts['resolved']} promises resolved. Summary: {extraction.summary}")
+         f"{counts['resolved']} promises resolved, {counts['updated']} updated. Summary: {extraction.summary}")
     return extraction.summary
 
 

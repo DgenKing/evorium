@@ -43,6 +43,17 @@ def _anchors(connection):
     return datetime.strptime(anchor_real, FMT), datetime.strptime(anchor_sim, FMT), speed
 
 
+def get_setting(key: str, default: str | None = None, db_path: str | Path = DEFAULT_DB_PATH) -> str | None:
+    """Small persisted settings (e.g. whether auto mode is on) so they survive a restart."""
+    with connect(db_path) as connection:
+        return _get(connection, key, default)
+
+
+def set_setting(key: str, value, db_path: str | Path = DEFAULT_DB_PATH) -> None:
+    with connect(db_path) as connection:
+        _set(connection, key, value)
+
+
 def now(db_path: str | Path = DEFAULT_DB_PATH) -> datetime:
     with connect(db_path) as connection:
         anchor_real, anchor_sim, speed = _anchors(connection)

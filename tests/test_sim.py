@@ -157,3 +157,35 @@ def test_mark_interrupted_closes_stuck_conversations(db):
     assert mark_interrupted(db) == 1
     with connect(db) as c:
         assert [r[0] for r in c.execute("SELECT status FROM conversations ORDER BY id")] == ["failed", "completed"]
+
+
+def test_restated_promise_updates_in_place_and_is_not_marked_done(db):
+    first = Extraction(summary="s", per_agent={"Tommy Shaw": AgentExtraction(
+        commitments=[CommitmentOut(content="Write the quiz questions", to="Dez Whitworth")])})
+    run_conversation(FakeClient(extraction=first), 3, 1, turns=1, db_path=db)
+    with connect(db) as c:
+        cid, due = c.execute("SELECT id, due_at FROM commitments").fetchone()
+    assert due is not None  # no deadline given, so the default one applies and the tick will check it
+    second = Extraction(summary="s", commitments_done=[cid], per_agent={"Tommy Shaw": AgentExtraction(
+        commitments=[CommitmentOut(content="Write forty quiz questions by Friday", to="Dez Whitworth",
+                                   due_hours=120, replaces=cid)])})
+    run_conversation(FakeClient(extraction=second), 3, 1, turns=1, db_path=db)
+    with connect(db) as c:
+        rows = c.execute("SELECT id, content, status, due_at FROM commitments").fetchall()
+    assert len(rows) == 1
+    assert rows[0]["content"] == "Write forty quiz questions by Friday"
+    assert rows[0]["status"] == "open" and rows[0]["due_at"] > due
+
+
+def test_replaces_cannot_touch_someone_elses_promise(db):
+    first = Extraction(summary="s", per_agent={"Dez Whitworth": AgentExtraction(
+        commitments=[CommitmentOut(content="Ring the agent", to="Jess Hartley")])})
+    run_conversation(FakeClient(extraction=first), 1, 4, turns=1, db_path=db)
+    with connect(db) as c:
+        cid = c.execute("SELECT id FROM commitments").fetchone()[0]
+    second = Extraction(summary="s", per_agent={"Jess Hartley": AgentExtraction(
+        commitments=[CommitmentOut(content="Ask about more hours", replaces=cid)])})
+    run_conversation(FakeClient(extraction=second), 1, 4, turns=1, db_path=db)
+    with connect(db) as c:
+        rows = [tuple(r) for r in c.execute("SELECT agent_id, content FROM commitments ORDER BY id")]
+    assert rows == [(1, "Ring the agent"), (4, "Ask about more hours")]

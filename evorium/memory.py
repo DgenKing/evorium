@@ -15,6 +15,7 @@ MAX_TOLD = 8
 MAX_CLAIMS = 3
 MAX_PROMISES = 6
 MAX_RECENT = 3
+DEFAULT_DUE_HOURS = 72  # every promise gets a deadline, so the tick always checks it eventually
 
 
 def _rows(connection, sql, params=()):
@@ -79,7 +80,8 @@ def store_extraction(connection: sqlite3.Connection, conversation_id: int, parti
                      extraction: Extraction, now: datetime | None = None) -> dict:
     """Persist facts, commitments and new people. Returns counts for the live feed."""
     now = now or datetime.now()
-    counts = {"facts": 0, "commitments": 0, "people": 0, "resolved": 0}
+    counts = {"facts": 0, "commitments": 0, "people": 0, "resolved": 0, "updated": 0}
+    restated: set[int] = set()
     all_agents = {r["name"]: r["id"] for r in connection.execute("SELECT id, name FROM agents")}
     first_names = {n.split()[0].lower(): i for n, i in all_agents.items()}
 
@@ -106,7 +108,17 @@ def store_extraction(connection: sqlite3.Connection, conversation_id: int, parti
                 (me, f.subject.lower(), f.content, source, told_by, conversation_id))
             counts["facts"] += 1
         for c in ext.commitments:
-            due_at = (now + timedelta(hours=c.due_hours)).strftime(DUE_FMT) if c.due_hours else None
+            due_at = (now + timedelta(hours=c.due_hours or DEFAULT_DUE_HOURS)).strftime(DUE_FMT)
+            if c.replaces is not None:
+                # Same promise restated with more detail or a new deadline: update it rather than add a duplicate.
+                cur = connection.execute(
+                    "UPDATE commitments SET content=?, due_at=?, to_agent_id=COALESCE(?, to_agent_id) "
+                    "WHERE id=? AND agent_id=? AND status='open'",
+                    (c.content, due_at, agent_id_for(c.to), c.replaces, me))
+                if cur.rowcount:
+                    restated.add(c.replaces)
+                    counts["updated"] += 1
+                    continue
             connection.execute(
                 "INSERT INTO commitments (agent_id, to_agent_id, content, source_conversation_id, due_at) VALUES (?, ?, ?, ?, ?)",
                 (me, agent_id_for(c.to), c.content, conversation_id, due_at))
@@ -121,6 +133,8 @@ def store_extraction(connection: sqlite3.Connection, conversation_id: int, parti
             counts["people"] += cur.rowcount
     participant_ids = tuple(p["id"] for p in participants.values())
     for cid in extraction.commitments_done:
+        if cid in restated:
+            continue  # restated in this conversation, so it is plainly not finished
         cur = connection.execute(
             f"""UPDATE commitments SET status='done', resolved_at=strftime('%Y-%m-%dT%H:%M:%fZ','now')
                 WHERE id=? AND status='open' AND agent_id IN ({",".join("?" * len(participant_ids))})""",

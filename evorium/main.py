@@ -53,6 +53,7 @@ def _tick_loop():
                     _last_error["message"] = str(exc)
                     if "budget cap" in str(exc) or "balance" in str(exc):
                         _state["auto"] = False
+                        world.set_setting("auto", "0", DEFAULT_DB_PATH)
                         emit("Auto mode stopped: out of budget.", "error")
             _state["last_tick"] = time.time()
         except Exception:  # the heartbeat must never die
@@ -70,6 +71,13 @@ async def lifespan(app: FastAPI):
     tick.update_routines(now, DEFAULT_DB_PATH)
     emit(f"Server started. Sim clock {world.describe(now)} at {world.get_speed(DEFAULT_DB_PATH):g}× real time. "
          f"Pub is {'open' if world.pub_open(now) else 'shut'}." + (f" Marked {stuck} interrupted conversation(s) failed." if stuck else ""))
+    _state["auto"] = world.get_setting("auto", "0", DEFAULT_DB_PATH) == "1"
+    try:
+        _state["gap_minutes"] = int(world.get_setting("gap_minutes", str(tick.DEFAULT_CONVERSATION_GAP_MIN), DEFAULT_DB_PATH))
+    except ValueError:
+        _state["gap_minutes"] = tick.DEFAULT_CONVERSATION_GAP_MIN
+    if _state["auto"]:
+        emit(f"Auto mode resumed from before the restart (a conversation every ~{_state['gap_minutes']} sim-minutes).")
     _state["stop"] = threading.Event()
     t = threading.Thread(target=_tick_loop, daemon=True)
     _state["tick_thread"] = t
@@ -161,6 +169,8 @@ async def auto_start(req: AutoRequest):
     _state["gap_minutes"] = req.gap_minutes
     _state["conversations"] = 0
     _last_error["message"] = None
+    world.set_setting("auto", "1", DEFAULT_DB_PATH)
+    world.set_setting("gap_minutes", req.gap_minutes, DEFAULT_DB_PATH)
     emit(f"Auto mode ON: a conversation every ~{req.gap_minutes} sim-minutes whenever two or more people are in the pub.")
     return {"auto": True}
 
@@ -168,6 +178,7 @@ async def auto_start(req: AutoRequest):
 @app.post("/auto/stop")
 async def auto_stop():
     _state["auto"] = False
+    world.set_setting("auto", "0", DEFAULT_DB_PATH)
     emit(f"Auto mode OFF after {_state['conversations']} conversations.")
     return {"auto": False}
 
