@@ -81,6 +81,7 @@
       <span style="width:12px"></span>
       <span>Clock</span>
       <select id="speed"><option value="1">1× real time</option><option value="10">10×</option><option value="60">60× (1 min = 1 hr)</option><option value="600">600× (1 min = 10 hr)</option></select>
+      <label><input type="checkbox" id="director" checked> Director</label>
       <span id="status"></span>
     </div>
     <div id="whereabouts" class="card"></div>
@@ -183,6 +184,7 @@ function renderConv(c){
 
 async function loadUsage(){
   const u = await j('/usage');
+  if(document.activeElement!==$('director'))$('director').checked=u.director;
   $('u-calls').textContent = u.api_calls;
   $('u-tokens').textContent = u.total_tokens;
   $('u-spend').textContent = '$' + u.estimated_spend_usd.toFixed(4);
@@ -202,6 +204,8 @@ async function loadUsage(){
     $('status').textContent = u.running ? 'Running… talking to DeepSeek' : '';
   }
 }
+
+$('director').onchange=async()=>{try{await j('/director',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({enabled:$('director').checked})});}catch(e){$('error').textContent=e.message;}loadUsage();};
 
 $('auto').onclick = async () => {
   $('error').textContent='';

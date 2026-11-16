@@ -12,7 +12,7 @@ from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
-from evorium import tick, world, timeline, player, relationships, places, plans
+from evorium import tick, world, timeline, player, relationships, places, plans, director
 from evorium.db import DEFAULT_DB_PATH, connect, init_db, npc_agents
 from evorium.events import emit, since
 from evorium.llm import DeepSeekClient, LLMError, get_usage
@@ -44,6 +44,7 @@ def _tick_loop():
                     timeline.daily_digest(client, now, DEFAULT_DB_PATH)
                     tick.check_due_promises(client, now, DEFAULT_DB_PATH)
                     plans.daily(client,now,DEFAULT_DB_PATH)
+                    director.check(client,now,DEFAULT_DB_PATH)
                     if _run_lock.acquire(blocking=False):
                         try:
                             plans.execute(client,now,DEFAULT_DB_PATH,auto=True)
@@ -151,7 +152,7 @@ async def usage():
         cap = None
     now = world.now(DEFAULT_DB_PATH)
     data.update({
-        "places": places.describe(now,DEFAULT_DB_PATH), "max_spend_usd": cap, "last_error": _last_error["message"], "running": _run_lock.locked(),
+        "director": world.get_setting("director","1",DEFAULT_DB_PATH)=="1", "places": places.describe(now,DEFAULT_DB_PATH), "max_spend_usd": cap, "last_error": _last_error["message"], "running": _run_lock.locked(),
         "auto": _state["auto"], "auto_conversations": _state["conversations"], "gap_minutes": _state["gap_minutes"],
         "sim_time": world.describe(now), "speed": world.get_speed(DEFAULT_DB_PATH), "pub_open": world.pub_open(now),
         "present": [p["name"].split()[0] for p in tick.who_is_in_the_pub(now, DEFAULT_DB_PATH)],
@@ -294,3 +295,12 @@ def player_end():
 @app.post('/player/promises/{promise_id}')
 def player_promise(promise_id: int, req: PromiseRequest):
     return player.resolve(promise_id,req.done,req.note,DEFAULT_DB_PATH)
+
+
+class DirectorRequest(BaseModel):
+    enabled: bool
+
+@app.post('/director')
+def director_toggle(req: DirectorRequest):
+    world.set_setting('director','1' if req.enabled else '0',DEFAULT_DB_PATH)
+    return {'enabled':req.enabled}

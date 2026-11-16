@@ -154,6 +154,8 @@ MIGRATIONS = (
         created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')))""",
         "CREATE INDEX plans_agent_day ON plans(agent_id,sim_day)",
     ),
+    # Migration 8: distinguish seeded and director-origin events.
+    ("ALTER TABLE scheduled_events ADD COLUMN origin TEXT NOT NULL DEFAULT 'seed'",),
 )
 
 
