@@ -144,6 +144,16 @@ MIGRATIONS = (
         d_trust INTEGER,d_warmth INTEGER,reason TEXT NOT NULL,conversation_id INTEGER REFERENCES conversations(id),sim_at TEXT,
         created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')))""",
     ),
+    # Migration 7: validated daily plans, with explicit sim-day and retry state.
+    (
+        """CREATE TABLE plans(id INTEGER PRIMARY KEY,agent_id INTEGER NOT NULL REFERENCES agents(id),
+        action TEXT CHECK(action IN ('visit','phone','stay_home')),place TEXT,person_id INTEGER REFERENCES agents(id),
+        start_at TEXT,end_at TEXT,reason TEXT,fulfils_commitment_id INTEGER REFERENCES commitments(id),
+        status TEXT DEFAULT 'planned' CHECK(status IN ('planned','active','done','missed','cancelled')),outcome TEXT,
+        sim_day TEXT NOT NULL,attempts INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')))""",
+        "CREATE INDEX plans_agent_day ON plans(agent_id,sim_day)",
+    ),
 )
 
 

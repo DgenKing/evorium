@@ -48,6 +48,7 @@ def build_messages(speaker: dict, listener: dict, transcript: list[dict], knowle
     system += _section(f"PROMISES {listener['name'].upper()} MADE TO YOU (not yet done):", knowledge["their_promises"])
     system += _section(f"HOW YOU FEEL ABOUT {listener['name'].upper()}:", knowledge.get('relationship',[]))
     system += _section(f"PROMISES {listener['name'].upper()} HAS BROKEN TO YOU:", knowledge.get('broken_promises',[]))
+    system += _section("WHAT YOU HAVE DONE AND PLAN TO DO TODAY:",knowledge.get("plans",[]))
     system += _section("OTHER PEOPLE YOU KNOW OF:", knowledge["people"])
     if knowledge["last_with_listener"]:
         system += f"\n\nLAST TIME YOU SPOKE WITH {listener['name'].upper()}:\n- {knowledge['last_with_listener']}\nPick up from there; do not re-ask what was already answered."

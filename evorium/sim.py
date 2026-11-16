@@ -90,11 +90,17 @@ def _take_notes(client, db_path, conversation_id, a, b, transcript, sim_label):
 
 
 def run_conversation(client, agent_a_id: int, agent_b_id: int, turns: int = 4,
-                     db_path: str | Path = DEFAULT_DB_PATH) -> int:
+                     db_path: str | Path = DEFAULT_DB_PATH, location: str | None = None) -> int:
     now = world.now(db_path)
     sim_label = world.describe(now)
     with connect(db_path) as connection:
+        connection.execute('BEGIN IMMEDIATE')
         a, b = _agent(connection, agent_a_id), _agent(connection, agent_b_id)
+        from evorium.plans import busy
+        if a['kind']!='npc' or b['kind']!='npc' or a['id']==b['id'] or busy(connection,a['id']) or busy(connection,b['id']):
+            raise ValueError('A character is already talking or unavailable.')
+        if location:
+            a['location']=b['location']=location
         conversation_id = connection.execute(
             "INSERT INTO conversations (location, status, sim_time, agent_a_id, agent_b_id, sim_at) VALUES (?, 'running', ?, ?, ?, ?)",
             (a["location"], sim_label, a["id"], b["id"], now.strftime(DUE_FMT)),
@@ -107,7 +113,8 @@ def run_conversation(client, agent_a_id: int, agent_b_id: int, turns: int = 4,
             speaker, listener = (a, b) if turn % 2 == 0 else (b, a)
             with connect(db_path) as connection:
                 speaker.update(_agent(connection, speaker["id"]))
-                knowledge = knowledge_for_prompt(connection, speaker, listener)
+                if location:speaker['location']=location
+                knowledge = knowledge_for_prompt(connection, speaker, listener, now)
             messages = build_messages(speaker, listener, transcript, knowledge, sim_label)
             emit(f"Turn {turn + 1}/{turns}: {speaker['name']} (mood {speaker['mood']}; knows {len(knowledge['certain'])} facts, "
                  f"told {len(knowledge['told'])}, {len(knowledge['promises'])} open promises) — asking DeepSeek…")

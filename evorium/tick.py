@@ -33,7 +33,7 @@ def update_routines(now: datetime, db_path: str | Path = DEFAULT_DB_PATH) -> lis
     changes = []
     with connect(db_path) as connection:
         for a in _agents(connection):
-            loc, act = world.routine(a["name"], now)
+            loc, act = world.whereabouts(a, now, db_path)
             if loc != a["location"] or act != a["activity"]:
                 connection.execute("UPDATE agents SET location=?, activity=? WHERE id=?", (loc, act, a["id"]))
                 if loc != a['location'] and (loc == world.PUB or a['location'] == world.PUB or "Patel's News" in (loc,a['location'])):
@@ -73,7 +73,7 @@ def check_due_promises(client, now: datetime, db_path: str | Path = DEFAULT_DB_P
     handled = 0
     for p in due:
         agent = agents[p["agent_id"]]
-        loc, act = world.routine(agent["name"], now)
+        loc, act = world.whereabouts(agent, now, db_path)
         messages = build_promise_check_messages(agent, p, world.describe(now), loc, act)
         try:
             result = client.propose(agent["id"], messages, schema=PromiseCheck, max_tokens=PROMISE_CHECK_MAX_TOKENS)
@@ -98,10 +98,12 @@ def check_due_promises(client, now: datetime, db_path: str | Path = DEFAULT_DB_P
     return handled
 
 
-def conversation_due(now: datetime, gap_minutes: int, db_path: str | Path = DEFAULT_DB_PATH) -> bool:
+def conversation_due(now: datetime, gap_minutes: int, db_path: str | Path = DEFAULT_DB_PATH, location=None) -> bool:
     with connect(db_path) as connection:
         row = connection.execute(
-            "SELECT sim_time, sim_at FROM conversations WHERE status IN ('completed','running') ORDER BY id DESC LIMIT 1").fetchone()
+            """SELECT v.sim_time, v.sim_at FROM conversations v LEFT JOIN agents a ON a.id=v.agent_a_id
+            WHERE v.status IN ('completed','running') AND (a.kind='npc' OR a.id IS NULL)
+            AND (? IS NULL OR v.location=?) ORDER BY v.id DESC LIMIT 1""",(location,location)).fetchone()
     if row is None or not (row["sim_at"] or row["sim_time"]):
         return True
     try:
@@ -117,5 +119,5 @@ def conversation_due(now: datetime, gap_minutes: int, db_path: str | Path = DEFA
 
 
 def who_is_in_the_pub(now: datetime, db_path: str | Path = DEFAULT_DB_PATH) -> list[dict]:
-    with connect(db_path) as connection:
-        return world.present_in_pub(_agents(connection), now)
+    from evorium.places import present
+    return present(now,db_path)["pub"]

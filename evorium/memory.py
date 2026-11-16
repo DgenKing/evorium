@@ -35,7 +35,10 @@ def open_commitments(connection: sqlite3.Connection, agent_id: int) -> list[dict
         (agent_id, MAX_PROMISES))
 
 
-def knowledge_for_prompt(connection: sqlite3.Connection, speaker: dict, listener: dict) -> dict:
+def knowledge_for_prompt(connection: sqlite3.Connection, speaker: dict, listener: dict, now=None) -> dict:
+    from evorium.plans import today
+    from evorium import world
+    now = now or world._real_now()
     sid, lid = speaker["id"], listener["id"]
 
     certain = _rows(connection,
@@ -69,6 +72,7 @@ def knowledge_for_prompt(connection: sqlite3.Connection, speaker: dict, listener
     reasons = [r[0] for r in connection.execute('SELECT reason FROM relationship_events WHERE agent_id=? AND other_id=? ORDER BY id DESC LIMIT 2',(sid,lid))]
     broken = [r[0] for r in connection.execute("SELECT content FROM commitments WHERE agent_id=? AND to_agent_id=? AND status='broken' ORDER BY id DESC LIMIT 2",(lid,sid))]
     return {
+        "plans": [f"{p['start_at']}: {p['action']} {p['place'] or ''} [{p['status']}] — {p['outcome'] or p['reason']}" for p in today(connection,sid,now)],
         "relationship": [relationships.describe(rel), *reasons],
         "broken_promises": broken,
         "certain": [c["content"] for c in certain],

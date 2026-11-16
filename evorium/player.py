@@ -110,7 +110,7 @@ def say(client,to_agent_id,text,db_path=DEFAULT_DB_PATH):
                 (location,status,sim_time,sim_at,agent_a_id,agent_b_id) VALUES (?,'running',?,?,?,?)''',
                 (places.REGISTRY[place],world.describe(now),now.strftime(DUE_FMT),me['id'],to_agent_id)).lastrowid
             c.execute('INSERT INTO messages(conversation_id,speaker_id,text,rationale,sim_time) VALUES (?,?,?,?,?)',(cid,me['id'],text,'(player)',world.describe(now)))
-            knowledge=knowledge_for_prompt(c,target,me)
+            knowledge=knowledge_for_prompt(c,target,me,now)
         full=sim.get_conversation(cid,db_path)
         transcript=[{'speaker_name':m['speaker_name'],'text':m['text']} for m in full['messages']]
         try:proposal=client.propose(to_agent_id,build_messages(target,me,transcript,knowledge,world.describe(now)))

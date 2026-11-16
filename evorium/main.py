@@ -12,7 +12,7 @@ from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
-from evorium import tick, world, timeline, player, relationships
+from evorium import tick, world, timeline, player, relationships, places, plans
 from evorium.db import DEFAULT_DB_PATH, connect, init_db, npc_agents
 from evorium.events import emit, since
 from evorium.llm import DeepSeekClient, LLMError, get_usage
@@ -33,6 +33,7 @@ def _tick_loop():
     while not _state["stop"].is_set():
         try:
             now = world.now(DEFAULT_DB_PATH)
+            plans.execute(None,now,DEFAULT_DB_PATH,auto=False)
             for change in tick.update_routines(now, DEFAULT_DB_PATH):
                 emit(f"[{world.describe(now)}] {change}")
             tick.deliver_events(now, DEFAULT_DB_PATH)
@@ -42,18 +43,18 @@ def _tick_loop():
                     client = DeepSeekClient(DEFAULT_DB_PATH)
                     timeline.daily_digest(client, now, DEFAULT_DB_PATH)
                     tick.check_due_promises(client, now, DEFAULT_DB_PATH)
-                    present = tick.who_is_in_the_pub(now, DEFAULT_DB_PATH)
-                    if len(present) >= 2 and tick.conversation_due(now, _state["gap_minutes"], DEFAULT_DB_PATH) \
-                            and _run_lock.acquire(blocking=False):
+                    plans.daily(client,now,DEFAULT_DB_PATH)
+                    if _run_lock.acquire(blocking=False):
                         try:
-                            try:
-                                a, b = world.pick_pair([p["id"] for p in present], DEFAULT_DB_PATH)
-                            except ValueError:
-                                continue
-                            run_conversation(client, a, b, 4, DEFAULT_DB_PATH)
-                            _state["conversations"] += 1
-                        finally:
-                            _run_lock.release()
+                            plans.execute(client,now,DEFAULT_DB_PATH,auto=True)
+                            for key,present in places.opportunities(now,_state['gap_minutes'],DEFAULT_DB_PATH):
+                                try:a,b=world.pick_pair([p['id'] for p in present],DEFAULT_DB_PATH)
+                                except ValueError:continue
+                                try:run_conversation(client,a,b,4 if key=='pub' else 2,DEFAULT_DB_PATH,location=places.REGISTRY[key])
+                                except ValueError:continue
+                                _state['conversations']+=1
+                                break
+                        finally:_run_lock.release()
                 except LLMError as exc:
                     _last_error["message"] = str(exc)
                     if "budget cap" in str(exc) or "balance" in str(exc):
@@ -132,7 +133,7 @@ async def agents():
             resolved = [dict(c) for c in connection.execute(
                 "SELECT content, status, outcome FROM commitments WHERE agent_id=? AND status!='open' ORDER BY id DESC LIMIT 3", (aid,))]
             out.append({**dict(r), "in_pub": r["location"] == world.PUB, "facts": facts, "fact_counts": counts,
-                        "relationships": relationships.for_card(connection, aid), "promises": open_commitments(connection, aid), "resolved": resolved, "memories": memories})
+                        "plans": plans.today(connection,aid,now), "relationships": relationships.for_card(connection, aid), "promises": open_commitments(connection, aid), "resolved": resolved, "memories": memories})
     return out
 
 
@@ -150,7 +151,7 @@ async def usage():
         cap = None
     now = world.now(DEFAULT_DB_PATH)
     data.update({
-        "max_spend_usd": cap, "last_error": _last_error["message"], "running": _run_lock.locked(),
+        "places": places.describe(now,DEFAULT_DB_PATH), "max_spend_usd": cap, "last_error": _last_error["message"], "running": _run_lock.locked(),
         "auto": _state["auto"], "auto_conversations": _state["conversations"], "gap_minutes": _state["gap_minutes"],
         "sim_time": world.describe(now), "speed": world.get_speed(DEFAULT_DB_PATH), "pub_open": world.pub_open(now),
         "present": [p["name"].split()[0] for p in tick.who_is_in_the_pub(now, DEFAULT_DB_PATH)],
@@ -227,9 +228,12 @@ async def run(req: RunRequest):
             if len(ids) < 2:
                 raise HTTPException(409, f"Fewer than two people in the pub right now ({world.describe(now)}). "
                                          f"In: {', '.join(p['name'].split()[0] for p in present) or 'nobody'}. Speed the clock up or wait.")
-            a, b = world.pick_pair(ids, DEFAULT_DB_PATH)
+            try:a, b = world.pick_pair(ids, DEFAULT_DB_PATH)
+            except ValueError:raise HTTPException(409,'Fewer than two available people; someone is talking to the player.')
         cid = await run_in_threadpool(run_conversation, client, a, b, req.turns, DEFAULT_DB_PATH)
         return get_conversation(cid, DEFAULT_DB_PATH)
+    except ValueError as exc:
+        raise HTTPException(409,str(exc))
     except LLMError as exc:
         _last_error["message"] = str(exc)
         raise HTTPException(502, str(exc))

@@ -83,6 +83,7 @@
       <select id="speed"><option value="1">1× real time</option><option value="10">10×</option><option value="60">60× (1 min = 1 hr)</option><option value="600">600× (1 min = 10 hr)</option></select>
       <span id="status"></span>
     </div>
+    <div id="whereabouts" class="card"></div>
     <div id="error"></div>
     <section class="card" aria-label="You">
       <h2>You</h2><div id="player-place" class="sub"></div>
@@ -152,6 +153,7 @@ async function loadAgents(){
       <div class="row"><b>Goal</b>${esc(a.current_goal)}</div>
       <div class="row"><b>Now</b><span style="color:${a.in_pub?'var(--ok)':'var(--muted)'}">${esc(a.activity||'—')} · ${esc((a.location||'').split(',')[0])}</span></div>
       <div class="row"><b>Knowledge</b>${fc.seed||0} known · ${fc.told||0} told · <span style="color:var(--err)">${fc.claim||0} rumour</span></div>
+      <div class="mem"><b>Today's plans</b>${(a.plans||[]).filter(p=>p.status!=='cancelled').map(p=>`<div>${esc(p.start_at.slice(11))} · ${esc(p.action)} ${esc(p.place||'')} [${esc(p.status)}] — ${esc(p.reason)}</div>`).join('')||'<div>Following their routine.</div>'}</div>
       <div class="mem"><b>Relationships</b>${(a.relationships||[]).map(r=>`<div title="${esc(r.reason)}">${esc(r.name)}: ${esc(r.trust)} · ${esc(r.warmth)}</div>`).join('')}</div>
       ${a.resolved && a.resolved.length ? `<div class="mem"><b>Promises kept / broken</b>${a.resolved.map(p=>`<div>• <span style="color:${p.status==='done'?'var(--ok)':'var(--err)'}">[${p.status}]</span> ${esc(p.content)}${p.outcome?' — <i>'+esc(p.outcome)+'</i>':''}</div>`).join('')}</div>` : ''}
       ${a.promises.length ? `<div class="mem"><b>Open promises</b>${a.promises.map(p=>`<div>• ${esc(p.content)}${p.to_name?' <i>(to '+esc(p.to_name)+')</i>':''}</div>`).join('')}</div>` : ''}
@@ -186,7 +188,8 @@ async function loadUsage(){
   $('u-spend').textContent = '$' + u.estimated_spend_usd.toFixed(4);
   $('u-cap').textContent = u.max_spend_usd==null ? 'no config' : '$'+u.max_spend_usd.toFixed(2);
   $('u-left').textContent = '$' + u.estimated_remaining_usd.toFixed(4);
-  $('location').textContent = `${u.sim_time}${u.speed!=1?' · '+u.speed+'×':''} · pub ${u.pub_open?'OPEN':'SHUT'} · in: ${u.present.length?u.present.join(', '):'nobody'}${u.tick_alive?'':' · ⚠ tick stalled'}`;
+  $('location').textContent = `${u.sim_time}${u.speed!=1?' · '+u.speed+'×':''}${u.tick_alive?'':' · ⚠ tick stalled'}`;
+  $('whereabouts').innerHTML='<b>Where everyone is</b>'+(u.places||[]).map(p=>`<div class="row"><b>${esc(p.name.split(',')[0])}</b> ${p.open?esc(p.people.map(a=>a.name.split(' ')[0]).join(', ')||'Nobody here'):'Shut'}</div>`).join('');
   if (document.activeElement !== $('speed')) $('speed').value = String(u.speed);
   $('error').textContent = u.last_error || '';
   $('run').disabled = u.running;

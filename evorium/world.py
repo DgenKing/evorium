@@ -105,7 +105,7 @@ def _between(dt, start, end) -> bool:
     return start <= h < end
 
 
-def routine(name: str, dt: datetime) -> tuple[str, str]:
+def _routine_location(name: str, dt: datetime) -> tuple[str, str]:
     """(location, activity) for a character at a sim datetime. Deterministic."""
     wd = dt.weekday()  # Mon=0
     first = name.split()[0]
@@ -150,6 +150,36 @@ def routine(name: str, dt: datetime) -> tuple[str, str]:
         return "Rented room, Stockport", "at home" if _between(dt, 7, 23) else "asleep"
     return "Ancoats", "about"
 
+
+
+def _routine(name,dt):
+    location,activity=_routine_location(name,dt)
+    free=activity not in ('asleep','behind the bar',"doing the pub's shopping",'working the bar','cleaning shift','behind the counter','at work','at the office','driving')
+    return location,activity,free
+
+
+def routine(name,dt):
+    return _routine(name,dt)[:2]
+
+
+def is_free(name,dt):
+    return _routine(name,dt)[2]
+
+
+def home_location(name):
+    return {'Dez':'Flat above The Crooked Billet','Jess':'Flat, Miles Platting','Tommy':'Flat, Blossom Street',
+            'Raj':'Home, Cheetham Hill','Chloe':'Rented room, Stockport','Simon':'Home, Hale','Brenda':'Home, Blossom Street','Mohammed':'Home, Manchester'}.get(name.split()[0],'Home, Ancoats')
+
+
+def whereabouts(agent,now,db_path=DEFAULT_DB_PATH):
+    with connect(db_path) as c:
+        plan=c.execute("""SELECT * FROM plans WHERE agent_id=? AND status='active' AND action IN ('visit','stay_home')
+            AND start_at<=? AND end_at>? ORDER BY id DESC LIMIT 1""",(agent['id'],now.strftime('%Y-%m-%d %H:%M'),now.strftime('%Y-%m-%d %H:%M'))).fetchone()
+    if plan:
+        if plan['action']=='stay_home':return home_location(agent['name']),'staying home'
+        from evorium.places import REGISTRY
+        return REGISTRY[plan['place']], 'popping into the shop' if plan['place']=='shop' else 'in for a drink'
+    return routine(agent['name'],now)
 
 def present_in_pub(agents: list[dict], dt: datetime) -> list[dict]:
     return [a for a in agents if a.get("kind", "npc") == "npc" and routine(a["name"], dt)[0] == PUB]
