@@ -41,6 +41,9 @@
   .controls { display:flex; gap:10px; align-items:center; margin-bottom:12px; flex-wrap:wrap; }
   button { background:var(--accent); color:#111; border:0; border-radius:6px; padding:9px 16px; font-weight:600; cursor:pointer; }
   button:disabled { opacity:.45; cursor:default; }
+  input, textarea { background:#222; color:var(--fg); border:1px solid #444; border-radius:6px; padding:8px; font:inherit; max-width:100%; }
+  .player-form { display:flex; flex-wrap:wrap; gap:8px; margin:10px 0; }
+  #player-thread { max-height:360px; overflow:auto; }
   select { background:#222; color:var(--fg); border:1px solid #333; border-radius:6px; padding:8px; }
   #status { color:var(--muted); font-size:13px; }
   .msg { padding:10px 12px; border-left:3px solid #333; margin-bottom:8px; background:#191919; border-radius:0 6px 6px 0; }
@@ -81,6 +84,16 @@
       <span id="status"></span>
     </div>
     <div id="error"></div>
+    <section class="card" aria-label="You">
+      <h2>You</h2><div id="player-place" class="sub"></div>
+      <form id="player-profile" class="player-form"><label>Name <input id="player-name" minlength="2" maxlength="30" required size="16"></label><label>About <input id="player-about" maxlength="200" size="25"></label><button>Save profile</button></form>
+      <div id="player-places" class="controls"></div><div id="player-people" class="controls"></div>
+      <div id="player-thread" aria-live="polite"></div>
+      <form id="player-chat" class="player-form"><label for="player-text">Say something</label><input id="player-text" maxlength="500" required style="flex:1"><button id="player-send">Send</button><button type="button" id="player-end">End conversation</button></form>
+      <p id="player-error" role="status" style="color:var(--err)"></p>
+      <details><summary>Your promises</summary><div id="player-promises"></div></details>
+      <details><summary>What you've learned</summary><div id="player-learned"></div></details>
+    </section>
     <div id="transcript" class="card"><div class="empty">No conversation yet. Press “Run conversation”.</div></div>
     <div class="card"><div class="sub">Live feed — what the server is doing right now</div><div id="log" class="log"></div></div>
   </section>
@@ -199,8 +212,48 @@ $('speed').onchange = async () => {
   loadUsage();
 };
 
+
+let playerData=null, talkTo=null, playerPending=false;
+async function playerPost(path,body={}){
+  return j('/player'+path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+}
+async function playerAction(action){
+  $('player-error').textContent='';
+  try{await action();await loadPlayer();}catch(e){$('player-error').textContent=e.message;}
+}
+async function loadPlayer(){
+  const p=await j('/player');playerData=p;
+  if(!p.conversation&&!p.place)talkTo=null;
+  if(p.conversation&&talkTo===null)talkTo=p.conversation.agent_b_id;
+  if(!$('player-name').dataset.loaded){$('player-name').value=p.name;$('player-about').value=p.about;$('player-name').dataset.loaded='1';}
+  $('player-profile').querySelector('button').disabled=!!p.conversation;
+  $('player-place').textContent=p.place?`You are in ${p.places.find(x=>x.key===p.place)?.name||p.place}.`:'You are outside the world.';
+  $('player-places').innerHTML=p.places.map(x=>`<button type="button" data-enter="${esc(x.key)}" ${!x.open?'disabled':''} title="${esc(x.reason)}">${x.key==='pub'?'Walk into the Crooked Billet':"Go into Patel's News"}${!x.open?' (shut)':''}</button>`).join('')+`<button type="button" id="player-leave" ${!p.place?'disabled':''}>Leave</button>`;
+  for(const button of $('player-places').querySelectorAll('[data-enter]'))button.onclick=()=>playerAction(()=>playerPost('/enter',{place:button.dataset.enter}));
+  $('player-leave').onclick=()=>playerAction(()=>playerPost('/leave'));
+  const here=p.places.find(x=>x.key===p.place)?.people||[];
+  $('player-people').innerHTML=p.place?here.map(a=>`<button type="button" data-talk="${esc(a.id)}" aria-pressed="${a.id===talkTo}">${esc(a.name)}</button>`).join('')||'<span class="sub">Nobody else is here.</span>':'';
+  for(const button of $('player-people').querySelectorAll('[data-talk]'))button.onclick=()=>{talkTo=+button.dataset.talk;loadPlayer();$('player-text').focus();};
+  $('player-chat').hidden=!p.place;
+  $('player-send').disabled=playerPending||!here.some(a=>a.id===talkTo);
+  $('player-end').disabled=playerPending||!p.conversation;
+  const thread=(p.conversation?.messages||[]).map(m=>`<div class="msg ${m.speaker_id===p.id?'a':'b'}"><div class="who">${esc(m.speaker_id===p.id?'You':m.speaker_name)}</div><div>${esc(m.text)}</div>${m.speaker_id!==p.id?`<div class="why">${esc(m.rationale)}</div>`:''}</div>`).join('');
+  if($('player-thread').innerHTML!==thread){$('player-thread').innerHTML=thread;$('player-thread').scrollTop=$('player-thread').scrollHeight;}
+  $('player-promises').innerHTML=p.promises.map(v=>`<div class="row">${esc(v.content)} <span class="sub">${esc(v.due_at||'')}</span> <button data-promise="${esc(v.id)}" data-done="true">Done</button> <button data-promise="${esc(v.id)}" data-done="false">Didn't do it</button></div>`).join('')||'<p class="sub">No open promises.</p>';
+  for(const button of $('player-promises').querySelectorAll('button'))button.onclick=()=>playerAction(()=>playerPost('/promises/'+button.dataset.promise,{done:button.dataset.done==='true',note:''}));
+  $('player-learned').innerHTML=p.learned.map(f=>`<p class="sub">${esc(f.content)}${f.by_name?' — told by '+esc(f.by_name):''}</p>`).join('')||'<p class="sub">Nothing yet. Start a conversation.</p>';
+}
+$('player-profile').onsubmit=e=>{e.preventDefault();playerAction(async()=>{await playerPost('/profile',{name:$('player-name').value,about:$('player-about').value});});};
+$('player-end').onclick=()=>playerAction(async()=>{await playerPost('/end');talkTo=null;});
+$('player-chat').onsubmit=async e=>{
+  e.preventDefault();if(playerPending||!talkTo)return;
+  playerPending=true;$('player-send').disabled=true;
+  await playerAction(async()=>{await playerPost('/say',{to_agent_id:talkTo,text:$('player-text').value});$('player-text').value='';});
+  playerPending=false;await loadPlayer();$('player-text').focus();
+};
+
 async function refresh(){
-  try { await Promise.all([loadAgents(), loadUsage(), j('/conversations/latest').then(renderConv)]); }
+  try { await Promise.all([loadAgents(), loadUsage(), loadPlayer(), j('/conversations/latest').then(renderConv)]); }
   catch(e){ $('error').textContent = e.message; }
 }
 

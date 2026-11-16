@@ -97,7 +97,7 @@ def store_extraction(connection: sqlite3.Connection, conversation_id: int, parti
             continue
         for f in ext.facts:
             told_by = agent_id_for(f.told_by)
-            if told_by == me:
+            if told_by == me or told_by not in {p["id"] for p in participants.values()}:
                 told_by = None
             source = f.source
             # A 'told' fact with no identifiable teller inside the conversation is just a claim.
@@ -154,4 +154,8 @@ def resolve_commitment(connection, cid, status, outcome, now, conversation_id=No
     timeline.record(connection, now, 'promise_kept' if status=='done' else 'promise_broken',
         f"{row['name']} {'kept' if status=='done' else 'broke'} a promise: {row['content']} — {outcome}",
         3 if status=='done' else 4, row['agent_id'], row['to_agent_id'], conversation_id)
+    if row['to_agent_id']:
+        if connection.execute("SELECT kind FROM agents WHERE id=?",(row['agent_id'],)).fetchone()[0]=='player':
+            text=(f"{row['name']} did what they promised: {row['content']}" if status=='done' else f"{row['name']} promised to {row['content']} and didn't.")
+            connection.execute("INSERT INTO facts(agent_id,subject,content,source) VALUES (?,'promise',?,'observed')",(row['to_agent_id'],text))
     return 1

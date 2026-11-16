@@ -12,7 +12,7 @@ from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
-from evorium import tick, world, timeline
+from evorium import tick, world, timeline, player
 from evorium.db import DEFAULT_DB_PATH, connect, init_db, npc_agents
 from evorium.events import emit, since
 from evorium.llm import DeepSeekClient, LLMError, get_usage
@@ -36,6 +36,7 @@ def _tick_loop():
             for change in tick.update_routines(now, DEFAULT_DB_PATH):
                 emit(f"[{world.describe(now)}] {change}")
             tick.deliver_events(now, DEFAULT_DB_PATH)
+            player.maintenance(DeepSeekClient(DEFAULT_DB_PATH), now, DEFAULT_DB_PATH)
             if _state["auto"]:
                 try:
                     client = DeepSeekClient(DEFAULT_DB_PATH)
@@ -45,7 +46,10 @@ def _tick_loop():
                     if len(present) >= 2 and tick.conversation_due(now, _state["gap_minutes"], DEFAULT_DB_PATH) \
                             and _run_lock.acquire(blocking=False):
                         try:
-                            a, b = world.pick_pair([p["id"] for p in present], DEFAULT_DB_PATH)
+                            try:
+                                a, b = world.pick_pair([p["id"] for p in present], DEFAULT_DB_PATH)
+                            except ValueError:
+                                continue
                             run_conversation(client, a, b, 4, DEFAULT_DB_PATH)
                             _state["conversations"] += 1
                         finally:
@@ -67,6 +71,7 @@ async def lifespan(app: FastAPI):
     init_db()
     seed_agents()
     seed_events(DEFAULT_DB_PATH, world.now(DEFAULT_DB_PATH))
+    player.maintenance(DeepSeekClient(DEFAULT_DB_PATH), world.now(DEFAULT_DB_PATH), DEFAULT_DB_PATH, startup=True)
     stuck = mark_interrupted()
     now = world.now(DEFAULT_DB_PATH)
     tick.update_routines(now, DEFAULT_DB_PATH)
@@ -240,3 +245,48 @@ async def timeline_data(since: str | None = None, until: str | None = None, agen
 @app.get('/timeline-page')
 async def timeline_page():
     return FileResponse(STATIC / 'timeline.html')
+
+
+class ProfileRequest(BaseModel):
+    name: str
+    about: str = ''
+
+class EnterRequest(BaseModel):
+    place: str
+
+class SayRequest(BaseModel):
+    to_agent_id: int
+    text: str
+
+class PromiseRequest(BaseModel):
+    done: bool
+    note: str = Field(default='',max_length=300)
+
+@app.get('/player')
+def player_state():
+    return player.state(DEFAULT_DB_PATH)
+
+@app.post('/player/profile')
+def player_profile(req: ProfileRequest):
+    return player.profile(req.name,req.about,DEFAULT_DB_PATH)
+
+@app.post('/player/enter')
+def player_enter(req: EnterRequest):
+    return player.enter(DeepSeekClient(DEFAULT_DB_PATH),req.place,DEFAULT_DB_PATH)
+
+@app.post('/player/leave')
+def player_leave():
+    return player.leave(DeepSeekClient(DEFAULT_DB_PATH),DEFAULT_DB_PATH)
+
+@app.post('/player/say')
+def player_say(req: SayRequest):
+    return player.say(DeepSeekClient(DEFAULT_DB_PATH),req.to_agent_id,req.text,DEFAULT_DB_PATH)
+
+@app.post('/player/end')
+def player_end():
+    player.close(DeepSeekClient(DEFAULT_DB_PATH),DEFAULT_DB_PATH)
+    return player.state(DEFAULT_DB_PATH)
+
+@app.post('/player/promises/{promise_id}')
+def player_promise(promise_id: int, req: PromiseRequest):
+    return player.resolve(promise_id,req.done,req.note,DEFAULT_DB_PATH)

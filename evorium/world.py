@@ -162,6 +162,10 @@ def pick_pair(ids: list[int], db_path: str | Path = DEFAULT_DB_PATH, recent_wind
             "SELECT id, agent_a_id, agent_b_id FROM conversations WHERE agent_a_id IS NOT NULL ORDER BY id DESC LIMIT 50"
         ).fetchall()
         allowed = {r[0] for r in connection.execute("SELECT id FROM agents WHERE kind='npc'")}
+        busy = {r[0] for r in connection.execute("""SELECT v.agent_b_id FROM conversations v JOIN agents a ON a.id=v.agent_a_id
+            WHERE a.kind='player' AND v.status='running' AND EXISTS (SELECT 1 FROM messages m
+            WHERE m.conversation_id=v.id AND julianday(m.created_at)>=julianday('now','-3 minutes'))""")}
+        allowed -= busy
     ids = [i for i in ids if i in allowed]
     if len(ids) < 2:
         raise ValueError("Fewer than two available characters.")

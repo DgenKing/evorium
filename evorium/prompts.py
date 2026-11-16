@@ -39,6 +39,8 @@ def build_messages(speaker: dict, listener: dict, transcript: list[dict], knowle
         current_goal=speaker["current_goal"], mood=speaker["mood"], location=speaker["location"],
         sim_time=sim_time, other_name=listener["name"], other_occupation=listener["occupation"],
     )
+    if listener.get('kind') == 'player':
+        system += f"\n{listener['name']} is someone you know only from what is listed here. Do not assume anything else about them."
     system += _section("WHAT YOU KNOW FOR CERTAIN (your own experience):", knowledge["certain"])
     system += _section("WHAT OTHERS HAVE TOLD YOU (second-hand, may be wrong):", knowledge["told"])
     system += _section("THINGS YOU SAID EARLIER THAT YOU CAN'T ACTUALLY VERIFY (treat as your own guesswork):", knowledge["claims"])

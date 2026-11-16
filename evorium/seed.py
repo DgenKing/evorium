@@ -116,3 +116,9 @@ def seed_agents(db_path: str | Path = DEFAULT_DB_PATH) -> None:
             (name, age, occupation, background, personality, current_goal, mood, location, kind)
             VALUES ('World', 0, 'World bookkeeping', 'System', 'Neutral', 'Record events', 'neutral', 'World', 'system')
             ON CONFLICT(name) DO NOTHING""")
+
+        if not connection.execute("SELECT 1 FROM agents WHERE kind='player'").fetchone():
+            connection.execute("""INSERT INTO agents
+                (name,age,occupation,background,personality,current_goal,mood,location,kind)
+                VALUES ('Stranger',0,'New face in Ancoats','Known only through conversation','Human player',
+                'Meet the neighbours','curious','Not in the world','player')""")

@@ -48,7 +48,7 @@ def mark_interrupted(db_path: str | Path = DEFAULT_DB_PATH) -> int:
     with connect(db_path) as connection:
         cur = connection.execute(
             """UPDATE conversations SET status='failed', summary=COALESCE(summary, 'Interrupted — notes unavailable.'),
-               ended_at=COALESCE(ended_at, strftime('%Y-%m-%dT%H:%M:%fZ','now')) WHERE status='running'""")
+               ended_at=COALESCE(ended_at, strftime('%Y-%m-%dT%H:%M:%fZ','now')) WHERE status='running' AND (agent_a_id IS NULL OR agent_a_id NOT IN (SELECT id FROM agents WHERE kind='player'))""")
     return cur.rowcount
 
 

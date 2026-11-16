@@ -66,8 +66,8 @@ def check_due_promises(client, now: datetime, db_path: str | Path = DEFAULT_DB_P
     with connect(db_path) as connection:
         due = [dict(r) for r in connection.execute(
             """SELECT c.id, c.agent_id, c.content, c.due_at, t.name AS to_name
-               FROM commitments c LEFT JOIN agents t ON t.id = c.to_agent_id
-               WHERE c.status='open' AND c.due_at IS NOT NULL AND c.due_at <= ?
+               FROM commitments c JOIN agents owner ON owner.id=c.agent_id LEFT JOIN agents t ON t.id = c.to_agent_id
+               WHERE owner.kind='npc' AND c.status='open' AND c.due_at IS NOT NULL AND c.due_at <= ?
                ORDER BY c.due_at LIMIT ?""", (now.strftime(DUE_FMT), MAX_PROMISE_CHECKS_PER_TICK))]
         agents = {a["id"]: a for a in _agents(connection)}
     handled = 0
