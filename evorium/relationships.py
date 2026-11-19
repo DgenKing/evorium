@@ -42,7 +42,7 @@ def for_card(c,aid):
     for other in c.execute("SELECT id,name FROM agents WHERE kind!='system' AND id!=? ORDER BY id",(aid,)).fetchall():
         r=get(c,aid,other['id'])
         reason=c.execute('SELECT reason FROM relationship_events WHERE agent_id=? AND other_id=? ORDER BY id DESC LIMIT 1',(aid,other['id'])).fetchone()
-        result.append({'id':other['id'],'name':other['name'],'trust':TRUST[band(r['trust'])],'warmth':WARMTH[band(r['warmth'])],'reason':reason[0] if reason else ''})
+        result.append({'id':other['id'],'name':other['name'],'trust':TRUST[band(r['trust'])],'warmth':WARMTH[band(r['warmth'])],'trust_value':r['trust'],'warmth_value':r['warmth'],'reason':reason[0] if reason else ''})
     return result
 
 

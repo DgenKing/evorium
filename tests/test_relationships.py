@@ -45,3 +45,17 @@ def test_feelings_are_bounded(db,feeling,expected):
         cid=c.execute("insert into conversations(location,status) values ('pub','completed')").lastrowid
         store_extraction(c,cid,people,Extraction.model_validate({'summary':'s','per_agent':{'Chloe Barlow':{'feeling':feeling}}}),datetime(2026,11,16,20))
         assert relationships.get(c,2,1)['trust']==50+expected
+
+
+@pytest.mark.parametrize('trust,warmth', [(0, 100), (44, 65), (80, 29)])
+def test_for_card_keeps_bands_and_adds_raw_values(db, trust, warmth):
+    with connect(db) as c:
+        c.execute('UPDATE relationships SET trust=?,warmth=? WHERE agent_id=1 AND other_id=2',
+                  (trust, warmth))
+        card = next(r for r in relationships.for_card(c, 1) if r['id'] == 2)
+        assert card['trust_value'] == trust
+        assert card['warmth_value'] == warmth
+        assert card['trust'] == relationships.TRUST[relationships.band(trust)]
+        assert card['warmth'] == relationships.WARMTH[relationships.band(warmth)]
+        assert card['name'] == 'Chloe Barlow'
+        assert card['reason'] == ''

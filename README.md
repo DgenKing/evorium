@@ -138,3 +138,28 @@ Tests use temporary SQLite files and never call the real API. Schema versioning
 uses SQLite's `user_version`; append new entries to `MIGRATIONS` in `evorium/db.py`
 for future schema changes. Each connection enforces foreign keys, commits on
 success, rolls back on failure and closes when finished.
+
+
+## Map view
+
+Choose **Map** beside **Dashboard**, or open `/#map`, for a live canvas view of
+The Crooked Billet, Patel's News and the empty Northgate unit. The last selected
+tab is remembered in this browser. Characters walk between doors, idle at their
+spots and show bubbles during running conversations. Lighting and open/closed
+signs follow the simulation clock; your player appears when visiting a place.
+
+Walking is cosmetic: the backend remains the source of truth. The map reuses
+the dashboard's existing data polling, performs no writes or model calls, and
+animates only while visible. At fast clock speeds, interrupted routes catch up
+to the latest whereabouts. Click a sprite (or choose its name below the map)
+for a portrait, stats, relationship bars and a link to its full dashboard card.
+
+To add the remaining portraits, put `simon.png`, `brenda.png` and `mo.png` in
+`evorium/static/portraits/`, then add `'Simon Ferris': 'simon'`,
+`'Brenda Ashworth': 'brenda'` and `'Mohammed "Mo" Iqbal': 'mo'` to the
+`portraits` map in `evorium/static/index.html`. Until then their popup shows an
+enlarged procedural sprite. No image assets or dependencies are used for map
+characters.
+
+Optional frontend movement checks, using Node without installing packages:
+`node tests/map_view.test.cjs`.
