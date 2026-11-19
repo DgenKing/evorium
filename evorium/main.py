@@ -25,6 +25,20 @@ from evorium.seed import seed_agents, seed_events
 from evorium.sim import get_conversation, latest_conversation_id, mark_interrupted, run_conversation
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+
+
+class _HidePolling(logging.Filter):
+    """The dashboard polls several GET endpoints every second or two; keep those out of the terminal.
+    Actions (POSTs), errors and anything else still show."""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        args = record.args if isinstance(record.args, tuple) else ()
+        if len(args) >= 5 and args[1] == "GET" and str(args[4]).startswith("2"):
+            return False
+        return True
+
+
+logging.getLogger("uvicorn.access").addFilter(_HidePolling())
 STATIC = Path(__file__).resolve().parent / "static"
 _run_lock = threading.Lock()
 _last_error: dict = {"message": None}

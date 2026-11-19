@@ -240,10 +240,16 @@ async function loadPlayer(){
   for(const button of $('player-places').querySelectorAll('[data-enter]'))button.onclick=()=>playerAction(()=>playerPost('/enter',{place:button.dataset.enter}));
   $('player-leave').onclick=()=>playerAction(()=>playerPost('/leave'));
   const here=p.places.find(x=>x.key===p.place)?.people||[];
-  $('player-people').innerHTML=p.place?here.map(a=>`<button type="button" data-talk="${esc(a.id)}" aria-pressed="${a.id===talkTo}">${esc(a.name)}</button>`).join('')||'<span class="sub">Nobody else is here.</span>':'';
+  if(talkTo!==null&&!here.some(a=>a.id===talkTo))talkTo=null;
+  if(talkTo===null&&here.length===1)talkTo=here[0].id;  // only one person here: talk to them
+  const pick=here.length>1&&talkTo===null?'<span class="sub">Click a name to choose who to talk to.</span> ':'';
+  const target=here.find(a=>a.id===talkTo);
+  $('player-people').innerHTML=p.place?(here.length?pick+'Talking to: '+here.map(a=>`<button type="button" data-talk="${esc(a.id)}" aria-pressed="${a.id===talkTo}" ${a.id===talkTo?'style="background:#4c88d4;color:#fff"':''}>${esc(a.name)}</button>`).join(''):'<span class="sub">Nobody else is here.</span>'):'';
+  $('player-text').placeholder=target?`Say something to ${target.name.split(' ')[0]}…`:(here.length?'Pick someone above first':'Nobody here to talk to');
   for(const button of $('player-people').querySelectorAll('[data-talk]'))button.onclick=()=>{talkTo=+button.dataset.talk;loadPlayer();$('player-text').focus();};
   $('player-chat').hidden=!p.place;
-  $('player-send').disabled=playerPending||!here.some(a=>a.id===talkTo);
+  $('player-send').disabled=playerPending;
+  $('player-send').textContent=playerPending?'Waiting…':'Send';
   $('player-end').disabled=playerPending||!p.conversation;
   const thread=(p.conversation?.messages||[]).map(m=>`<div class="msg ${m.speaker_id===p.id?'a':'b'}"><div class="who">${esc(m.speaker_id===p.id?'You':m.speaker_name)}</div><div>${esc(m.text)}</div>${m.speaker_id!==p.id?`<div class="why">${esc(m.rationale)}</div>`:''}</div>`).join('');
   if($('player-thread').innerHTML!==thread){$('player-thread').innerHTML=thread;$('player-thread').scrollTop=$('player-thread').scrollHeight;}
@@ -254,7 +260,8 @@ async function loadPlayer(){
 $('player-profile').onsubmit=e=>{e.preventDefault();playerAction(async()=>{await playerPost('/profile',{name:$('player-name').value,about:$('player-about').value});});};
 $('player-end').onclick=()=>playerAction(async()=>{await playerPost('/end');talkTo=null;});
 $('player-chat').onsubmit=async e=>{
-  e.preventDefault();if(playerPending||!talkTo)return;
+  e.preventDefault();if(playerPending)return;
+  if(!talkTo){$('player-error').textContent='Click the name of the person you want to talk to first.';return;}
   playerPending=true;$('player-send').disabled=true;
   await playerAction(async()=>{await playerPost('/say',{to_agent_id:talkTo,text:$('player-text').value});$('player-text').value='';});
   playerPending=false;await loadPlayer();$('player-text').focus();
