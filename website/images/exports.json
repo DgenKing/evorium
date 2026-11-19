@@ -1,0 +1,407 @@
+[
+  {
+    "file": "hero.webp",
+    "width": 2400,
+    "height": 1350,
+    "bytes": 327748,
+    "quality": 79
+  },
+  {
+    "file": "hero.jpg",
+    "width": 2400,
+    "height": 1350,
+    "bytes": 380257,
+    "quality": 65
+  },
+  {
+    "file": "hero-small.webp",
+    "width": 1200,
+    "height": 675,
+    "bytes": 188096,
+    "quality": 84
+  },
+  {
+    "file": "hero-small.jpg",
+    "width": 1200,
+    "height": 675,
+    "bytes": 191019,
+    "quality": 80
+  },
+  {
+    "file": "rain-window.webp",
+    "width": 1600,
+    "height": 1200,
+    "bytes": 196942,
+    "quality": 74
+  },
+  {
+    "file": "rain-window.jpg",
+    "width": 1600,
+    "height": 1200,
+    "bytes": 228406,
+    "quality": 60
+  },
+  {
+    "file": "rain-window-small.webp",
+    "width": 800,
+    "height": 600,
+    "bytes": 115802,
+    "quality": 84
+  },
+  {
+    "file": "rain-window-small.jpg",
+    "width": 800,
+    "height": 600,
+    "bytes": 112253,
+    "quality": 80
+  },
+  {
+    "file": "street-dusk.webp",
+    "width": 1800,
+    "height": 1200,
+    "bytes": 214476,
+    "quality": 69
+  },
+  {
+    "file": "street-dusk.jpg",
+    "width": 1800,
+    "height": 1200,
+    "bytes": 222461,
+    "quality": 45
+  },
+  {
+    "file": "street-dusk-small.webp",
+    "width": 900,
+    "height": 600,
+    "bytes": 139884,
+    "quality": 84
+  },
+  {
+    "file": "street-dusk-small.jpg",
+    "width": 900,
+    "height": 600,
+    "bytes": 135749,
+    "quality": 80
+  },
+  {
+    "file": "pub-interior.webp",
+    "width": 1200,
+    "height": 900,
+    "bytes": 142386,
+    "quality": 84
+  },
+  {
+    "file": "pub-interior.jpg",
+    "width": 1200,
+    "height": 900,
+    "bytes": 172743,
+    "quality": 80
+  },
+  {
+    "file": "pub-interior-small.webp",
+    "width": 600,
+    "height": 450,
+    "bytes": 52226,
+    "quality": 84
+  },
+  {
+    "file": "pub-interior-small.jpg",
+    "width": 600,
+    "height": 450,
+    "bytes": 56225,
+    "quality": 80
+  },
+  {
+    "file": "shop-interior.webp",
+    "width": 1200,
+    "height": 900,
+    "bytes": 132564,
+    "quality": 84
+  },
+  {
+    "file": "shop-interior.jpg",
+    "width": 1200,
+    "height": 900,
+    "bytes": 170712,
+    "quality": 80
+  },
+  {
+    "file": "shop-interior-small.webp",
+    "width": 600,
+    "height": 450,
+    "bytes": 50816,
+    "quality": 84
+  },
+  {
+    "file": "shop-interior-small.jpg",
+    "width": 600,
+    "height": 450,
+    "bytes": 57873,
+    "quality": 80
+  },
+  {
+    "file": "char-dez.webp",
+    "width": 900,
+    "height": 1200,
+    "bytes": 62170,
+    "quality": 84
+  },
+  {
+    "file": "char-dez.jpg",
+    "width": 900,
+    "height": 1200,
+    "bytes": 98229,
+    "quality": 80
+  },
+  {
+    "file": "char-jess.webp",
+    "width": 900,
+    "height": 1200,
+    "bytes": 64802,
+    "quality": 84
+  },
+  {
+    "file": "char-jess.jpg",
+    "width": 900,
+    "height": 1200,
+    "bytes": 102095,
+    "quality": 80
+  },
+  {
+    "file": "char-raj.webp",
+    "width": 900,
+    "height": 1200,
+    "bytes": 101376,
+    "quality": 84
+  },
+  {
+    "file": "char-raj.jpg",
+    "width": 900,
+    "height": 1200,
+    "bytes": 135512,
+    "quality": 80
+  },
+  {
+    "file": "char-tommy.webp",
+    "width": 900,
+    "height": 1200,
+    "bytes": 83568,
+    "quality": 84
+  },
+  {
+    "file": "char-tommy.jpg",
+    "width": 900,
+    "height": 1200,
+    "bytes": 121171,
+    "quality": 80
+  },
+  {
+    "file": "char-chloe.webp",
+    "width": 900,
+    "height": 1200,
+    "bytes": 94370,
+    "quality": 84
+  },
+  {
+    "file": "char-chloe.jpg",
+    "width": 900,
+    "height": 1200,
+    "bytes": 131359,
+    "quality": 80
+  },
+  {
+    "file": "char-brenda.webp",
+    "width": 900,
+    "height": 1200,
+    "bytes": 187650,
+    "quality": 84
+  },
+  {
+    "file": "char-brenda.jpg",
+    "width": 900,
+    "height": 1200,
+    "bytes": 203039,
+    "quality": 80
+  },
+  {
+    "file": "char-mo.webp",
+    "width": 900,
+    "height": 1200,
+    "bytes": 133450,
+    "quality": 84
+  },
+  {
+    "file": "char-mo.jpg",
+    "width": 900,
+    "height": 1200,
+    "bytes": 163966,
+    "quality": 80
+  },
+  {
+    "file": "char-simon.webp",
+    "width": 900,
+    "height": 1200,
+    "bytes": 103346,
+    "quality": 84
+  },
+  {
+    "file": "char-simon.jpg",
+    "width": 900,
+    "height": 1200,
+    "bytes": 143445,
+    "quality": 80
+  },
+  {
+    "file": "catchup-bg.webp",
+    "width": 2000,
+    "height": 1200,
+    "bytes": 164458,
+    "quality": 84
+  },
+  {
+    "file": "catchup-bg.jpg",
+    "width": 2000,
+    "height": 1200,
+    "bytes": 210707,
+    "quality": 75
+  },
+  {
+    "file": "catchup-bg-small.webp",
+    "width": 1000,
+    "height": 600,
+    "bytes": 73338,
+    "quality": 84
+  },
+  {
+    "file": "catchup-bg-small.jpg",
+    "width": 1000,
+    "height": 600,
+    "bytes": 90153,
+    "quality": 80
+  },
+  {
+    "file": "reputation.webp",
+    "width": 1600,
+    "height": 1000,
+    "bytes": 128306,
+    "quality": 84
+  },
+  {
+    "file": "reputation.jpg",
+    "width": 1600,
+    "height": 1000,
+    "bytes": 184246,
+    "quality": 80
+  },
+  {
+    "file": "reputation-small.webp",
+    "width": 800,
+    "height": 500,
+    "bytes": 54876,
+    "quality": 84
+  },
+  {
+    "file": "reputation-small.jpg",
+    "width": 800,
+    "height": 500,
+    "bytes": 66803,
+    "quality": 80
+  },
+  {
+    "file": "how-it-works.webp",
+    "width": 1600,
+    "height": 900,
+    "bytes": 212036,
+    "quality": 79
+  },
+  {
+    "file": "how-it-works.jpg",
+    "width": 1600,
+    "height": 900,
+    "bytes": 210136,
+    "quality": 65
+  },
+  {
+    "file": "how-it-works-small.webp",
+    "width": 800,
+    "height": 450,
+    "bytes": 88764,
+    "quality": 84
+  },
+  {
+    "file": "how-it-works-small.jpg",
+    "width": 800,
+    "height": 450,
+    "bytes": 86501,
+    "quality": 80
+  },
+  {
+    "file": "unreal-hero.webp",
+    "width": 2400,
+    "height": 1000,
+    "bytes": 227356,
+    "quality": 69
+  },
+  {
+    "file": "unreal-hero.jpg",
+    "width": 2400,
+    "height": 1000,
+    "bytes": 224429,
+    "quality": 40
+  },
+  {
+    "file": "unreal-hero-small.webp",
+    "width": 1200,
+    "height": 500,
+    "bytes": 157406,
+    "quality": 84
+  },
+  {
+    "file": "unreal-hero-small.jpg",
+    "width": 1200,
+    "height": 500,
+    "bytes": 153397,
+    "quality": 80
+  },
+  {
+    "file": "waitlist-bg.webp",
+    "width": 2000,
+    "height": 1000,
+    "bytes": 226032,
+    "quality": 79
+  },
+  {
+    "file": "waitlist-bg.jpg",
+    "width": 2000,
+    "height": 1000,
+    "bytes": 214034,
+    "quality": 55
+  },
+  {
+    "file": "waitlist-bg-small.webp",
+    "width": 1000,
+    "height": 500,
+    "bytes": 117740,
+    "quality": 84
+  },
+  {
+    "file": "waitlist-bg-small.jpg",
+    "width": 1000,
+    "height": 500,
+    "bytes": 117277,
+    "quality": 80
+  },
+  {
+    "file": "og-image.jpg",
+    "width": 1200,
+    "height": 630,
+    "bytes": 161942,
+    "quality": 80
+  },
+  {
+    "file": "grain.png",
+    "width": 200,
+    "height": 200,
+    "bytes": 7865
+  }
+]

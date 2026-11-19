@@ -127,8 +127,9 @@ CONVERSATION:
 {transcript}
 
 Return JSON exactly like:
-{{"summary": "...", "per_agent": {{"{a_name}": {{"decision": null, "feeling": {{"trust_change": 0, "warmth_change": 0, "reason": "..."}}, "facts": [{{"subject": "...", "content": "...", "source": "told", "told_by": "{b_name}", "importance": 3}}], "commitments": [], "new_people": []}}, "{b_name}": {{"decision": null, "feeling": {{...}}, "facts": [...], "commitments": [], "new_people": []}}}}, "commitments_done": []}}
-Keep it tight: at most 3 facts and 3 commitments per speaker, an empty facts list is fine. Never record trivia."""
+{{"summary": "...", "per_agent": {{"{a_name}": {{"decision": null, "feeling": {{"trust_change": 0, "warmth_change": 0, "reason": "..."}}, "facts": [{{"subject": "...", "content": "...", "source": "told", "told_by": "{b_name}", "importance": 3}}], "commitments": [{{"content": "Ring the brewery about the late delivery", "to": "{b_name}", "due_hours": 24, "replaces": null}}], "new_people": []}}, "{b_name}": {{"decision": null, "feeling": {{...}}, "facts": [...], "commitments": [], "new_people": []}}}}, "commitments_done": []}}
+Keep it tight: at most 3 facts and 3 commitments per speaker, an empty facts list is fine. Never record trivia.
+The example values are illustrations only: record a commitment whenever a speaker says they will do something (e.g. "I'll ring them", "forty by Sunday, that's a promise"), and use an empty list only when nobody promised anything."""
 
 
 def build_extraction_messages(a: dict, b: dict, transcript: list[dict], known_facts: list[str],

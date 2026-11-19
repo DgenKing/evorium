@@ -40,3 +40,6 @@ venv/
 .DS_Store
 Thumbs.db
 Built-Through-Time.mp4
+
+# Website image masters (large PNGs); the optimised WebP/JPG in website/images are committed
+website/images/src/

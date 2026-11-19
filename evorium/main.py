@@ -19,7 +19,7 @@ from fastapi.responses import FileResponse, Response
 from evorium.configuration import load
 from pydantic import BaseModel, Field
 
-from evorium import economy, actions, decide, backoff, tick, world, timeline, player, relationships, places, plans, director
+from evorium import scene, economy, actions, decide, backoff, tick, world, timeline, player, relationships, places, plans, director
 from evorium.db import DEFAULT_DB_PATH, VISIBLE_IMPORTANCE, connect, init_db, npc_agents
 from evorium.events import emit, since
 from evorium.llm import DeepSeekClient, DeferredClient, LLMError, get_usage
@@ -209,6 +209,11 @@ async def agents():
             out.append({"today_action": today_action[0] if today_action else None, "considering": considering[0] if considering else None, **dict(r), "in_pub": r["location"] == world.PUB, "facts": facts, "fact_counts": counts,
                         "plans": plans.today(connection,aid,now), "relationships": relationships.for_card(connection, aid), "promises": open_commitments(connection, aid), "resolved": resolved, "memories": memories})
     return out
+
+
+@app.get("/world/scene")
+def world_scene():
+    return scene.snapshot(DEFAULT_DB_PATH)
 
 
 @app.get("/events")

@@ -20,6 +20,7 @@ MAX_RECENT = 3
 MAX_FACTS_PER_SPEAKER = 3   # per conversation, after trivia is dropped
 REPEAT_TOPIC_AFTER = 2      # a subject raised in this many conversations today counts as "already covered"
 DEFAULT_DUE_HOURS = 72  # every promise gets a deadline, so the tick always checks it eventually
+EXAMPLE_COMMITMENT = "ring the brewery about the late delivery"  # must match the example in prompts.py
 
 
 def _rows(connection, sql, params=()):
@@ -163,6 +164,8 @@ def store_extraction(connection: sqlite3.Connection, conversation_id: int, parti
                 timeline.record(connection, now, 'serious', f"{name}: {f.content}", 4, me, conversation_id=conversation_id)
             counts["facts"] += 1
         for c in ext.commitments:
+            if c.content.strip().lower() == EXAMPLE_COMMITMENT:  # the prompt's illustration, copied by mistake
+                continue
             due_at = (now + timedelta(hours=c.due_hours or DEFAULT_DUE_HOURS)).strftime(DUE_FMT)
             if c.replaces is not None:
                 # Same promise restated with more detail or a new deadline: update it rather than add a duplicate.

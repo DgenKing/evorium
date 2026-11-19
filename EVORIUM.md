@@ -90,7 +90,7 @@ can walk in and talk to them; a dashboard and a 2D map show it all live.
 | Map tab | 2D canvas: pub, shop, empty unit, street; pixel sprites walk, idle, show speech bubbles; click for portrait + stats |
 | Model | DeepSeek `deepseek-flash`, JSON mode, temperature 0.8 (0.2 for structured calls) |
 | Cost | ~$0.03 for the first 70 calls; roughly 0.3–0.5 US cents per conversation including notes |
-| Tests | 214 Python tests + 7 Node map tests, all offline |
+| Tests | 225 Python tests + 7 Node map tests, all offline |
 
 ### Tech stack and dependencies
 
@@ -196,6 +196,10 @@ The model only ever sees words ("you are wary of… and like them"), never numbe
 | `evorium/static/index.html` | Dashboard + tab bar |
 | `evorium/static/map.js` | Map tab |
 | `evorium/static/timeline.html` | Timeline page |
+
+The Unreal client polls `GET /world/scene`, which reads a consistent SQLite snapshot through a read-only
+connection. It exposes public presence/dialogue only and adds no model calls. Spot assignments live in Python;
+Unreal handles cosmetic walking, bubbles, lighting and doors.
 
 ### Main endpoints
 
@@ -343,6 +347,34 @@ DeepSeek; the owner later ran the live server on the new code.
 
 ### M4 build — 19 November 2026
 
+- **First playable 3D build (late 19 Nov):** after the SM5 fix, the Unreal project opens and the owner can run around
+  Shuttle Street in third person. The owner's verdict: early and rough, but the graphics are "not that bad". The
+  playable area is very small, because the kit is one street frontage with a mill backdrop.
+- **Conversation review, evening of 19 Nov (#49–#62):**
+  - *Better:*
+    - Relationships now move on every conversation, for real reasons.
+    - Raj finally told Dez (#53, #58) and Jess (#56) about the £45k offer. Dez and Raj worked out Northgate
+      may be clearing the terrace, and Dez advised getting the offer in writing before the 18th.
+    - M4's situation lines show up in talk: Dez quoted £3,900 rent against £3,520 takings and £6,000 in
+      reserve.
+    - Only serious facts score 5. No empty failed conversations since the backoff.
+    - About $0.046 for 103 calls.
+  - *Player test:* the owner (as Rob) insulted Jess and claimed to have a gun. Jess barred him and told Dez to
+    ring the police; Dez promised to. But it only cost Rob −4 trust and warmth (the ±2 cap), so Jess is still
+    "neutral" towards him, and the bar isn't enforced: Rob walked back in and talked to Dez.
+  - *Bug found and fixed: promises were never recorded.* There were 0 in all 62 conversations, including
+    "forty by Sunday, that's a promise" and "I'll ring them, I promise". The cause was the note-taker's example
+    JSON showing `"commitments": []`, the same trap as the feelings bug.
+    - The example now shows a filled-in promise, and the prompt says when to record one.
+    - `memory.EXAMPLE_COMMITMENT` drops the example if the model copies it.
+    - A live re-test recorded Tommy's quiz questions and Dez's police call, with no false promise on a
+      conversation without one.
+    - Test added; 224 pass. Takes effect after a server restart.
+  - *Still weak:*
+    - The quiz loops: "forty by Sunday" was restated in 4 conversations, and Dez "floated reviving the quiz" in
+      #62 as if new, because no promise or action ever recorded it.
+    - No decisions from conversations or plans yet, only the two `wait` reactions. Today's plans were made
+      before M4 went live, so tomorrow is the first real test.
 - Implemented the decisions-and-consequences brief: outage backoff, ledger/weekly finances, offers, 28 menu
   actions including job choices, shared validation and decision guards, dynamic routines/notices, reactions,
   Northgate outcomes, follow-on templates, catch-up, dashboard/API/map/timeline fields.
@@ -386,9 +418,109 @@ DeepSeek; the owner later ran the live server on the new code.
 - **Behaviour change to know about:** Jess's bar nights moved from Mon, Tue, Thu, Fri to Thu, Fri, Sat, Sun (the
   brief's order for a shift count). Mo drives on Thursday evenings, so he never makes the quiz.
 
+### Unreal preflight — 19 November 2026
+
+- Read `AGENTS.md`, this document and the full five-stage `CODEX_PROMPT_UNREAL.md` brief.
+- Confirmed the data-drive folder, UnrealEditor-Cmd, Build.sh, Third Person template and kit archive exist.
+- Stage 1 is blocked before extraction/project creation: a temporary write probe under
+  `/run/media/user/Data Storage/Evorium` failed with `OSError: [Errno 30] Read-only file system`.
+  This Codex session permits writes only to the Python repository and `/tmp`. Restart with the data-drive
+  folder writable using the command in the Unreal brief §6. Unreal was not launched, so GPU/editor sandbox
+  compatibility has not been tested. Stages 1–5 remain unbuilt; no editor checks are available yet.
+- No kit extraction, engine/project changes, server requests, database/config changes or commits were made.
+
+### Unreal Stage 1 build — 19 November 2026
+
+- The data-drive write probe now passes. Extracted the kit to `AncoatsKit` and created
+  `EvoriumUnreal` alongside engine 5.8.4 at the paths in the brief. No live database/config changes.
+- Third Person C++ template, mannequin and Enhanced Input resources copied with class redirects;
+  editor target builds. Headless Python passes using `InstalledNoZenLocalFallback`. Build Accelerator
+  requires `~/.epic` outside the workspace sandbox; build-command permission was granted.
+- Reviewed/adapted the kit importer for 5.8 material slot access, combined sets and disabled Nanite.
+  Import: zero errors, seven tangent warnings (owner must inspect shading).
+- Generated ShuttleStreet with shared-origin sets, lighting, start, 15 labelled waypoint actors and nav bounds.
+  Triangle collision restores missing floor queries; explicit physics preparation makes headless queries work.
+  All 15 floor traces are within 5 cm; both entrance rays are clear; all five required nav paths pass.
+  Level checks: `EvoriumUnreal/Saved/Logs/level_checks.json`. Owner visual checks remain outstanding.
+
+### Ban enforcement investigation — 19 November 2026
+
+- After Rob threatened Jess in-game, a later screenshot showed Dez greeting him warmly despite an earlier
+  verbal ejection. Code review found no persistent ban/ejection state or admission checks: `player.enter`
+  checks opening hours, and `player.say` checks presence/busy state. A spoken ban cannot block re-entry.
+- Dialogue uses bounded memories and relationship descriptions; those influence model replies but do not
+  guarantee that a threat or a verbal ban governs the next greeting. The exact cause of this reply was not
+  verified: the live database and provider were not accessed.
+- No behaviour changes made. Next work: explicit Python-owned ejection/ban/reinstatement actions and
+  persistent admission enforcement, plus prioritising relevant serious incidents in player dialogue.
+
+### Unreal Stage 2 cast — 19 November 2026
+
+- Added `Cast.json`, eight tint instances, native NPC/AI classes, nearby first-name labels, speech widgets,
+  `Evorium.MoveTo`, and the N-key toggle. CastPreview loads all eight meshes/animation classes;
+  headless game test reports `count=8 moves=8`.
+- Built Manny/kit IK rigs and a retargeter. Automatic chain mapping worked, but the kit importer did not
+  persist Skeleton assets, so batch-exported animations could not bind. The explicitly permitted fallback
+  is active: all eight use tinted Manny with the template's shared locomotion animation blueprint.
+  Requested kit mapping remains in `Cast.json`. Kit bodies, sitting/leaning and retargeted locomotion are
+  unfinished. Owner must check feet, facing, tints from five metres, names and movement visually.
+
+### Unreal Stage 3 connection — 19 November 2026
+
+- Added read-only `/world/scene` in `scene.py`: public scene fields, deterministic spots/slots,
+  clock/daylight, notices, visible/away presence and recent public dialogue. SQLite URI mode=ro prevents
+  accidental writes; no model calls. Five tests cover slots, visibility, privacy, expiry and zero conversations.
+- Added Unreal connection settings, polling/spawn/movement subsystem, speech, lighting/doors/notices,
+  F1 debug HUD and 30-real-second runtime comparison. Offline smoke on a database copy at port 8011 with
+  fake replies passed: 20 polls, three expected/matching positioned actors, closing shop at 60x, speech logged.
+  223 Python and seven Node tests pass. No live database/config edits, real model calls or commits.
+- Owner reported GTX 1060 Vulkan feature-level failure. Preserved their Vulkan SM5 entry beside SM6;
+  launch helpers explicitly use `-sm5`. Nanite/VSM/Lumen/ray tracing disabled. Corrected renderer settings
+  placement and made the sun movable. No feature requires SM6. Visual/GPU performance checks remain.
+- Build with `-NoHotReloadFromIDE` to avoid stale hot-reload libraries during automated checks.
+
+### Unreal Stage 4 player — 19 November 2026
+
+- Added Rob's neutral Manny from `Cast.json`, physical door triggers, entry/leave calls, nearby E-to-talk,
+  code-built chat/profile/catch-up panels, keyboard/mouse focus, API error text, NPC facing and speech.
+- Actual walk test passed on the fake-model 8011 server in 19.4 seconds: entered pub, confirmed `/player`,
+  reached a neighbour, sent chat through the panel, received fake reply, closed chat, walked out and confirmed leave.
+- Runtime walking exposed a flaw the nav-path checks alone missed: decorative triangle collision snagged a
+  character on low furniture. Restored the kit's authored UCX hulls from read-only FBX data (24 pub, 17 shop,
+  3 street), with floor alignment in Unreal. Render meshes unchanged. All floor/door/nav checks pass again.
+  Character capsules are 30 cm radius/90 cm half-height; nav agent is 35 cm radius/180 cm height. NPCs do not
+  physically block one another. Floor-level nav projection avoids picking furniture tops.
+- The standalone smoke server exposes its fake-client identity at `/smoke/status`; the Unreal player test
+  refuses other URLs or a server without that identity. The normal app has no fake-model hook.
+
+### Unreal Stage 5 pause / resume notes — 19 November 2026
+
+- Owner requested stopping during Stage 5. Stages 1–4 passed; Stage 5 is partial, not complete.
+- Final editor and Linux Development game builds passed. Final scene test: 30 real seconds/20 polls,
+  three matching positioned actors, 60x closing-time transition and fake speech. Final player test: 21.03
+  seconds, actual entry/chat/fake reply/close/exit with server confirmations. Latest full suite: 225 Python
+  and seven Node tests pass (the repository also contains unrelated concurrent work).
+- Added Close/Esc control restoration, longer player-request timeouts, SM5 launch/build helpers and
+  headless performance recording. NullRHI means 0.576 ms street / 0.381 ms pub frame intervals, with
+  startup spikes; these do not measure GTX 1060 GPU performance. The zero game-thread counter is unavailable.
+- Optional packaging was started and interrupted. Nested quoting in its optional local-cache argument
+  needs correction before retrying. No finished package has been verified. Check for remaining descendants
+  of the interrupted cook before resuming; do not stop the owner's other editor/server.
+- Detailed remaining work, commands, evidence and safeguards are in
+  `/run/media/user/Data Storage/Evorium/EvoriumUnreal/REMAINING_WORK.md`. Finish packaging if desired,
+  consolidate owner docs, create the final file inventory and perform visual/GPU checks. Kit retargeting
+  and sitting remain unfinished under the permitted Manny fallback. No commits or live DB/config edits.
+
 ---
 
 ## 6. Known issues and open questions
+- **Spoken bans are not enforced:** there is no persisted ban/ejection state or admission check. A character
+  can describe throwing Rob out, yet the UI still admits him and a later greeting may be friendly. Explicit
+  ban/reinstatement actions and relevant-incident prompt priority remain to build.
+
+- **Unreal client in progress:** Stages 1–4 automated checks pass (Manny cast fallback). Owner stopped work during Stage 5;
+  packaging/final handover and visual checks remain. See the Unreal project’s `REMAINING_WORK.md`.
+  Kit import reports seven tangent warnings; inspect street, shop and handpump shading.
 
 - **Old trivia still visible** until `python -m evorium.rescore --apply` is run once (it previews first, backs
   up, hides rather than deletes).
@@ -403,6 +535,15 @@ DeepSeek; the owner later ran the live server on the new code.
   live — check `evorium.log` and the timeline after a day or two.
 - **M4 simplifications:** fixed two-hour reaction delay (sixteen hours for reconsideration); flat viewing and
   outside-job offers use small Python templates. Pub income is an illustrative weekly model, not accounting.
+- **Serious incidents barely move relationships:** feelings are capped at ±2 (×2), so threats of violence cost
+  only −4. Consider a wider negative range for threats and violence (e.g. down to −5, ×2 = −10).
+- **Being barred isn't enforced:** a character can say the player is barred, but nothing stops them walking
+  back in. It needs an action (e.g. `bar_customer` for Dez and Jess) that the player endpoints respect.
+  **On hold (owner, 19 Nov)** while the owner is testing by provoking characters. When built, include a
+  testing override (a dashboard toggle or an unbar button) so the owner can't lock themselves out.
+- **3D faces are stand-ins:** the kit's faces are baked into each body's texture, so the 2D portraits can't
+  simply be put onto them. The portraits appear in the click popup and on name tags instead (§10). A true Dez
+  model would have to be built from `dez.png` by the friend.
 - **The dashboard is a god view**: it shows every character's private knowledge. Fine for one owner, not for
   public players (§8).
 - **Starlette test-client deprecation warning** (harmless).
@@ -422,10 +563,25 @@ Short term (single owner):
    for the five) and register the new three in the `portraits` map in `index.html`.
 3. Use the place renders as the map backdrop or a click-through "street view".
 4. Decide on daytime pub visitors.
-5. **M4 is built, reviewed and live** (migrations applied, first decisions made). Restart once more to load the
+5. **3D client:** Stage 1 automated build/import/geometry/navigation checks pass on the writable data
+   drive. Continue Stages 2–5 and perform the owner visual checks. See [CODEX_PROMPT_UNREAL.md](CODEX_PROMPT_UNREAL.md) to Codex. It's a UE 5.8 **Games →
+   Third Person (C++)** project built in 5 stages:
+   1. the kit import and the street level;
+   2. the cast, with stand-in bodies, tints and name tags;
+   3. a read-only `/world/scene` endpoint, with Unreal walking characters to spots;
+   4. the player as Rob, walking in and talking to characters;
+   5. polish and an owner checklist.
+
+   Unreal never decides anything; Python stays the brain.
+6. **Website:** give [CODEX_PROMPT_WEBSITE.md](CODEX_PROMPT_WEBSITE.md) to Codex: a one-page, image-heavy, plain
+   HTML/CSS site in `website/`. Its theme is "Ancoats after dark": ink, brick, Billet green and amber, with
+   Fraunces or Playfair and Inter. The pitch is "The street doesn't stop when you leave": a living 3D world,
+   AI neighbours with personalities, real time, and your reputation is the game. Codex generates all the
+   images, and the waitlist uses a placeholder email.
+7. **M4 is built, reviewed and live** (migrations applied, first decisions made). Restart once more to load the
    review fixes, then watch decisions over a few sim days and play Northgate to an ending: both offers come to a
    head on 17–18 Dec. Review the pacing and the settlement constants against the story.
-6. Then a small online test with 5–10 friends using their own keys, before planning for large numbers.
+8. Then a small online test with 5–10 friends using their own keys, before planning for large numbers.
 
 Then: the online version (§8) and levelling (§9), and later the 3D/Unreal client (§10).
 
@@ -487,6 +643,28 @@ for user-paid access such as **OpenRouter's sign-in flow** (not yet checked).
   about you** (score-5 facts like "Rob offered me crack" travel).
 - **Coming back:** a "while you were away" summary: what happened, and who's been talking about you.
 
+### Behaviour is the game (owner, 19 Nov)
+
+Players will swear, insult and threaten. The NPCs are decent people who won't stand for it, and that's the
+point: bad behaviour costs you in the world itself.
+- Trust drops and the gossip spreads.
+- You get barred, and doors close.
+- Nobody will lend you money or tip you off.
+
+Good behaviour earns the opposite. This is the core of "surviving in Manchester", and it ties straight into
+the levelling plan (§9: neighbourhood standing).
+
+For an online version:
+- **Each player's standing is their own.** NPCs remember each player separately, so one troll can't spoil the
+  world for everyone. Their behaviour still becomes gossip *about them*.
+- **Barring and other consequences** apply to that player only.
+- **Hide NPC reasoning from players.** The player chat currently shows each reply's private rationale (e.g.
+  Dez: "Hold him to my promise about the police while pressing him on the earlier threat"). That's fine in the
+  owner's god view, but a public player must see only what the character says.
+- **Moderation is still needed:** abuse aimed at *real* players, and content the model provider refuses.
+  Every message goes to DeepSeek on the player's key, so extreme input can fail or break the provider's
+  rules. Plan a light filter and per-player rate limits.
+
 ### What has to be built
 
 | Area | Work |
@@ -526,13 +704,64 @@ pool and settings, then open sign-ups.
 
 ## 10. Art, 3D and Unreal
 
+Unreal build (19 Nov): Stage 1 is built at `/run/media/user/Data Storage/Evorium/EvoriumUnreal`.
+Editor compilation, headless import, 15 floor traces, entrance rays and five nav paths pass.
+Stage 2 uses the permitted tinted-Manny fallback because imported kit Skeletons did not persist.
+See its `README.md` and `OWNER_CHECKLIST.md`; visual checks and Stage 5 handover are pending. Work was stopped at the owner’s request;
+`REMAINING_WORK.md` in the Unreal project records the exact resume state.
+
 - **Portraits:** five original photoreal portraits (`evorium/static/portraits/`, 256×256, prompts in that
   folder's README). A friend has now made **all eight** in one consistent style — use the full new set.
 - **Place renders:** the Crooked Billet and Patel's News exterior, the pub interior, the shop interior, a brick
   texture. Candidates for the map backdrop and a "street view".
-- **`Ancoats_Blender_Unreal_Kit.zip`** (26 MB): the friend's Blender/Unreal kit, "getting ready for import of
-  actual characters and places in Unreal Engine". Not yet inspected. Keep it **out of git**; unpack into its own
-  folder (e.g. `~/projects/evorium-assets/`) and don't run anything inside it.
+- **`Ancoats_Blender_Unreal_Kit.zip`**: the friend's Blender/Unreal kit, second version (19 Nov), 148 MB and
+  102 files. It replaced the 26 MB first version. Keep it **out of git**: `*.zip` is ignored, and it's over
+  GitHub's 100 MB file limit anyway. Unpack it into its own folder (e.g. `~/projects/evorium-assets/`).
+  - **Set:** "Shuttle Street", with The Crooked Billet (dark green, oak bar, hand pumps, oxblood booths) and
+    Patel's News (blue and cream, aisle, parcel counter, chillers), in front of a mill backdrop. Three FBX set
+    pieces share one origin, plus 9 prop FBXs, PBR textures and a material manifest.
+  - **Import:** `unreal/Import_Ancoats.py` is an assisted import for Unreal Engine 5 (Python Editor Script
+    Plugin, legacy FBX importer). It has not been tested in Unreal by the kit's author.
+  - **Waypoints:** 12 interaction spots in `waypoints.json` (PUB_ENTRY, PUB_HOST, PUB_BAR, PUB_BOOTH,
+    PUB_WINDOW, PUB_DART, NEWS_TILL, NEWS_QUEUE, NEWS_RACK, NEWS_CHILLER, NEWS_PARCELS, plus street spots).
+    Positions are in metres in Blender axes; convert to centimetres for Unreal.
+  - **Characters:** 8 rigged skeletal FBXs (a shared 20-bone FK skeleton) with 2K photo-textured bodies
+    rebuilt from turnaround sheets, with an idle animation only. There's no walking, sitting or face
+    animation.
+  - **The kit's cast is its own, not ours:** Janine Ward (pub licensee), Sanjay Patel (newsagent), Frank Doyle
+    (retired machinist), Amina Okafor (bar worker), Imran Malik (cycle courier), Ewa Kowalska (building
+    surveyor), Rory Campbell (print apprentice) and Val Mercer (community walk organiser). Its schedules and
+    `Schedules.csv` are for that cast; Evorium's Python routines will drive movement instead.
+  - **Close matches for bodies:** Raj → Sanjay, Tommy → Frank, Jess → Amina, Mo → Imran, Chloe → Ewa,
+    Brenda → Val.
+  - **Decided (19 Nov), the 3D casting:**
+
+    | Evorium | Kit body | Notes |
+    |---|---|---|
+    | Raj | Sanjay Patel | |
+    | Tommy | Frank Doyle | |
+    | Jess | Amina Okafor | |
+    | Mo | Imran Malik | |
+    | Chloe | Ewa Kowalska | |
+    | Brenda | Val Mercer | |
+    | Dez | Frank Doyle, recoloured | Grey-haired working man, the closest to `dez.png` |
+    | Simon | Tommy's body (Frank), recoloured | He's rarely on the street |
+
+  - **Telling them apart:** each character uses an Unreal material instance with its own clothing tint, plus a
+    name tag. Clicking a character shows their real 2D portrait, as the Map tab does. The dashboard keeps
+    initials for Simon; Tommy's photo isn't reused there.
+  - **Not used:** Janine and Rory, available as background extras later.
+  - **Later:** ask the friend to build Dez (and Simon) from the portraits, using the same turnaround method.
+- **Unreal install (19 Nov):** Unreal Engine **5.8.4** for Linux (precompiled) at
+  `/run/media/user/Data Storage/Evorium/UnrealEngine-5.8.4`.
+  - It has `UnrealEditor`, `UnrealEditor-Cmd` and the Python Script plugin, so imports and level setup can be
+    scripted headless (e.g. by Codex).
+  - The GPU is a **GTX 1060 6 GB**, below UE5's comfortable range. The project should switch off Lumen and
+    Nanite and use lower scalability settings.
+  - **The GTX 1060 can't run Vulkan SM6**, which is the Third Person template's only Linux target, so the editor
+    stopped with "Vulkan device could not be created at the project's supported feature levels". The fix
+    (19 Nov): `EvoriumUnreal/Config/DefaultEngine.ini` `[LinuxTargetSettings]` now targets `SF_VULKAN_SM5` as
+    well as SM6 (backup in `DefaultEngine.ini.bak-before-sm5`). Keep SM5 enabled while this GPU is in use.
 - **Unreal architecture:** Evorium stays the **brain**, Unreal becomes the **body**. Unreal reads the same API
   the map uses (`/agents`, `/usage`, `/conversations/latest`) and moves 3D characters to spots; the map's rules
   (activity → spot, door waypoints, speech bubbles, catching up at high speed) carry straight over. Decide later

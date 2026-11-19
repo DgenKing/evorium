@@ -245,3 +245,42 @@ Startup appends migrations 10–13 and creates only missing ledger records; deli
 seed letters become offers once, with deadlines measured from their saved delivery time.
 It preserves the live database and all history. This build was tested only with fake
 clients; no live API smoke test or live-save migration was performed.
+
+
+## Unreal client build preflight
+
+The five-stage build instructions are in [CODEX_PROMPT_UNREAL.md](CODEX_PROMPT_UNREAL.md).
+On 19 November, the engine, Third Person template and kit were found, but writing to
+`/run/media/user/Data Storage/Evorium` failed with `Errno 30: Read-only file system`.
+Stage 1 has not started. Restart Codex with that folder writable, following §6 of the
+brief (which also includes the Python repository and Unreal settings directories).
+Unreal has not been launched; no broader sandbox access has yet been shown necessary.
+The live server, database and `config.py` were untouched.
+
+## Unreal client (in progress)
+
+Project: `/run/media/user/Data Storage/Evorium/EvoriumUnreal/EvoriumUnreal.uproject`,
+engine: sibling `UnrealEngine-5.8.4`. Stage 1 builds/imports and passes geometry/navigation checks.
+See the project's `README.md` and `OWNER_CHECKLIST.md` for commands, progress and visual checks.
+The Python live database and `config.py` are unchanged.
+
+
+Current player limitation: a character's spoken ejection or ban is dialogue/memory only.
+There is no persistent admission rule preventing re-entry. Later replies may also fail
+to reflect the incident consistently; explicit ban/reinstatement mechanics remain to build.
+
+`GET /world/scene` is the read-only public rendering snapshot for Unreal (no private facts or model calls).
+For offline integration, run `.venv/bin/python tools/smoke_unreal.py`: it copies the live database using
+SQLite's read-only backup, binds only `127.0.0.1:8011`, sets auto off, and replaces every model client with
+a fake. Stop it with Ctrl+C. Never point automated player tests at port 8000.
+Launch the Unreal editor through `Scripts/open_editor.sh -EvoriumServer=http://127.0.0.1:8011` in the Unreal
+project; this forces Vulkan SM5 for the GTX 1060 and uses a filesystem cache.
+
+The Unreal player now walks through door triggers, talks with E within two metres, and uses the existing
+profile/chat/catch-up APIs. Its automated walk/chat/leave test runs only against the verified fake server
+on 8011: `python3 Scripts/smoke_player.py` from the Unreal project. No automated test uses port 8000.
+
+Unreal work stopped at the owner's request during Stage 5. Stages 1–4 passed; packaging and final
+handover remain unfinished. Resume notes: `/run/media/user/Data Storage/Evorium/EvoriumUnreal/REMAINING_WORK.md`.
+Keep Vulkan SM5 enabled and use the SM5 launch helpers for the GTX 1060. The live Python server was
+not restarted by this work; restart it yourself before trying the new `/world/scene` route on 8000.

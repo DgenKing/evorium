@@ -1,0 +1,142 @@
+[
+  {
+    "file": "hero.webp",
+    "width": 2400,
+    "height": 1350,
+    "brief_prompt": "A cobbled Manchester side street in Ancoats at blue hour after rain. A red-brick Victorian corner pub with a dark green painted frontage and gold sign lettering reading \"THE CROOKED BILLET\" glows warm amber from its windows. Two doors down, a blue and cream newsagent, \"PATEL'S NEWS\". Tall red-brick cotton mills and a chimney stack behind, wet setts reflecting the pub light, a lone figure in a coat walking past. Cinematic, moody, 35mm, shallow depth of field, film grain.",
+    "status": "generated"
+  },
+  {
+    "file": "rain-window.webp",
+    "width": 1600,
+    "height": 1200,
+    "brief_prompt": "Inside a traditional Manchester pub at night, looking out through a rain-streaked sash window at a wet red-brick street. A half-finished pint of bitter on the sill, warm lamp light inside, cool blue street light outside. Intimate, quiet, cinematic.",
+    "status": "generated"
+  },
+  {
+    "file": "street-dusk.webp",
+    "width": 1800,
+    "height": 1200,
+    "brief_prompt": "Wide shot of a short terrace street in Ancoats at dusk: the dark green Crooked Billet pub and the blue and cream Patel's News side by side, an empty unit between them with a faded \"TO LET\" board, iron bollards, a bicycle locked to a rail, mill buildings behind. Cinematic, desaturated, film grain.",
+    "status": "generated"
+  },
+  {
+    "file": "pub-interior.webp",
+    "width": 1200,
+    "height": 900,
+    "brief_prompt": "Interior of an old Manchester free house: dark oak bar, brass hand pumps, oxblood leather booths, a dartboard on the back wall, warm low light, a few regulars in soft focus, a barmaid in her thirties with tied-back dark hair pulling a pint. Cinematic, natural, film still.",
+    "status": "generated"
+  },
+  {
+    "file": "shop-interior.webp",
+    "width": 1200,
+    "height": 900,
+    "brief_prompt": "Interior of a small family-run Manchester newsagent early morning: a newspaper rack, a counter with a till, drinks chillers glowing at the back, a parcel shelf. A man in his early forties with neat dark hair behind the counter, thoughtful. Natural light, film still.",
+    "status": "generated"
+  },
+  {
+    "file": "char-dez.webp",
+    "width": 900,
+    "height": 1200,
+    "brief_prompt": "Portrait of Dez, 54, a Manchester pub landlord: greying short hair, weathered kind face, stubble, dark polo shirt, standing behind his bar, warm pub light, a tired half-smile. Match `portraits/dez.png`.",
+    "status": "generated"
+  },
+  {
+    "file": "char-jess.webp",
+    "width": 900,
+    "height": 1200,
+    "brief_prompt": "Portrait of Jess, 34, a barmaid and single mum: sharp, funny, tired eyes, dark hair tied back, black top, behind a pub bar. Match `portraits/jess.png`.",
+    "status": "generated"
+  },
+  {
+    "file": "char-raj.webp",
+    "width": 900,
+    "height": 1200,
+    "brief_prompt": "Portrait of Raj, 41, a careful, shrewd newsagent: neat dark hair, short beard, cardigan over a shirt, behind his shop counter. Match `portraits/raj.png`.",
+    "status": "generated"
+  },
+  {
+    "file": "char-tommy.webp",
+    "width": 900,
+    "height": 1200,
+    "brief_prompt": "Portrait of Tommy, 67, a retired bus driver and lifelong regular: balding white hair, warm crinkled smile, navy jumper over a checked shirt, at his usual pub table. Match `portraits/tommy.png`.",
+    "status": "generated"
+  },
+  {
+    "file": "char-chloe.webp",
+    "width": 900,
+    "height": 1200,
+    "brief_prompt": "Portrait of Chloe, 29, a junior architect just back in Manchester: friendly, optimistic, light-brown hair, green jacket, outside on a red-brick street. Match `portraits/chloe.png`.",
+    "status": "generated"
+  },
+  {
+    "file": "char-brenda.webp",
+    "width": 900,
+    "height": 1200,
+    "brief_prompt": "Portrait of Brenda, 71, a brisk, kind retired school dinner lady who chairs a tenants' association: short curly grey hair, lilac cardigan, holding a clipboard, outside a housing block.",
+    "status": "generated"
+  },
+  {
+    "file": "char-mo.webp",
+    "width": 900,
+    "height": 1200,
+    "brief_prompt": "Portrait of Mo, 38, an easygoing, observant private hire driver: short dark hair, trimmed beard, dark jacket, leaning on the open door of a car on a Manchester street at night.",
+    "status": "generated"
+  },
+  {
+    "file": "char-simon.webp",
+    "width": 900,
+    "height": 1200,
+    "brief_prompt": "Portrait of Simon, 46, a polite, corporate asset manager at a property company: neat dark hair, charcoal suit, no tie, standing outside a red-brick terrace holding a slim folder, composed and unreadable.",
+    "status": "generated"
+  },
+  {
+    "file": "catchup-bg.webp",
+    "width": 2000,
+    "height": 1200,
+    "brief_prompt": "Moody blurred view down Shuttle Street at night: wet setts, the pub's warm windows, street lamps, bokeh. Designed as a background for overlaid text (keep the centre calm).",
+    "status": "generated"
+  },
+  {
+    "file": "reputation.webp",
+    "width": 1600,
+    "height": 1000,
+    "brief_prompt": "Inside the pub: a barmaid with folded arms facing a man at the door, regulars watching from their booths in soft focus. Tense but not violent. Cinematic.",
+    "status": "generated"
+  },
+  {
+    "file": "how-it-works.webp",
+    "width": 1600,
+    "height": 900,
+    "brief_prompt": "Optional. A long-exposure night shot of Ancoats with light trails, suggesting time passing; or a pub clock above the bar showing nearly midnight.",
+    "status": "generated"
+  },
+  {
+    "file": "unreal-hero.webp",
+    "width": 2400,
+    "height": 1000,
+    "brief_prompt": "A stylised but realistic real-time 3D game render (Unreal Engine look): a third-person view over the shoulder of a player character standing on the pavement outside the green Crooked Billet pub, with the blue and cream newsagent next door, red-brick mills behind, overcast daylight. Clean, believable, game-like.",
+    "status": "generated"
+  },
+  {
+    "file": "waitlist-bg.webp",
+    "width": 2000,
+    "height": 1000,
+    "brief_prompt": "The Crooked Billet's front door slightly ajar at night, warm light spilling onto wet steps. Inviting.",
+    "status": "generated"
+  },
+  {
+    "file": "og-image.jpg",
+    "width": 1200,
+    "height": 630,
+    "brief_prompt": "A social share card: the hero street scene with \"EVORIUM\" in spaced cream serif capitals and the line \"The street doesn't stop when you leave.\"",
+    "status": "generated"
+  },
+  {
+    "file": "grain.png",
+    "width": 200,
+    "height": 200,
+    "brief_prompt": "A seamless monochrome film-grain noise tile, transparent PNG.",
+    "status": "generated"
+  }
+]

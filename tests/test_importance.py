@@ -153,3 +153,13 @@ def test_rescore_previews_without_writing_and_applies_with_backup(db, monkeypatc
         assert [c.execute("select importance from facts where id=?", (i,)).fetchone()[0] for i in (bread, drugs)] == [1, 5]
     assert list(db.parent.glob("w-backup-*.sqlite3"))
     assert "1 would be hidden" in capsys.readouterr().out
+
+
+def test_extraction_example_shows_a_filled_in_promise():
+    # An empty "commitments": [] in the example made the note-taker record no promises at all (0 in 62 conversations).
+    from evorium.prompts import build_extraction_messages
+    from evorium.memory import EXAMPLE_COMMITMENT
+    a = {"name": "Dez Whitworth", "location": "pub"}; b = {"name": "Tommy Shaw", "location": "pub"}
+    text = build_extraction_messages(a, b, [{"speaker_name": "Dez Whitworth", "text": "hi"}], [], [], [], "now")[0]["content"]
+    assert '"commitments": [{"content": "Ring the brewery about the late delivery"' in text
+    assert EXAMPLE_COMMITMENT == "ring the brewery about the late delivery"
