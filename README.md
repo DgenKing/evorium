@@ -124,10 +124,13 @@ director and digest overhead is about ten calls for eight NPCs, excluding
 conversation replies and existing promise checks. Failed daily planning is not
 repeated that day; cancelled marker rows record that it was attempted.
 
-Token-rate constants are editable in `config.py`. Verified on 2026-11-15 against
-[DeepSeek pricing](https://api-docs.deepseek.com/quick_start/pricing/): peak uncached
-input $0.30 and output $1.20 per million tokens. Estimates use these conservative
-rates; cache hits and off-peak calls can cost less. Calls without provider usage
+Token-rate constants are editable in `config.py`. Verified on 2026-11-19 against
+[DeepSeek pricing](https://api-docs.deepseek.com/quick_start/pricing/), peak rates per
+million tokens: input $0.30 (cache miss) or $0.006 (cache hit), output $1.20. Each call
+is priced from the cache-hit count DeepSeek returns (`prompt_cache_hit_tokens`) and is
+halved outside peak hours (01–04 and 06–10 UTC, Monday–Friday). Add
+`CACHED_INPUT_USD_PER_MILLION` to an older `config.py` only to change the 0.006 default.
+Calls priced before 2026-11-19 used peak uncached rates and overstate. Calls without provider usage
 are recorded with zero token/cost placeholders and an error indicating unavailable
 usage; their actual cost is unknown. Network/HTTP failures are not retried.
 

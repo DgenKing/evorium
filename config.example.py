@@ -2,9 +2,10 @@
 
 DEEPSEEK_API_KEY = "sk-..."
 DEEPSEEK_MODEL = "deepseek-flash"
-# Verified 2026-11-15: https://api-docs.deepseek.com/quick_start/pricing/
-# Conservative peak, uncached rates, USD per million tokens.
-INPUT_USD_PER_MILLION = 0.30
+# Verified 2026-11-19: https://api-docs.deepseek.com/quick_start/pricing/
+# Peak rates, USD per million tokens. Off-peak (outside 01-04 and 06-10 UTC Mon-Fri) is half.
+INPUT_USD_PER_MILLION = 0.30          # input, cache miss
+CACHED_INPUT_USD_PER_MILLION = 0.006  # input, cache hit (repeated prompt start)
 OUTPUT_USD_PER_MILLION = 1.20
 
 # Local hard stop on new requests once estimated spend reaches this (USD).

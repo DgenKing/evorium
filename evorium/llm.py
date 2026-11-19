@@ -3,6 +3,7 @@
 import logging
 import math
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from decimal import Decimal
 from pathlib import Path
 
@@ -31,12 +32,14 @@ class InvalidProposal(LLMError):
 class Settings:
     api_key: str
     model: str = "deepseek-flash"
-    input_usd_per_million: float = 0.30
-    output_usd_per_million: float = 1.20
+    input_usd_per_million: float = 0.30          # peak, cache miss
+    output_usd_per_million: float = 1.20         # peak
     max_spend_usd: float = 4.00
+    cached_input_usd_per_million: float = 0.006  # peak, cache hit
 
     def __post_init__(self):
-        for value in (self.input_usd_per_million, self.output_usd_per_million, self.max_spend_usd):
+        for value in (self.input_usd_per_million, self.output_usd_per_million, self.max_spend_usd,
+                      self.cached_input_usd_per_million):
             if not math.isfinite(value) or value <= 0:
                 raise ValueError("Token rates and spend cap must be finite positive numbers.")
 
@@ -53,6 +56,7 @@ class Settings:
             input_usd_per_million=getattr(config, "INPUT_USD_PER_MILLION", 0.30),
             output_usd_per_million=getattr(config, "OUTPUT_USD_PER_MILLION", 1.20),
             max_spend_usd=getattr(config, "MAX_SPEND_USD", 4.00),
+            cached_input_usd_per_million=getattr(config, "CACHED_INPUT_USD_PER_MILLION", 0.006),
         )
 
 
@@ -62,11 +66,30 @@ class _Usage(BaseModel):
     completion_tokens: int = Field(ge=0)
 
 
-def estimate_cost(input_tokens: int, output_tokens: int, settings: Settings) -> Decimal:
-    return (
-        Decimal(input_tokens) * Decimal(str(settings.input_usd_per_million))
+def cached_tokens(usage: dict) -> int:
+    """Input tokens DeepSeek served from its cache (billed far cheaper). 0 if not reported."""
+    value = usage.get("prompt_cache_hit_tokens")
+    if value is None:
+        value = (usage.get("prompt_tokens_details") or {}).get("cached_tokens")
+    return value if isinstance(value, int) and not isinstance(value, bool) and value >= 0 else 0
+
+
+def is_peak(at: datetime) -> bool:
+    """DeepSeek peak: 01-04 and 06-10 UTC, Monday to Friday. Everything else is half price."""
+    at = at.astimezone(timezone.utc)
+    return at.weekday() < 5 and (1 <= at.hour < 4 or 6 <= at.hour < 10)
+
+
+def estimate_cost(input_tokens: int, output_tokens: int, settings: Settings,
+                  cached: int = 0, at: datetime | None = None) -> Decimal:
+    """Configured rates are peak rates; off-peak is half. With no time given, assume peak."""
+    cached = min(max(cached, 0), input_tokens)
+    cost = (
+        Decimal(input_tokens - cached) * Decimal(str(settings.input_usd_per_million))
+        + Decimal(cached) * Decimal(str(settings.cached_input_usd_per_million))
         + Decimal(output_tokens) * Decimal(str(settings.output_usd_per_million))
     ) / Decimal(1_000_000)
+    return cost if at is None or is_peak(at) else cost / 2
 
 
 def get_usage(db_path: str | Path = DEFAULT_DB_PATH, initial_credit_usd: float = 5.00) -> dict:
@@ -91,6 +114,7 @@ class DeepSeekClient:
         self.db_path = db_path
         self.settings = settings if settings is not None else Settings.from_config()
         self._client = client
+        self.clock = lambda: datetime.now(timezone.utc)  # tests pin this to a peak/off-peak time
 
     def propose(self, agent_id: int, messages: list[dict[str, str]],
                 schema: type[BaseModel] = ActionProposal, max_tokens: int = MAX_OUTPUT_TOKENS):
@@ -133,7 +157,7 @@ class DeepSeekClient:
             "thinking": {"type": "disabled"},
         }
         call_id = self._start_call(agent_id)
-        input_tokens, output_tokens = 0, 0
+        input_tokens, output_tokens, cached = 0, 0, 0
         usage_available = False
         proposal, failure = None, None
         try:
@@ -147,6 +171,7 @@ class DeepSeekClient:
             body = response.json()
             usage = _Usage.model_validate(body["usage"])
             input_tokens, output_tokens = usage.prompt_tokens, usage.completion_tokens
+            cached = cached_tokens(body["usage"])
             usage_available = True
             try:
                 content = body["choices"][0]["message"]["content"]
@@ -168,6 +193,7 @@ class DeepSeekClient:
             failure = LLMError("DeepSeek connection failed or timed out; no automatic network retry.")
         except (KeyError, IndexError, TypeError, ValueError, ValidationError):
             failure = LLMError("DeepSeek response lacks valid usage data; tokens and cost unknown.")
+        cost = estimate_cost(input_tokens, output_tokens, self.settings, cached, self.clock())
         error = str(failure) if failure else None
         if failure and not usage_available:
             error += " Usage unavailable; recorded token/cost zeros are placeholders."
@@ -176,14 +202,14 @@ class DeepSeekClient:
             connection.execute(
                 """UPDATE llm_calls SET input_tokens=?, output_tokens=?, est_cost_usd=?,
                    ok=?, error=? WHERE id=?""",
-                (input_tokens, output_tokens, float(estimate_cost(input_tokens, output_tokens, self.settings)),
+                (input_tokens, output_tokens, float(cost),
                  int(failure is None), error, call_id),
             )
         if failure:
             emit(f"DeepSeek call failed: {error}", "error")
             raise failure
-        emit(f"DeepSeek replied: {input_tokens} in / {output_tokens} out tokens, "
-             f"≈${float(estimate_cost(input_tokens, output_tokens, self.settings)):.5f}")
+        emit(f"DeepSeek replied: {input_tokens} in ({cached} cached) / {output_tokens} out tokens, "
+             f"≈${float(cost):.5f}")
         return proposal
 
 

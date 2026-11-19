@@ -1,18 +1,21 @@
 """Fake HTTP only: validation and accounting; local spending cap removed by user."""
 
 import json
+from datetime import datetime, timezone
 
 import httpx
 import pytest
 from pydantic import ValidationError
 
 from evorium.db import connect, init_db
-from evorium.llm import DeepSeekClient, InvalidProposal, LLMError, Settings, get_usage
+from evorium.llm import DeepSeekClient, InvalidProposal, LLMError, Settings, estimate_cost, get_usage, is_peak
 from evorium.models import ActionProposal
 from evorium.seed import seed_agents
 
 GOOD = {"say": "Any news on the lease?", "rationale": "Dez wants reassurance.", "mood": "worried"}
 MESSAGES = [{"role": "user", "content": "Return a JSON dialogue proposal."}]
+PEAK = datetime(2026, 11, 19, 8, 0, tzinfo=timezone.utc)      # Thursday 08:00 UTC
+OFF_PEAK = datetime(2026, 11, 19, 15, 0, tzinfo=timezone.utc)  # Thursday 15:00 UTC
 
 
 @pytest.fixture
@@ -51,7 +54,9 @@ def test_valid_response_request_contract_and_persistent_usage(world):
         return response(json.dumps(GOOD))
 
     with httpx.Client(transport=httpx.MockTransport(handler)) as http:
-        proposal = DeepSeekClient(world, Settings("fake-test-key"), http).propose(1, MESSAGES)
+        client = DeepSeekClient(world, Settings("fake-test-key"), http)
+        client.clock = lambda: PEAK
+        proposal = client.propose(1, MESSAGES)
     assert proposal.say == GOOD["say"]
     row, = calls(world)
     assert row["input_tokens"] == 100
@@ -173,3 +178,28 @@ def test_whitespace_is_trimmed():
     assert ActionProposal(**{**GOOD, "say": " Hello. "}).say == "Hello."
     with pytest.raises(ValidationError):
         ActionProposal(**{**GOOD, "mood": " "})
+
+
+def test_peak_hours():
+    assert is_peak(PEAK) and is_peak(datetime(2026, 11, 19, 1, 0, tzinfo=timezone.utc))
+    assert not is_peak(OFF_PEAK) and not is_peak(datetime(2026, 11, 19, 4, 0, tzinfo=timezone.utc))
+    assert not is_peak(datetime(2026, 11, 21, 8, 0, tzinfo=timezone.utc))  # Saturday
+
+
+def test_cache_hits_and_off_peak_are_priced_lower():
+    s = Settings("k")
+    # 1,000 in (800 cached) + 100 out at peak: 200*0.30 + 800*0.006 + 100*1.20 per million
+    assert float(estimate_cost(1000, 100, s, 800, PEAK)) == pytest.approx(0.0001848)
+    assert float(estimate_cost(1000, 100, s, 800, OFF_PEAK)) == pytest.approx(0.0000924)
+    assert float(estimate_cost(1000, 100, s)) == pytest.approx(0.00042)  # no info: peak, no cache
+
+
+def test_cached_tokens_read_from_provider_usage(world):
+    def handler(request):
+        return response(json.dumps(GOOD), usage={"prompt_tokens": 1000, "completion_tokens": 100,
+                                                 "prompt_cache_hit_tokens": 800, "prompt_cache_miss_tokens": 200})
+    with httpx.Client(transport=httpx.MockTransport(handler)) as http:
+        client = DeepSeekClient(world, Settings("fake-test-key"), http)
+        client.clock = lambda: OFF_PEAK
+        client.propose(1, MESSAGES)
+    assert calls(world)[0]["est_cost_usd"] == pytest.approx(0.0000924)
