@@ -36,7 +36,10 @@ def test_promise_effect_is_directed_and_idempotent(db,status,delta):
 @pytest.mark.parametrize('feeling,expected',[
     ({'trust_change':2,'warmth_change':-2,'reason':'Dez shared his worry.'},4),
     ({'trust_change':2,'warmth_change':2,'reason':' '},0),
-    ({'trust_change':3,'warmth_change':0,'reason':'Too large.'},0),
+    ({'trust_change':3,'warmth_change':0,'reason':'Too large, capped not dropped.'},4),
+    ({'trust_change':-5,'warmth_change':-5,'reason':'Called him a racist slur.'},-4),
+    ({'trust_change':'-2','warmth_change':'0','reason':'Numbers sent as text.'},-4),
+    ({'trust_change':'lots','warmth_change':None,'reason':'Not numbers at all.'},0),
     ({'trust_change':0,'warmth_change':0,'reason':'Nothing happened.'},0),
 ])
 def test_feelings_are_bounded(db,feeling,expected):

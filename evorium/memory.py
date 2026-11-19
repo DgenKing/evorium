@@ -4,6 +4,7 @@ import logging
 import sqlite3
 from datetime import datetime, timedelta
 
+from evorium.db import VISIBLE_IMPORTANCE
 from evorium.models import Extraction
 from evorium import timeline, relationships
 
@@ -16,6 +17,8 @@ MAX_TOLD = 8
 MAX_CLAIMS = 3
 MAX_PROMISES = 6
 MAX_RECENT = 3
+MAX_FACTS_PER_SPEAKER = 3   # per conversation, after trivia is dropped
+REPEAT_TOPIC_AFTER = 2      # a subject raised in this many conversations today counts as "already covered"
 DEFAULT_DUE_HOURS = 72  # every promise gets a deadline, so the tick always checks it eventually
 
 
@@ -41,17 +44,20 @@ def knowledge_for_prompt(connection: sqlite3.Connection, speaker: dict, listener
     now = now or world._real_now()
     sid, lid = speaker["id"], listener["id"]
 
+    # Most important first, then most recent, so last week's crime outranks yesterday's small talk.
     certain = _rows(connection,
-        "SELECT content FROM facts WHERE agent_id=? AND source IN ('seed','observed') ORDER BY source DESC, id DESC LIMIT ?",
-        (sid, MAX_CERTAIN))
+        """SELECT content FROM facts WHERE agent_id=? AND source IN ('seed','observed') AND importance>=?
+           ORDER BY importance DESC, id DESC LIMIT ?""", (sid, VISIBLE_IMPORTANCE, MAX_CERTAIN))
     told = _rows(connection,
         """SELECT f.content, a.name AS by_name FROM facts f LEFT JOIN agents a ON a.id = f.source_agent_id
-           WHERE f.agent_id=? AND f.source='told' ORDER BY f.id DESC LIMIT 20""", (sid,))
-    # Prioritise what the listener told me or what concerns them, then most recent.
+           WHERE f.agent_id=? AND f.source='told' AND f.importance>=? ORDER BY f.importance DESC, f.id DESC LIMIT 20""",
+        (sid, VISIBLE_IMPORTANCE))
+    # Then prefer what the listener told me or what concerns them (stable sort keeps importance order within each group).
     told.sort(key=lambda t: not ((t["by_name"] and t["by_name"] == listener["name"]) or _mentions(t["content"], listener["name"])))
     told = told[:MAX_TOLD]
     claims = _rows(connection,
-        "SELECT content FROM facts WHERE agent_id=? AND source='claim' ORDER BY id DESC LIMIT ?", (sid, MAX_CLAIMS))
+        "SELECT content FROM facts WHERE agent_id=? AND source='claim' AND importance>=? ORDER BY importance DESC, id DESC LIMIT ?",
+        (sid, VISIBLE_IMPORTANCE, MAX_CLAIMS))
     promises = open_commitments(connection, sid)
     their_promises = _rows(connection,
         "SELECT content FROM commitments WHERE agent_id=? AND to_agent_id=? AND status='open' ORDER BY id DESC LIMIT 4",
@@ -83,14 +89,26 @@ def knowledge_for_prompt(connection: sqlite3.Connection, speaker: dict, listener
         "people": [f'{p["name"]} — {p["description"]}' for p in people],
         "last_with_listener": (f'{last_with["sim_time"]}: {last_with["summary"]}' if last_with else None),
         "recent": [r["content"] for r in recent],
+        "covered_today": covered_today(connection, sid, now),
     }
+
+
+def covered_today(connection: sqlite3.Connection, agent_id: int, now) -> list[str]:
+    """Subjects this person has already gone over in several conversations today, so they move on."""
+    day = now.strftime("%Y-%m-%d")
+    rows = connection.execute(
+        """SELECT f.subject, COUNT(DISTINCT f.source_conversation_id) AS times FROM facts f
+           JOIN conversations v ON v.id = f.source_conversation_id
+           WHERE f.agent_id=? AND substr(v.sim_at,1,10)=? GROUP BY f.subject HAVING times>=?
+           ORDER BY times DESC LIMIT 4""", (agent_id, day, REPEAT_TOPIC_AFTER)).fetchall()
+    return [f"{r['subject']} (talked about in {r['times']} conversations today)" for r in rows]
 
 
 def store_extraction(connection: sqlite3.Connection, conversation_id: int, participants: dict[str, dict],
                      extraction: Extraction, now: datetime | None = None) -> dict:
     """Persist facts, commitments and new people. Returns counts for the live feed."""
     now = now or datetime.now()
-    counts = {"facts": 0, "commitments": 0, "people": 0, "resolved": 0, "updated": 0}
+    counts = {"facts": 0, "trivia": 0, "commitments": 0, "people": 0, "resolved": 0, "updated": 0}
     restated: set[int] = set()
     all_agents = {r["name"]: r["id"] for r in connection.execute("SELECT id, name FROM agents")}
     first_names = {n.split()[0].lower(): i for n, i in all_agents.items()}
@@ -110,7 +128,10 @@ def store_extraction(connection: sqlite3.Connection, conversation_id: int, parti
             feelings_applied.add(me)
             other = next(p['id'] for p in participants.values() if p['id'] != me)
             relationships.adjust(connection,me,other,feeling.trust_change*2,feeling.warmth_change*2,feeling.reason,now,conversation_id)
-        for f in ext.facts:
+        worth_keeping = sorted((f for f in ext.facts if f.importance >= VISIBLE_IMPORTANCE),
+                               key=lambda f: -f.importance)[:MAX_FACTS_PER_SPEAKER]
+        counts["trivia"] = counts.get("trivia", 0) + len(ext.facts) - len(worth_keeping)
+        for f in worth_keeping:
             told_by = agent_id_for(f.told_by)
             if told_by == me or told_by not in {p["id"] for p in participants.values()}:
                 told_by = None
@@ -119,11 +140,14 @@ def store_extraction(connection: sqlite3.Connection, conversation_id: int, parti
             if source == "told" and told_by is None:
                 source = "claim"
             connection.execute(
-                """INSERT INTO facts (agent_id, subject, content, source, source_agent_id, source_conversation_id)
-                   VALUES (?, ?, ?, ?, ?, ?)""",
-                (me, f.subject.lower(), f.content, source, told_by, conversation_id))
+                """INSERT INTO facts (agent_id, subject, content, source, source_agent_id, source_conversation_id, importance)
+                   VALUES (?, ?, ?, ?, ?, ?, ?)""",
+                (me, f.subject.lower(), f.content, source, told_by, conversation_id, f.importance))
             if source == "claim":
                 timeline.record(connection, now, 'rumour', f"{name}: {f.content}", 3, me, conversation_id=conversation_id)
+            elif f.importance == 5 and not counts.get("serious"):
+                counts["serious"] = 1   # one timeline entry per incident, not one per point of view
+                timeline.record(connection, now, 'serious', f"{name}: {f.content}", 4, me, conversation_id=conversation_id)
             counts["facts"] += 1
         for c in ext.commitments:
             due_at = (now + timedelta(hours=c.due_hours or DEFAULT_DUE_HOURS)).strftime(DUE_FMT)
@@ -174,5 +198,5 @@ def resolve_commitment(connection, cid, status, outcome, now, conversation_id=No
             f"{'Kept' if status=='done' else 'Broke'} a promise: {row['content']} — {outcome}",now,conversation_id)
         if connection.execute("SELECT kind FROM agents WHERE id=?",(row['agent_id'],)).fetchone()[0]=='player':
             text=(f"{row['name']} did what they promised: {row['content']}" if status=='done' else f"{row['name']} promised to {row['content']} and didn't.")
-            connection.execute("INSERT INTO facts(agent_id,subject,content,source) VALUES (?,'promise',?,'observed')",(row['to_agent_id'],text))
+            connection.execute("INSERT INTO facts(agent_id,subject,content,source,importance) VALUES (?,'promise',?,'observed',4)",(row['to_agent_id'],text))
     return 1

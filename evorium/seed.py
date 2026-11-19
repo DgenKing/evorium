@@ -138,8 +138,8 @@ def seed_agents(db_path: str | Path = DEFAULT_DB_PATH) -> None:
         )
         ids = {r["name"]: r["id"] for r in connection.execute("SELECT id, name FROM agents")}
         connection.executemany(
-            """INSERT INTO facts (agent_id, subject, content, source, seed_key)
-               VALUES (?, ?, ?, 'seed', ?) ON CONFLICT(seed_key) DO NOTHING""",
+            """INSERT INTO facts (agent_id, subject, content, source, seed_key, importance)
+               VALUES (?, ?, ?, 'seed', ?, 4) ON CONFLICT(seed_key) DO NOTHING""",
             [(ids[name], subject, content, f"{name}|{i}") for i, (name, subject, content) in enumerate(SEED_FACTS)],
         )
 

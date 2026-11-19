@@ -5,6 +5,7 @@ import binascii
 import hmac
 import logging
 import threading
+from logging.handlers import RotatingFileHandler
 import time
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -17,14 +18,33 @@ from evorium.configuration import load
 from pydantic import BaseModel, Field
 
 from evorium import tick, world, timeline, player, relationships, places, plans, director
-from evorium.db import DEFAULT_DB_PATH, connect, init_db, npc_agents
+from evorium.db import DEFAULT_DB_PATH, VISIBLE_IMPORTANCE, connect, init_db, npc_agents
 from evorium.events import emit, since
 from evorium.llm import DeepSeekClient, DeferredClient, LLMError, get_usage
 from evorium.memory import open_commitments
 from evorium.seed import seed_agents, seed_events
-from evorium.sim import get_conversation, latest_conversation_id, mark_interrupted, run_conversation
+from evorium.sim import get_conversation, latest_conversation_id, mark_interrupted, run_conversation, turns_for
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+LOG_FORMAT = "%(asctime)s %(levelname)s %(name)s: %(message)s"
+LOG_FILE = Path(__file__).resolve().parent.parent / "evorium.log"
+logging.basicConfig(level=logging.INFO, format=LOG_FORMAT)
+
+
+def _persistent_log():
+    """Always keep a log on disk, however the server was started (terminal, nohup or systemd)."""
+    root = logging.getLogger()
+    if any(getattr(h, "_evorium", False) for h in root.handlers):
+        return
+    try:
+        handler = RotatingFileHandler(LOG_FILE, maxBytes=5_000_000, backupCount=3, encoding="utf-8")
+    except OSError:
+        return  # read-only install: carry on with console logging only
+    handler._evorium = True
+    handler.setFormatter(logging.Formatter(LOG_FORMAT))
+    root.addHandler(handler)
+
+
+_persistent_log()
 
 
 class _HidePolling(logging.Filter):
@@ -70,7 +90,7 @@ def _tick_loop():
                             for key,present in places.opportunities(now,_state['gap_minutes'],DEFAULT_DB_PATH):
                                 try:a,b=world.pick_pair([p['id'] for p in present],DEFAULT_DB_PATH)
                                 except ValueError:continue
-                                try:run_conversation(client,a,b,4 if key=='pub' else 2,DEFAULT_DB_PATH,location=places.REGISTRY[key])
+                                try:run_conversation(client,a,b,turns_for(a,b,DEFAULT_DB_PATH),DEFAULT_DB_PATH,location=places.REGISTRY[key])
                                 except ValueError:continue
                                 _state['conversations']+=1
                                 break
@@ -165,9 +185,9 @@ async def agents():
             aid = r["id"]
             facts = [dict(f) for f in connection.execute(
                 """SELECT f.content, f.source, a.name AS by_name FROM facts f LEFT JOIN agents a ON a.id=f.source_agent_id
-                   WHERE f.agent_id=? ORDER BY f.id DESC LIMIT 8""", (aid,))]
+                   WHERE f.agent_id=? AND f.importance>=? ORDER BY f.id DESC LIMIT 8""", (aid, VISIBLE_IMPORTANCE))]
             counts = dict(connection.execute(
-                "SELECT source, COUNT(*) FROM facts WHERE agent_id=? GROUP BY source", (aid,)).fetchall())
+                "SELECT source, COUNT(*) FROM facts WHERE agent_id=? AND importance>=? GROUP BY source", (aid, VISIBLE_IMPORTANCE)).fetchall())
             memories = [dict(m) for m in connection.execute(
                 "SELECT content, created_at FROM memories WHERE agent_id=? ORDER BY id DESC LIMIT 3", (aid,))]
             resolved = [dict(c) for c in connection.execute(

@@ -55,6 +55,9 @@ def build_messages(speaker: dict, listener: dict, transcript: list[dict], knowle
     else:
         system += f"\n\nYou have not had a proper conversation with {listener['name']} before."
     system += _section("YOUR MOST RECENT CONVERSATIONS (any person):", knowledge["recent"])
+    system += _section("TOPICS YOU HAVE ALREADY GONE OVER TODAY (do not rehash these unless you have genuinely new "
+                       "information; talk about something else: your day, your family, the other person, local life):",
+                       knowledge.get("covered_today", []))
 
     if transcript:
         lines = "\n".join(f'{m["speaker_name"]}: {m["text"]}' for m in transcript)
@@ -68,13 +71,22 @@ EXTRACTION_TEMPLATE = """You are a meticulous note-taker for a social simulation
 {a_name} and {b_name} at {location}, {sim_time}. Produce structured notes in JSON.
 
 For EACH of the two speakers, record:
-- "facts": new things that speaker now knows or believes after this conversation. For each:
+- "facts": only things worth remembering next week. Small talk, pleasantries, directions to the bread aisle,
+  what someone ordered and who sat where are NOT facts: leave them out (the summary covers the gist). For each:
   - "subject": one or two words (e.g. "lease", "quiz", "offer", "survey", "flat")
   - "content": one sentence, written from that speaker's point of view ("Raj has been offered money for his lease")
   - "source": "observed" ONLY if the speaker directly did or saw it themselves and it is consistent with the
     known facts list; "told" if the other speaker told them; "claim" if the speaker asserted it with no basis
     in the known facts (an invention, exaggeration or guess).
   - "told_by": the other speaker's name when source is "told", else null.
+  - "importance": integer 1–5. Only record facts scoring 3 or more:
+      5 = harm, crime, threats, betrayal, someone getting hurt, or a big decision or deal that affects other
+          people (selling drugs, a racist slur, a rent rise, an offer to buy someone out, being sacked or evicted)
+      4 = praise or insult, a strong show of feeling, a decision someone has made, a secret, someone behaving
+          oddly or out of character, a ban or falling-out
+      3 = what someone needs, fears or is worried about; rumours and gossip about other people
+      2 = small talk and background detail (hobbies, old stories) — do not record
+      1 = throwaway detail — do not record
   ATTRIBUTION RULE: when speaker X states something not in the known facts, record it TWICE — under X as
   source "claim" (X made it up), and under the other speaker as source "told" with told_by X (they heard it).
   Never record X's own invention under the other speaker as a "claim".
@@ -90,8 +102,10 @@ For EACH of the two speakers, record:
   "replaces": if this is the same promise as one in the OPEN COMMITMENTS list, restated with more detail or a new
   deadline, give that id here (integer) so it is updated instead of duplicated; otherwise null. If an open
   commitment is merely mentioned again with nothing new, do not record it at all.
-- "feeling": {{"trust_change": 0, "warmth_change": 0, "reason": "one short sentence citing what the other person actually said or did in this conversation"}}.
-  Changes must be integers from -2 to 2. Most conversations change nothing; use 0 unless something in this conversation clearly earned or cost trust or warmth.
+- "feeling": ALWAYS include this, for both speakers: {{"trust_change": 0, "warmth_change": 0, "reason": "one short sentence citing what the other person actually said or did in this conversation"}}.
+  How this speaker now feels about the OTHER speaker. Integers from -2 to 2. Ordinary chat is 0. Kindness, honesty,
+  help or praise earns +1 or +2; rudeness, lies, threats or crime cost -1; insults, slurs, intimidation or
+  admitting to crime cost -2.
 - "new_people": any named person mentioned who is NOT in this list: {cast}. Give a short description of what was said about them.
 
 Also give:
@@ -111,8 +125,8 @@ CONVERSATION:
 {transcript}
 
 Return JSON exactly like:
-{{"summary": "...", "per_agent": {{"{a_name}": {{"facts": [...], "commitments": [...], "new_people": [...]}}, "{b_name}": {{"facts": [...], "commitments": [...], "new_people": [...]}}}}, "commitments_done": []}}
-Keep it tight: at most 5 facts and 3 commitments per speaker. Omit trivia."""
+{{"summary": "...", "per_agent": {{"{a_name}": {{"feeling": {{"trust_change": 0, "warmth_change": 0, "reason": "..."}}, "facts": [{{"subject": "...", "content": "...", "source": "told", "told_by": "{b_name}", "importance": 3}}], "commitments": [], "new_people": []}}, "{b_name}": {{"feeling": {{...}}, "facts": [...], "commitments": [], "new_people": []}}}}, "commitments_done": []}}
+Keep it tight: at most 3 facts and 3 commitments per speaker, an empty facts list is fine. Never record trivia."""
 
 
 def build_extraction_messages(a: dict, b: dict, transcript: list[dict], known_facts: list[str],

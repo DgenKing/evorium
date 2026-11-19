@@ -63,6 +63,7 @@ class FactOut(BaseModel):
     content: str = Field(min_length=1, max_length=300)
     source: Literal["observed", "told", "claim"]
     told_by: str | None = None
+    importance: int = Field(default=3, ge=1, le=5)
 
 
 class CommitmentOut(BaseModel):
@@ -106,6 +107,17 @@ def _clip(value, n: int):
     return value[:n] if isinstance(value, str) else value
 
 
+def _bounded_int(value, low: int, high: int, default: int | None):
+    """Coerce a model-supplied number ("-3", 4.0, " 2 ") into range; None if it isn't a number at all."""
+    if isinstance(value, bool):
+        return default
+    try:
+        number = round(float(str(value).strip().replace("\u2212", "-")))
+    except (TypeError, ValueError):
+        return default
+    return min(max(number, low), high)
+
+
 def _plain(x):
     if isinstance(x, BaseModel):
         return x.model_dump()
@@ -137,7 +149,8 @@ def _normalise_extraction(data):
             if source not in ("observed", "told", "claim"):
                 source = "told" if f.get("told_by") else "claim"
             facts.append({"subject": _clip(str(f.get("subject") or "general"), 60), "content": _clip(str(f["content"]), 300),
-                          "source": source, "told_by": _clip(f.get("told_by"), 60) if f.get("told_by") else None})
+                          "source": source, "told_by": _clip(f.get("told_by"), 60) if f.get("told_by") else None,
+                          "importance": _bounded_int(f.get("importance"), 1, 5, 3)})
         commitments = []
         for c in (ext.get("commitments") or [])[:5]:
             if not isinstance(c, dict) or not c.get("content"):
@@ -158,11 +171,18 @@ def _normalise_extraction(data):
                   for p in (ext.get("new_people") or [])[:3] if isinstance(p, dict) and p.get("name")]
         feeling = ext.get('feeling')
         if feeling is not None:
+            from evorium.events import emit
+            raw = feeling
             try:
+                # Strong reactions (a slur, a threat) come back as -3 or -5: cap them at the limit, don't discard them.
+                feeling = {"trust_change": _bounded_int(feeling.get("trust_change"), -2, 2, 0),
+                           "warmth_change": _bounded_int(feeling.get("warmth_change"), -2, 2, 0),
+                           "reason": _clip(str(feeling.get("reason") or "").strip(), 300)}
                 feeling = Feeling.model_validate(feeling).model_dump()
-            except ValueError:
-                from evorium.events import emit
-                emit('Invalid feeling proposal dropped.', 'error')
+                if (feeling["trust_change"], feeling["warmth_change"]) != (raw.get("trust_change"), raw.get("warmth_change")):
+                    emit(f"Feeling for {name} adjusted to the ±2 limit (model sent {raw.get('trust_change')!r}/{raw.get('warmth_change')!r}).")
+            except (ValueError, AttributeError, TypeError):
+                emit(f"Invalid feeling proposal dropped for {name}: {raw!r}", 'error')
                 feeling = None
         cleaned[str(name)] = {"facts": facts, "commitments": commitments, "new_people": people, "feeling": feeling}
     data["per_agent"] = cleaned

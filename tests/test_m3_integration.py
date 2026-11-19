@@ -117,4 +117,5 @@ def test_auto_shop_encounters_need_two_present(api,monkeypatch,hour,expect_shop)
     with connect(path) as c:
         rows=c.execute("select id from conversations where location=? and status='completed'",("Patel's News, Ancoats",)).fetchall()
         assert bool(rows)==expect_shop
-        if rows:assert c.execute('select count(*) from messages where conversation_id=?',(rows[0][0],)).fetchone()[0]==2
+        # First time this pair has talked, so it gets the longer story-length conversation.
+        if rows:assert c.execute('select count(*) from messages where conversation_id=?',(rows[0][0],)).fetchone()[0]==6

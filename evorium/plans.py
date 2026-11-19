@@ -72,6 +72,7 @@ def daily(client,now,db_path=DEFAULT_DB_PATH):
             knowledge=knowledge_for_prompt(c,a,a,now)
             promises=open_commitments(c,a['id'])
             relations=relationships.for_card(c,a['id'])
+            big_news=[r[0] for r in c.execute("SELECT content FROM facts WHERE agent_id=? AND importance=5 ORDER BY id DESC LIMIT 3",(a['id'],))]
             # Reserve the day before any network call, including empty/failed proposals.
             marker=insert(c,{'agent_id':a['id'],'action':'stay_home','sim_day':now.date().isoformat(),'start_at':now.strftime(DUE_FMT),'end_at':now.strftime(DUE_FMT),'status':'cancelled','reason':'Daily planning attempted.'})
         timetable=[]
@@ -81,7 +82,7 @@ def daily(client,now,db_path=DEFAULT_DB_PATH):
             timetable.append(f"{hour:02d}:00 {act} at {loc} ({'free' if world.is_free(a['name'],t) else 'working or asleep'})")
         prompt=f'''You are {a['name']}, {a['occupation']}. {a['personality']} Goal: {a['current_goal']}.
 It is {now.strftime(DUE_FMT)}. Most days you simply follow your routine; return an empty list unless you have a real reason.
-Return JSON {{"plans": [{{"action":"visit","place":"shop","person":null,"hour":0,"minute":0,"duration_minutes":30,"fulfils":null,"reason":"one sentence"}}]}}.
+{('Serious news on your mind: '+json.dumps(big_news)+'. Real people rarely sit on news like this: if it affects you or someone you know, consider ringing someone about it, or going where you can tell or ask someone you trust. ') if big_news else ''}Return JSON {{"plans": [{{"action":"visit","place":"shop","person":null,"hour":0,"minute":0,"duration_minutes":30,"fulfils":null,"reason":"one sentence"}}]}}.
 Actions: visit, phone, stay_home. Places: pub, shop or null. Person: another NPC full name or null. Use actual JSON null, zero to two plans, minute 0 or 30, duration 30–180. Only later today, while free; places must be open throughout. Phone another NPC; stay_home only replaces an evening pub customer visit.
 Timetable: {json.dumps(timetable)}
 Public places: pub (every day 09–24); shop (Mon–Sat 07–19).
@@ -125,9 +126,9 @@ def execute(client,now,db_path=DEFAULT_DB_PATH,auto=False):
             other=agents.get(p['person_id'])
             with connect(db_path) as c:reachable=other and world.routine(other['name'],now)[1]!='asleep' and not busy(c,other['id']) and not busy(c,a['id'])
             if reachable:
-                from evorium.sim import run_conversation,get_conversation
+                from evorium.sim import run_conversation,get_conversation,turns_for
                 try:
-                    conversation_id=run_conversation(client,a['id'],other['id'],4,db_path,location='On the phone')
+                    conversation_id=run_conversation(client,a['id'],other['id'],turns_for(a['id'],other['id'],db_path),db_path,location='On the phone')
                 except ValueError:reachable=False
                 if reachable:
                     conv=get_conversation(conversation_id,db_path)

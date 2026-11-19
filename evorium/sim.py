@@ -84,9 +84,32 @@ def _take_notes(client, db_path, conversation_id, a, b, transcript, sim_label):
             connection.execute(
                 "INSERT INTO memories (agent_id, content, importance, source_conversation_id) VALUES (?, ?, 5, ?)",
                 (who["id"], f"{sim_label}: {extraction.summary}", conversation_id))
-    emit(f"Notes: {counts['facts']} facts, {counts['commitments']} promises, {counts['people']} new people, "
+    emit(f"Notes: {counts['facts']} facts kept, {counts['trivia']} trivial dropped, {counts['commitments']} promises, {counts['people']} new people, "
          f"{counts['resolved']} promises resolved, {counts['updated']} updated. Summary: {extraction.summary}")
     return extraction.summary
+
+
+USUAL_TURNS = 4
+STORY_TURNS = 6
+
+
+def turns_for(agent_a_id: int, agent_b_id: int, db_path: str | Path = DEFAULT_DB_PATH) -> int:
+    """Longer when it matters: the pair's first proper conversation, or either has serious news since they last spoke."""
+    with connect(db_path) as connection:
+        met = connection.execute(
+            """SELECT 1 FROM conversations WHERE status='completed'
+               AND ((agent_a_id=? AND agent_b_id=?) OR (agent_a_id=? AND agent_b_id=?)) LIMIT 1""",
+            (agent_a_id, agent_b_id, agent_b_id, agent_a_id)).fetchone()
+        if not met:
+            return STORY_TURNS
+        for who in (agent_a_id, agent_b_id):
+            fresh = connection.execute(
+                """SELECT 1 FROM facts f WHERE f.agent_id=? AND f.importance=5 AND f.created_at > COALESCE(
+                       (SELECT max(started_at) FROM conversations WHERE status='completed' AND (agent_a_id=? OR agent_b_id=?)), '')
+                   LIMIT 1""", (who, who, who)).fetchone()
+            if fresh:
+                return STORY_TURNS
+    return USUAL_TURNS
 
 
 def run_conversation(client, agent_a_id: int, agent_b_id: int, turns: int = 4,

@@ -46,12 +46,14 @@ def deliver_events(now: datetime, db_path: str | Path = DEFAULT_DB_PATH) -> int:
     delivered = 0
     with connect(db_path) as connection:
         rows = connection.execute(
-            """SELECT e.id, e.agent_id, e.subject, e.content, a.name FROM scheduled_events e
+            """SELECT e.id, e.agent_id, e.subject, e.content, e.origin, a.name FROM scheduled_events e
                JOIN agents a ON a.id = e.agent_id WHERE e.delivered = 0 AND e.at <= ? ORDER BY e.at""",
             (now.strftime(DUE_FMT),)).fetchall()
         for r in rows:
-            connection.execute("INSERT INTO facts (agent_id, subject, content, source) VALUES (?, ?, ?, 'observed')",
-                               (r["agent_id"], r["subject"], r["content"]))
+            # Story events matter; director nudges (a barrel going off) are ordinary news.
+            importance = 5 if r["origin"] == "seed" else 3
+            connection.execute("INSERT INTO facts (agent_id, subject, content, source, importance) VALUES (?, ?, ?, 'observed', ?)",
+                               (r["agent_id"], r["subject"], r["content"], importance))
             connection.execute("INSERT INTO memories (agent_id, content, importance, source_conversation_id) "
                                "SELECT ?, ?, 8, id FROM conversations ORDER BY id LIMIT 1", (r["agent_id"], r["content"]))
             connection.execute("UPDATE scheduled_events SET delivered=1 WHERE id=?", (r["id"],))
@@ -90,7 +92,7 @@ def check_due_promises(client, now: datetime, db_path: str | Path = DEFAULT_DB_P
                 continue
             status = "done" if result.done else "broken"
             resolve_commitment(connection, p["id"], status, result.what_happened, now)
-            connection.execute("INSERT INTO facts (agent_id, subject, content, source) VALUES (?, 'promise', ?, 'observed')",
+            connection.execute("INSERT INTO facts (agent_id, subject, content, source, importance) VALUES (?, 'promise', ?, 'observed', 4)",
                                (agent["id"], f"About my promise to {p['content'][0].lower() + p['content'][1:]}: {result.what_happened}"))
             connection.execute("UPDATE agents SET mood=? WHERE id=?", (result.mood.lower(), agent["id"]))
         emit(f"PROMISE {status.upper()} — {agent['name']}: \"{p['content']}\" → {result.what_happened}")

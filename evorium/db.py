@@ -156,7 +156,17 @@ MIGRATIONS = (
     ),
     # Migration 8: distinguish seeded and director-origin events.
     ("ALTER TABLE scheduled_events ADD COLUMN origin TEXT NOT NULL DEFAULT 'seed'",),
+    # Migration 9: fact importance (1 trivia … 5 harm/crime/big decision). Below 3 is hidden from prompts.
+    (
+        "ALTER TABLE facts ADD COLUMN importance INTEGER NOT NULL DEFAULT 3 CHECK (importance BETWEEN 1 AND 5)",
+        "UPDATE facts SET importance=4 WHERE source='seed'",
+        """UPDATE facts SET importance=5 WHERE source='observed' AND source_conversation_id IS NULL
+           AND content IN (SELECT content FROM scheduled_events WHERE delivered=1 AND origin='seed')""",
+        "CREATE INDEX facts_agent_importance ON facts(agent_id, importance, id)",
+    ),
 )
+
+VISIBLE_IMPORTANCE = 3  # facts scored below this are kept in the database but never shown to characters
 
 
 def npc_agents(connection):

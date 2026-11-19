@@ -163,3 +163,24 @@ characters.
 
 Optional frontend movement checks, using Node without installing packages:
 `node tests/map_view.test.cjs`.
+
+
+## What characters remember
+
+After each conversation the note-taker scores every fact from 1 to 5: harm, crime
+and big decisions affecting others are 5; praise, insults, decisions, odd behaviour
+are 4; needs, worries and rumours are 3; small talk is 2 and throwaway detail 1.
+Only facts scoring 3 or more are saved, at most three per person per conversation;
+the conversation summary still records the gist. Characters see their most
+important facts first, then the most recent.
+
+Facts saved before this existed default to 3. To score them once (preview first,
+then save with an automatic backup; stop the server before applying):
+
+```bash
+.venv/bin/python -m evorium.rescore
+.venv/bin/python -m evorium.rescore --apply
+```
+
+Low scores are hidden from prompts and the dashboard, never deleted. The server
+also writes a rolling log to `evorium.log` in the project folder.

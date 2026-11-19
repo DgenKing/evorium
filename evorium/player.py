@@ -26,7 +26,7 @@ def state(db_path=DEFAULT_DB_PATH):
     with connect(db_path) as c:
         me=row(c);conv=opened(c)
         learned=[dict(r) for r in c.execute('''SELECT f.*,a.name AS by_name FROM facts f
-            LEFT JOIN agents a ON a.id=f.source_agent_id WHERE f.agent_id=? ORDER BY f.id DESC LIMIT 15''',(me['id'],))]
+            LEFT JOIN agents a ON a.id=f.source_agent_id WHERE f.agent_id=? AND f.importance>=3 ORDER BY f.id DESC LIMIT 15''',(me['id'],))]
         promises=open_commitments(c,me['id'],limit=None)
     return {'id':me['id'],'name':me['name'],'about':me['occupation'], 'place':world.get_setting('player_place','',db_path),
             'conversation':sim.get_conversation(conv['id'],db_path) if conv else None,

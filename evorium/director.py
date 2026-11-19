@@ -10,6 +10,11 @@ from evorium.events import emit
 from evorium.llm import LLMError
 from evorium.memory import DUE_FMT
 
+CHECK_EVERY_HOURS=2
+LOOP_WINDOW_HOURS=6
+LOOP_CONVERSATIONS=3
+
+
 class Proposal(BaseModel):
     model_config=ConfigDict(extra='forbid',strict=True,str_strip_whitespace=True,populate_by_name=True)
     type: Literal['letter','phone_call','small_incident','chance_meeting']
@@ -27,7 +32,15 @@ def stall_report(now,db_path=DEFAULT_DB_PATH):
         pending=c.execute('SELECT 1 FROM scheduled_events WHERE delivered=0 AND at<=? LIMIT 1',(high,)).fetchone() is not None
         recent=c.execute("SELECT 1 FROM scheduled_events WHERE origin='director' AND delivered=1 AND at>=? AND at<=?",(low,now.strftime(DUE_FMT))).fetchone() is not None
         recent=recent or c.execute("SELECT 1 FROM timeline WHERE kind='director' AND sim_at>=? AND sim_at<=?",(low,now.strftime(DUE_FMT))).fetchone() is not None
-    return {'stalled':not (important or pending or recent),'recent_important':important,'pending_event':pending,'recent_director':recent}
+        # Going round in circles: the same subject in several conversations lately, and nothing serious happening.
+        loop_low=(now-timedelta(hours=LOOP_WINDOW_HOURS)).strftime(DUE_FMT)
+        looping=c.execute("""SELECT f.subject FROM facts f JOIN conversations v ON v.id=f.source_conversation_id
+            WHERE v.sim_at>=? AND v.sim_at<=? GROUP BY f.subject HAVING COUNT(DISTINCT v.id)>=? LIMIT 1""",
+            (loop_low,now.strftime(DUE_FMT),LOOP_CONVERSATIONS)).fetchone()
+        serious=c.execute('SELECT 1 FROM timeline WHERE importance>=4 AND sim_at>=? AND sim_at<=? LIMIT 1',(low,now.strftime(DUE_FMT))).fetchone() is not None
+    looping=looping[0] if looping and not serious else None
+    stalled=not (important or pending or recent) or bool(looping and not pending and not recent)
+    return {'stalled':stalled,'recent_important':important,'pending_event':pending,'recent_director':recent,'looping_on':looping}
 
 
 def validate(proposal,now,db_path=DEFAULT_DB_PATH):
@@ -70,9 +83,10 @@ def validate(proposal,now,db_path=DEFAULT_DB_PATH):
 def check(client,now,db_path=DEFAULT_DB_PATH):
     if world.get_setting('director','1',db_path)!='1':return False
     previous=world.get_setting('director_check',None,db_path)
-    if previous and timedelta(0)<=now-datetime.strptime(previous,DUE_FMT)<timedelta(hours=6):return False
+    if previous and timedelta(0)<=now-datetime.strptime(previous,DUE_FMT)<timedelta(hours=CHECK_EVERY_HOURS):return False
     world.set_setting('director_check',now.strftime(DUE_FMT),db_path)
-    if not stall_report(now,db_path)['stalled']:return False
+    report=stall_report(now,db_path)
+    if not report['stalled']:return False
     with connect(db_path) as c:
         if c.execute("SELECT 1 FROM timeline WHERE kind='director' AND substr(sim_at,1,10)=?",(now.date().isoformat(),)).fetchone():return False
         cast=npc_agents(c);aid=system_id(c)
@@ -82,7 +96,7 @@ def check(client,now,db_path=DEFAULT_DB_PATH):
 Return JSON {"type":"small_incident","for":"full cast name","with":null,"content":"one or two sentences in second person, at most 300 characters","in_hours":1,"rationale":"why this helps"}.
 Allowed types: letter, phone_call, small_incident, chance_meeting. For a letter or phone call name an established sender, asking for an update or arranging an ordinary appointment; do not settle offers, leases or planning decisions.
 Small incidents ONLY: a barrel going off, late delivery, burst pipe, child off school ill. Chance meetings require two cast members and free time in an open pub or shop. No new fact is created for a meeting.
-'''+f"Now: {now.strftime(DUE_FMT)}. Cast: {json.dumps([{'name':a['name'],'occupation':a['occupation']} for a in cast])}. Other known people: {json.dumps(known)}. Established organisation: Northgate Estates.\nRecent timeline: {json.dumps([{'at':e['sim_at'],'text':e['text']} for e in recent])}"
+'''+(f"Conversations keep circling back to '{report['looping_on']}'. Give someone something different to think or talk about. " if report['looping_on'] else '')+f"Now: {now.strftime(DUE_FMT)}. Cast: {json.dumps([{'name':a['name'],'occupation':a['occupation']} for a in cast])}. Other known people: {json.dumps(known)}. Established organisation: Northgate Estates.\nRecent timeline: {json.dumps([{'at':e['sim_at'],'text':e['text']} for e in recent])}"
     try:
         proposal=client.propose(aid,[{'role':'user','content':prompt}],schema=Proposal,max_tokens=300)
         p,cast=validate(proposal,now,db_path)
@@ -112,5 +126,5 @@ Small incidents ONLY: a barrel going off, late delivery, burst pipe, child off s
             timeline.record(c,now,'director',f"{p.type.replace('_',' ')} for {p.for_name}: {p.content} — {p.rationale}",4,cast[p.for_name]['id'],cast[p.with_name]['id'] if meeting else None)
         return True
     except (LLMError,ValueError,TypeError):
-        emit('Director proposal dropped or unavailable. Next check in six sim-hours.','error')
+        emit(f'Director proposal dropped or unavailable. Next check in {CHECK_EVERY_HOURS} sim-hours.','error')
         return False
