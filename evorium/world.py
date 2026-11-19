@@ -91,9 +91,9 @@ def describe(dt: datetime) -> str:
 
 # ---- Pub hours and routines -------------------------------------------------
 
-def pub_open(dt: datetime) -> bool:
+def pub_open(dt: datetime, stats=None) -> bool:
     """Open every day 09:00 until midnight."""
-    return 9 <= dt.hour < 24
+    return not (stats or {}).get("pub.closed", 0) and 9 <= dt.hour < 24
 
 
 def _between(dt, start, end) -> bool:
@@ -101,27 +101,38 @@ def _between(dt, start, end) -> bool:
     return start <= h < end
 
 
-def _routine_location(name: str, dt: datetime) -> tuple[str, str]:
+def _routine_location(name: str, dt: datetime, stats=None) -> tuple[str, str]:
     """(location, activity) for a character at a sim datetime. Deterministic."""
+    stats = stats or {}
+    first = name.split()[0]
+    if stats.get('pub.closed') and first in ('Dez', 'Jess'):
+        return home_location(name), 'at home after the pub closed'
+    if stats.get('shop.open', 1) == 0 and first == 'Raj':
+        return home_location(name), 'at home after the shop closed'
+    if stats.get('pub.quiz') == 2 and not stats.get('pub.closed') and dt.weekday() == 3 and _between(dt, 19.5, 22.5) and first in ('Tommy', 'Mohammed', 'Brenda', 'Chloe'):
+        # Work still takes priority; Mo is driving after 19:30 on Thursdays.
+        base_loc, base_act = _routine_location(name, dt)
+        if base_act not in ('driving', 'at work', 'asleep'):
+            return PUB, 'at the Thursday quiz'
     wd = dt.weekday()  # Mon=0
     first = name.split()[0]
     if first == "Dez":
-        if pub_open(dt):
+        if pub_open(dt, stats):
             return PUB, "behind the bar"
         if _between(dt, 7, 9):
             return "Cash and carry, Openshaw", "doing the pub's shopping"
         return "Flat above The Crooked Billet", "off duty upstairs" if _between(dt, 7, 24) else "asleep"
     if first == "Jess":
-        if wd in (0, 1, 3, 4) and _between(dt, 17, 23):
+        if wd in ((3, 4, 5, 6, 2, 1)[:stats["jess.shifts"]] if "jess.shifts" in stats else (0, 1, 3, 4)) and _between(dt, 17, 23):
             return PUB, "working the bar"
         if wd < 5 and _between(dt, 6, 10):
             return "Office block, Great Ancoats Street", "cleaning shift"
-        if wd in (2, 5) and _between(dt, 19.5, 22) and pub_open(dt):
+        if wd in (2, 5) and _between(dt, 19.5, 22) and pub_open(dt, stats):
             return PUB, "having a drink on her night off"
         return "Flat, Miles Platting", "at home with Alfie" if _between(dt, 7, 23) else "asleep"
     if first == "Tommy":
         if (wd == 3 and _between(dt, 18, 22.5)) or (wd != 3 and _between(dt, 19, 22.5)):
-            if pub_open(dt):
+            if pub_open(dt, stats):
                 return PUB, "at his usual table"
         if _between(dt, 10, 12):
             return "Ancoats", "walking to the shops"
@@ -129,17 +140,17 @@ def _routine_location(name: str, dt: datetime) -> tuple[str, str]:
     if first == "Raj":
         if wd < 6 and _between(dt, 7, 19):
             return "Patel's News, Ancoats", "behind the counter"
-        if wd in (1, 3, 4) and _between(dt, 20, 22) and pub_open(dt):
+        if wd in (1, 3, 4) and _between(dt, 20, 22) and pub_open(dt, stats):
             return PUB, "having a quiet half"
-        if wd == 6 and _between(dt, 13, 15) and pub_open(dt):
+        if wd == 6 and _between(dt, 13, 15) and pub_open(dt, stats):
             return PUB, "Sunday pint"
         return "Home, Cheetham Hill", "with the family" if _between(dt, 7, 23) else "asleep"
     if first == "Chloe":
         if wd < 5 and _between(dt, 9, 18):
             return "Architecture practice, Northern Quarter", "at work"
-        if wd in (1, 2, 4) and _between(dt, 18.5, 22) and pub_open(dt):
+        if wd in (1, 2, 4) and _between(dt, 18.5, 22) and pub_open(dt, stats):
             return PUB, "unwinding after work"
-        if wd == 5 and _between(dt, 15, 20) and pub_open(dt):
+        if wd == 5 and _between(dt, 15, 20) and pub_open(dt, stats):
             return PUB, "Saturday afternoon drink"
         if wd == 5 and _between(dt, 10, 15):
             return "Various flats, Ancoats", "flat viewings"
@@ -150,30 +161,30 @@ def _routine_location(name: str, dt: datetime) -> tuple[str, str]:
         return 'Home, Hale','at home' if _between(dt,7,23) else 'asleep'
     if first == 'Brenda':
         if wd<6 and _between(dt,9,9.5):return "Patel's News, Ancoats",'buying the morning paper'
-        if ((wd==2 and _between(dt,19,21)) or (wd==6 and _between(dt,13,15))) and pub_open(dt):return PUB,'catching up with the neighbours'
+        if ((wd==2 and _between(dt,19,21)) or (wd==6 and _between(dt,13,15))) and pub_open(dt, stats):return PUB,'catching up with the neighbours'
         return 'Home, Blossom Street','at home' if _between(dt,7,23) else 'asleep'
     if first == 'Mohammed':
         if _between(dt,5,12):return 'Home, Manchester','asleep'
         if wd<6 and _between(dt,16,16+20/60):return "Patel's News, Ancoats",'picking up supplies before his shift'
-        if ((wd==1 and _between(dt,18,19.5)) or (wd==6 and _between(dt,14,16))) and pub_open(dt):return PUB,'here for darts and company'
+        if ((wd==1 and _between(dt,18,19.5)) or (wd==6 and _between(dt,14,16))) and pub_open(dt, stats):return PUB,'here for darts and company'
         if _between(dt,19.5,24) or _between(dt,0,4):return 'Manchester','driving'
         return 'Home, Manchester','off duty'
     return "Ancoats", "about"
 
 
 
-def _routine(name,dt):
-    location,activity=_routine_location(name,dt)
+def _routine(name,dt,stats=None):
+    location,activity=_routine_location(name,dt,stats)
     free=activity not in ('asleep','behind the bar',"doing the pub's shopping",'working the bar','cleaning shift','behind the counter','at work','at the office','driving')
     return location,activity,free
 
 
-def routine(name,dt):
-    return _routine(name,dt)[:2]
+def routine(name,dt,stats=None):
+    return _routine(name,dt,stats)[:2]
 
 
-def is_free(name,dt):
-    return _routine(name,dt)[2]
+def is_free(name,dt,stats=None):
+    return _routine(name,dt,stats)[2]
 
 
 def home_location(name):
@@ -183,13 +194,23 @@ def home_location(name):
 
 def whereabouts(agent,now,db_path=DEFAULT_DB_PATH):
     with connect(db_path) as c:
+        from evorium.economy import stats
+        values = stats(c)
+        if (values.get("pub.closed") and agent["name"].split()[0] in ("Dez", "Jess")) or (values.get("shop.open", 1) == 0 and agent["name"].split()[0] == "Raj"):
+            return routine(agent["name"], now, values)
         plan=c.execute("""SELECT * FROM plans WHERE agent_id=? AND status='active' AND action IN ('visit','stay_home')
             AND start_at<=? AND end_at>? ORDER BY id DESC LIMIT 1""",(agent['id'],now.strftime('%Y-%m-%d %H:%M'),now.strftime('%Y-%m-%d %H:%M'))).fetchone()
     if plan:
         if plan['action']=='stay_home':return home_location(agent['name']),'staying home'
         from evorium.places import REGISTRY
+        from evorium.places import is_open
+        if not is_open(plan['place'], now, values):
+            return routine(agent['name'], now, values)
         return REGISTRY[plan['place']], 'popping into the shop' if plan['place']=='shop' else 'in for a drink'
-    return routine(agent['name'],now)
+    loc, act = routine(agent['name'],now,values)
+    if loc == PUB and not pub_open(now, values):
+        return home_location(agent['name']), 'at home while the pub is shut'
+    return loc, act
 
 def present_in_pub(agents: list[dict], dt: datetime) -> list[dict]:
     return [a for a in agents if a.get("kind", "npc") == "npc" and routine(a["name"], dt)[0] == PUB]

@@ -164,6 +164,34 @@ MIGRATIONS = (
            AND content IN (SELECT content FROM scheduled_events WHERE delivered=1 AND origin='seed')""",
         "CREATE INDEX facts_agent_importance ON facts(agent_id, importance, id)",
     ),
+    # Migration 10: durable world ledger and visibility.
+    (
+        "ALTER TABLE scheduled_events ADD COLUMN delivered_at TEXT",
+        "UPDATE scheduled_events SET delivered_at=at WHERE delivered=1",
+        "CREATE TABLE stats(key TEXT PRIMARY KEY,value INTEGER NOT NULL,visible_to TEXT NOT NULL,updated_at TEXT NOT NULL)",
+        "CREATE TABLE stat_changes(id INTEGER PRIMARY KEY,key TEXT NOT NULL,old INTEGER,new INTEGER,reason TEXT NOT NULL,sim_at TEXT NOT NULL,action_id INTEGER)",
+        "CREATE TABLE offers(id INTEGER PRIMARY KEY,kind TEXT CHECK(kind IN ('surrender','renewal','loan','job')),from_id INTEGER REFERENCES agents(id),to_id INTEGER REFERENCES agents(id),amount INTEGER NOT NULL,terms TEXT NOT NULL,status TEXT CHECK(status IN ('open','accepted','refused','expired','withdrawn')),created_at TEXT NOT NULL,expires_at TEXT NOT NULL,resolved_at TEXT,source_action_id INTEGER)",
+        "CREATE TABLE notices(id INTEGER PRIMARY KEY,place TEXT NOT NULL,text TEXT NOT NULL,by_id INTEGER REFERENCES agents(id),since TEXT NOT NULL,until TEXT,price_rise INTEGER NOT NULL DEFAULT 0)",
+        "CREATE TABLE notice_seen(notice_id INTEGER REFERENCES notices(id),agent_id INTEGER REFERENCES agents(id),PRIMARY KEY(notice_id,agent_id))",
+    ),
+    # Migration 11: validated decisions and durable reaction queues.
+    (
+        "CREATE TABLE actions(id INTEGER PRIMARY KEY,agent_id INTEGER NOT NULL REFERENCES agents(id),key TEXT NOT NULL,args_json TEXT NOT NULL,reason TEXT NOT NULL,status TEXT CHECK(status IN ('considering','done','rejected')),trigger TEXT CHECK(trigger IN ('plan','conversation','reaction','player')),evidence TEXT NOT NULL,sim_at TEXT NOT NULL,conversation_id INTEGER REFERENCES conversations(id),result TEXT)",
+        "CREATE INDEX actions_agent_time ON actions(agent_id,sim_at)",
+        "CREATE TABLE asks(id INTEGER PRIMARY KEY,kind TEXT NOT NULL,from_id INTEGER REFERENCES agents(id),to_id INTEGER REFERENCES agents(id),amount INTEGER,status TEXT NOT NULL DEFAULT 'open',created_at TEXT NOT NULL,expires_at TEXT NOT NULL,action_id INTEGER)",
+        "CREATE TABLE reactions(id INTEGER PRIMARY KEY,agent_id INTEGER NOT NULL REFERENCES agents(id),reason TEXT NOT NULL,due_at TEXT NOT NULL,status TEXT NOT NULL DEFAULT 'pending',called_at TEXT,UNIQUE(agent_id,reason))",
+        "CREATE TABLE memberships(kind TEXT NOT NULL,agent_id INTEGER REFERENCES agents(id),PRIMARY KEY(kind,agent_id))",
+        "CREATE TABLE deferred_facts(id INTEGER PRIMARY KEY,agent_id INTEGER REFERENCES agents(id),source_id INTEGER REFERENCES agents(id),content TEXT NOT NULL,penalty INTEGER NOT NULL DEFAULT 0)",
+    ),
+    # Migration 12: Python-owned story outcomes.
+    (
+        "CREATE TABLE arcs(id INTEGER PRIMARY KEY,key TEXT UNIQUE NOT NULL,status TEXT CHECK(status IN ('active','resolved')),started_at TEXT NOT NULL,resolved_at TEXT,outcome TEXT,summary TEXT)",
+    ),
+    # Migration 13: returning player checkpoint and persistent summary cache.
+    (
+        "ALTER TABLE agents ADD COLUMN last_seen_at TEXT",
+        "CREATE TABLE catchup_cache(cache_key TEXT PRIMARY KEY,text TEXT NOT NULL,created_at REAL NOT NULL)",
+    ),
 )
 
 VISIBLE_IMPORTANCE = 3  # facts scored below this are kept in the database but never shown to characters

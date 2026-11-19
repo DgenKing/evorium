@@ -118,6 +118,9 @@ class DeepSeekClient:
 
     def propose(self, agent_id: int, messages: list[dict[str, str]],
                 schema: type[BaseModel] = ActionProposal, max_tokens: int = MAX_OUTPUT_TOKENS):
+        from evorium import backoff
+        if backoff.paused():
+            raise LLMError('DeepSeek calls are paused while the service recovers.')
         if not self.settings.api_key or self.settings.api_key == "sk-...":
             raise LLMError("Set DEEPSEEK_API_KEY in config.py before running a conversation.")
         spent = get_usage(self.db_path)["estimated_spend_usd"]
@@ -129,11 +132,16 @@ class DeepSeekClient:
         # At most two requests. Only invalid dialogue JSON/schema gets a retry.
         for attempt in range(2):
             try:
-                return self._attempt(agent_id, messages, schema, max_tokens)
+                result = self._attempt(agent_id, messages, schema, max_tokens)
+                backoff.succeeded()
+                return result
             except InvalidProposal:
                 if attempt == 1:
                     logger.warning("Agent %s: invalid dialogue after two attempts; skipping.", agent_id)
                     raise InvalidProposal("Model returned invalid dialogue twice; turn skipped.") from None
+            except LLMError as exc:  # network/HTTP/usage failures only; invalid replies are caught above
+                backoff.failed(exc)
+                raise
         raise AssertionError("Unreachable")
 
     def _start_call(self, agent_id: int) -> int:
@@ -152,7 +160,7 @@ class DeepSeekClient:
                  schema: type[BaseModel] = ActionProposal, max_tokens: int = MAX_OUTPUT_TOKENS):
         payload = {
             "model": self.settings.model, "messages": messages,
-            "temperature": 0.8 if schema is ActionProposal else 0.2, "max_tokens": max_tokens,
+            "temperature": 0.8 if schema is ActionProposal else 0.6 if schema.__name__ == "Decision" else 0.2, "max_tokens": max_tokens,
             "response_format": {"type": "json_object"},
             "thinking": {"type": "disabled"},
         }

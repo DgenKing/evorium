@@ -10,7 +10,7 @@ import logging
 from datetime import datetime, timedelta
 from pathlib import Path
 
-from evorium import world, timeline, places
+from evorium import world, timeline, places, economy
 from evorium.db import DEFAULT_DB_PATH, connect, npc_agents
 from evorium.events import emit
 from evorium.llm import InvalidProposal, LLMError
@@ -38,7 +38,9 @@ def update_routines(now: datetime, db_path: str | Path = DEFAULT_DB_PATH) -> lis
                 connection.execute("UPDATE agents SET location=?, activity=? WHERE id=?", (loc, act, a["id"]))
                 if loc != a['location'] and (loc in places.REGISTRY.values() or a['location'] in places.REGISTRY.values()):
                     timeline.record(connection, now, 'arrival', f"{a['name']} → {act} ({loc})", 1, a['id'])
+                a.update(location=loc, activity=act)
                 changes.append(f"{a['name'].split()[0]} → {act} ({loc.split(',')[0]})")
+            economy.observe(connection, a, now)
     return changes
 
 
@@ -56,10 +58,13 @@ def deliver_events(now: datetime, db_path: str | Path = DEFAULT_DB_PATH) -> int:
                                (r["agent_id"], r["subject"], r["content"], importance))
             connection.execute("INSERT INTO memories (agent_id, content, importance, source_conversation_id) "
                                "SELECT ?, ?, 8, id FROM conversations ORDER BY id LIMIT 1", (r["agent_id"], r["content"]))
-            connection.execute("UPDATE scheduled_events SET delivered=1 WHERE id=?", (r["id"],))
+            connection.execute("UPDATE scheduled_events SET delivered=1,delivered_at=? WHERE id=?", (now.strftime(DUE_FMT), r["id"]))
             timeline.record(connection, now, 'world_event', f"{r['name']}: {r['content']}", 5, r['agent_id'])
             emit(f"WORLD EVENT for {r['name']}: {r['content']}")
+            if importance == 5:
+                economy.schedule(connection, r["agent_id"], f"World news {r['id']}", now)
             delivered += 1
+        economy.seed_offers(connection)
     return delivered
 
 

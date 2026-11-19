@@ -17,7 +17,7 @@ def record(connection, sim_at, kind, text, importance, agent_id=None, other_id=N
 
 
 def entries(db_path=DEFAULT_DB_PATH, since=None, until=None, agent_id=None, kinds=None, min_importance=1, limit=500):
-    clauses=['t.importance>=?']; params=[min_importance]
+    clauses=["t.importance>=?", "(t.conversation_id IS NULL OR NOT EXISTS (SELECT 1 FROM conversations v WHERE v.id=t.conversation_id AND v.status='failed' AND NOT EXISTS (SELECT 1 FROM messages m WHERE m.conversation_id=v.id)))"]; params=[min_importance]
     for column, op, value in [('sim_at','>=',since),('sim_at','<=',until)]:
         if value:
             clauses.append(f't.{column}{op}?'); params.append(value)

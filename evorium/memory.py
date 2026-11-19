@@ -77,7 +77,9 @@ def knowledge_for_prompt(connection: sqlite3.Connection, speaker: dict, listener
     rel = relationships.get(connection, sid, lid)
     reasons = [r[0] for r in connection.execute('SELECT reason FROM relationship_events WHERE agent_id=? AND other_id=? ORDER BY id DESC LIMIT 2',(sid,lid))]
     broken = [r[0] for r in connection.execute("SELECT content FROM commitments WHERE agent_id=? AND to_agent_id=? AND status='broken' ORDER BY id DESC LIMIT 2",(lid,sid))]
+    from evorium.economy import situation
     return {
+        "situation": situation(connection, speaker, now),
         "plans": [f"{p['start_at']}: {p['action']} {p['place'] or ''} [{p['status']}] — {p['outcome'] or p['reason']}" for p in today(connection,sid,now)],
         "relationship": [relationships.describe(rel), *reasons],
         "broken_promises": broken,
@@ -123,6 +125,11 @@ def store_extraction(connection: sqlite3.Connection, conversation_id: int, parti
         me = agent_id_for(name)
         if me is None or name not in participants and me not in {p["id"] for p in participants.values()}:
             continue
+        from evorium import actions, economy
+        if ext.decision:
+            actor = dict(connection.execute('SELECT * FROM agents WHERE id=?', (me,)).fetchone())
+            transcript = [dict(r) for r in connection.execute('SELECT speaker_id,text FROM messages WHERE conversation_id=?', (conversation_id,))]
+            actions.propose(connection, actor, ext.decision, now, 'conversation', conversation_id, transcript)
         feeling = ext.feeling
         if me not in feelings_applied and feeling and feeling.reason.strip() and (feeling.trust_change or feeling.warmth_change):
             feelings_applied.add(me)
@@ -143,6 +150,12 @@ def store_extraction(connection: sqlite3.Connection, conversation_id: int, parti
                 """INSERT INTO facts (agent_id, subject, content, source, source_agent_id, source_conversation_id, importance)
                    VALUES (?, ?, ?, ?, ?, ?, ?)""",
                 (me, f.subject.lower(), f.content, source, told_by, conversation_id, f.importance))
+            if source == 'told' and 'raj' in f.content.lower() and any(word in f.content.lower() for word in ('accepted', 'surrender', 'sold', 'handover')):
+                for pending in connection.execute('SELECT * FROM deferred_facts WHERE agent_id=? AND penalty<0', (me,)).fetchall():
+                    relationships.adjust(connection, me, pending['source_id'], pending['penalty'], 0, pending['content'], now, conversation_id)
+                    connection.execute('DELETE FROM deferred_facts WHERE id=?', (pending['id'],))
+            if f.importance == 5:
+                economy.schedule(connection, me, f"Important conversation {conversation_id}", now)
             if source == "claim":
                 timeline.record(connection, now, 'rumour', f"{name}: {f.content}", 3, me, conversation_id=conversation_id)
             elif f.importance == 5 and not counts.get("serious"):

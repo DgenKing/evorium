@@ -151,6 +151,18 @@
     drawDoor('pub',!!usage.pub_open);drawDoor('shop',shopOpen);
     if (!usage.pub_open) { rect(49,146,462,266,'#171a2388');text('CLOSED',282,401,12,'#d3c8b4','center'); }
     if (!shopOpen) { rect(679,146,232,266,'#171a2377');text('CLOSED',793,401,12,'#d3c8b4','center'); }
+    const ledger=usage.ledger||{}, values=ledger.stats||{};
+    for(const [key,x,w] of [['pub',49,462],['shop',679,232]]){
+      const closed=key==='pub'?values['pub.closed']:values['shop.open']===0;
+      if(closed){
+        rect(x,146,w,266,'#575b5b');
+        for(let y=150;y<411;y+=12)rect(x,y,w,2,'#333838');
+        text('SHUTTERED',x+w/2,288,15,'#e2d8c6','center');
+      }
+      if((ledger.notices||[]).some(n=>n.place===key)){
+        rect(x+8,369,42,34,'#e6d7af');text('NOTICE',x+29,389,8,'#3f382c','center');
+      }
+    }
     for (const x of [29,935]) { rect(x,374,15,43,'#62523e');rect(x-7,362,29,23,COLOURS.foliage); }
   }
   function nightTint() {
@@ -408,6 +420,7 @@
       <div class="popup-heading">${portrait?`<img class="popup-photo" src="/static/portraits/${esc(portrait)}.png" alt="${esc(a.name)}">`:'<canvas class="popup-photo" width="96" height="96" aria-label="Character sprite"></canvas>'}
       <div><h2>${esc(a.name)}</h2><div class="sub">${esc(a.age??'')} · ${esc(a.occupation||'')}</div><span class="mood">${esc(a.mood||'')}</span></div></div>
       <div class="row"><b>Now</b>${esc(a.activity||'—')} · ${esc((a.location||'').split(',')[0])}</div>
+      ${a.today_action?`<div class="row"><b>Today:</b> ${esc(a.today_action)}</div>`:''}
       <div class="row"><b>Goal</b>${esc(a.current_goal||'—')}</div>
       <div class="row"><b>Knowledge</b>${esc(fc.seed||0)} known · ${esc(fc.told||0)} told · ${esc(fc.claim||0)} rumour</div>
       <div class="mem"><b>Relationships</b>${relationships}</div>

@@ -41,6 +41,7 @@ def build_messages(speaker: dict, listener: dict, transcript: list[dict], knowle
     )
     if listener.get('kind') == 'player':
         system += f"\n{listener['name']} is someone you know only from what is listed here. Do not assume anything else about them."
+    system += _section("YOUR SITUATION:", knowledge.get("situation", []))
     system += _section("WHAT YOU KNOW FOR CERTAIN (your own experience):", knowledge["certain"])
     system += _section("WHAT OTHERS HAVE TOLD YOU (second-hand, may be wrong):", knowledge["told"])
     system += _section("THINGS YOU SAID EARLIER THAT YOU CAN'T ACTUALLY VERIFY (treat as your own guesswork):", knowledge["claims"])
@@ -106,6 +107,7 @@ For EACH of the two speakers, record:
   How this speaker now feels about the OTHER speaker. Integers from -2 to 2. Ordinary chat is 0. Kindness, honesty,
   help or praise earns +1 or +2; rudeness, lies, threats or crime cost -1; insults, slurs, intimidation or
   admitting to crime cost -2.
+- "decision": null unless this speaker explicitly chooses a real action now. At most one: {{"action":"menu key","args":{{}},"quote":"at least six exact words from this speaker's own line"}}. Do not infer a decision from someone else's words or a vague intention.
 - "new_people": any named person mentioned who is NOT in this list: {cast}. Give a short description of what was said about them.
 
 Also give:
@@ -125,7 +127,7 @@ CONVERSATION:
 {transcript}
 
 Return JSON exactly like:
-{{"summary": "...", "per_agent": {{"{a_name}": {{"feeling": {{"trust_change": 0, "warmth_change": 0, "reason": "..."}}, "facts": [{{"subject": "...", "content": "...", "source": "told", "told_by": "{b_name}", "importance": 3}}], "commitments": [], "new_people": []}}, "{b_name}": {{"feeling": {{...}}, "facts": [...], "commitments": [], "new_people": []}}}}, "commitments_done": []}}
+{{"summary": "...", "per_agent": {{"{a_name}": {{"decision": null, "feeling": {{"trust_change": 0, "warmth_change": 0, "reason": "..."}}, "facts": [{{"subject": "...", "content": "...", "source": "told", "told_by": "{b_name}", "importance": 3}}], "commitments": [], "new_people": []}}, "{b_name}": {{"decision": null, "feeling": {{...}}, "facts": [...], "commitments": [], "new_people": []}}}}, "commitments_done": []}}
 Keep it tight: at most 3 facts and 3 commitments per speaker, an empty facts list is fine. Never record trivia."""
 
 
@@ -138,6 +140,12 @@ def build_extraction_messages(a: dict, b: dict, transcript: list[dict], known_fa
         a_name=a["name"], b_name=b["name"], location=a["location"], sim_time=sim_time,
         cast=", ".join(cast), known_facts=known, open_commitments=opens, transcript=lines,
     )
+    from evorium.actions import REGISTRY
+    speakers = {a["name"].split()[0]: a["name"], b["name"].split()[0]: b["name"]}
+    # Argument names only: ranges are checked in Python, and Simon's limits must never reach the note-taker.
+    menu = {name: [{'action': x.key, 'args': list(x.args_schema.model_fields)} for x in REGISTRY.values()
+                   if x.who in ('any', first) and x.key != 'wait'] for first, name in speakers.items()}
+    prompt += '\nDecision menu per speaker (use only that speaker\'s own list): ' + json.dumps(menu)
     return [{"role": "user", "content": prompt}]
 
 

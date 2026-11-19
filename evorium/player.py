@@ -2,7 +2,7 @@
 import threading
 from datetime import datetime, timedelta, timezone
 from fastapi import HTTPException
-from evorium import world, places, timeline, relationships
+from evorium import world, places, timeline, relationships, economy, backoff
 from evorium.db import DEFAULT_DB_PATH, connect
 from evorium.memory import DUE_FMT, knowledge_for_prompt, open_commitments, resolve_commitment
 from evorium.llm import InvalidProposal, LLMError
@@ -52,7 +52,7 @@ def close(client, db_path=DEFAULT_DB_PATH):
             a=sim._agent(c,conv['agent_a_id']);b=sim._agent(c,conv['agent_b_id'])
         full=sim.get_conversation(conv['id'],db_path)
         transcript=[{'speaker_name':m['speaker_name'],'text':m['text']} for m in full['messages']]
-        summary=sim._take_notes(client,db_path,conv['id'],a,b,transcript,conv['sim_time']) if transcript else 'No words exchanged.'
+        summary=sim._take_notes(client,db_path,conv['id'],a,b,transcript,conv['sim_time']) if transcript and not backoff.paused() else ('They talked; detailed notes were unavailable while DeepSeek recovered.' if transcript else 'No words exchanged.')
         sim._set_status(db_path,conv['id'],'completed',summary)
         now=world.now(db_path)
         with connect(db_path) as c:
@@ -66,7 +66,7 @@ def enter(client,place,db_path=DEFAULT_DB_PATH):
     with lock:
         now=world.now(db_path)
         if place not in places.REGISTRY:raise HTTPException(409,'Choose the pub or the shop.')
-        if not places.is_open(place,now):raise HTTPException(409,'That place is shut right now.')
+        if not places.is_open(place,now,economy.read(db_path)):raise HTTPException(409,'That place is shut right now.')
         if world.get_setting('player_place','',db_path)!=place:close(client,db_path)
         with connect(db_path) as c:
             me=row(c);world._set(c,'player_place',place)
@@ -87,6 +87,7 @@ def leave(client,db_path=DEFAULT_DB_PATH):
 
 def say(client,to_agent_id,text,db_path=DEFAULT_DB_PATH):
     with lock:
+        if backoff.paused():raise HTTPException(503,"DeepSeek is paused while the service recovers.")
         now=world.now(db_path);text=text.strip();place=world.get_setting('player_place','',db_path)
         if not place:raise HTTPException(409,'Walk into a place before speaking.')
         if not 1<=len(text)<=500:raise HTTPException(409,'Say between 1 and 500 characters.')

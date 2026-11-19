@@ -95,8 +95,16 @@ class Feeling(BaseModel):
     reason: str = Field(max_length=300)
 
 
+class ConversationDecision(BaseModel):
+    model_config = ConfigDict(extra='forbid', strict=True, str_strip_whitespace=True)
+    action: str = Field(max_length=60)
+    args: dict = Field(default_factory=dict)
+    quote: str = Field(min_length=1, max_length=1200)
+
+
 class AgentExtraction(BaseModel):
     model_config = ConfigDict(extra="ignore")
+    decision: ConversationDecision | None = None
     feeling: Feeling | None = None
     facts: list[FactOut] = Field(default_factory=list, max_length=8)
     commitments: list[CommitmentOut] = Field(default_factory=list, max_length=5)
@@ -184,7 +192,7 @@ def _normalise_extraction(data):
             except (ValueError, AttributeError, TypeError):
                 emit(f"Invalid feeling proposal dropped for {name}: {raw!r}", 'error')
                 feeling = None
-        cleaned[str(name)] = {"facts": facts, "commitments": commitments, "new_people": people, "feeling": feeling}
+        cleaned[str(name)] = {"facts": facts, "commitments": commitments, "new_people": people, "feeling": feeling, "decision": ext.get("decision")}
     data["per_agent"] = cleaned
     done = []
     for x in data.get("commitments_done") or []:

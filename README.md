@@ -1,10 +1,11 @@
-# Evorium — Milestone 3
+# Evorium — Milestone 4
 
 Eight persistent characters in an Ancoats neighbourhood, with player chat,
 memories, relationships and plans. Python 3.11+, FastAPI, SQLite and plain HTML/JavaScript.
 
 **The whole project — idea, history, current state, known issues, next steps and the online plan — is in
-[EVORIUM.md](EVORIUM.md).** This README is just how to run it.
+[EVORIUM.md](EVORIUM.md).** This README is just how to run it. Anyone (or any AI) changing the code
+must update both files afterwards. See [AGENTS.md](AGENTS.md).
 
 ## Run locally
 
@@ -117,7 +118,9 @@ file; use that for smoke tests. Existing saves migrate in place, never reset.
 See [deploy/README.md](deploy/README.md) for the optional Linux home-LAN service.
 No voice, group chat or new hosting service is included.
 
-New model call limits: player replies 300 tokens; daily planning 300 per NPC;
+New model call limits: reactions 350 tokens (temperature 0.6, at most 12 calls per sim day);
+arc ending narration 300 (one attempt, deterministic fallback); catch-up 250 (at most
+once per sim day and per real ten minutes, cached). Player replies 300 tokens; daily planning 300 per NPC;
 director 300; digest 250; phone dialogue 300 per turn. The existing note-taking
 call stays at 900 and due-promise checks at 200. The ordinary daily planning,
 director and digest overhead is about ten calls for eight NPCs, excluding
@@ -140,7 +143,8 @@ usage; their actual cost is unknown. Network/HTTP failures are not retried.
 python -m pytest -q
 ```
 
-Tests use temporary SQLite files and never call the real API. Schema versioning
+Run the tests with the project virtual environment (`.venv/bin/python -m pytest -q`),
+and run `node tests/map_view.test.cjs` for the map. Tests use temporary SQLite files and never call the real API. Schema versioning
 uses SQLite's `user_version`; append new entries to `MIGRATIONS` in `evorium/db.py`
 for future schema changes. Each connection enforces foreign keys, commits on
 success, rolls back on failure and closes when finished.
@@ -189,4 +193,55 @@ then save with an automatic backup; stop the server before applying):
 ```
 
 Low scores are hidden from prompts and the dashboard, never deleted. The server
-also writes a rolling log to `evorium.log` in the project folder.
+also writes a rolling log to `evorium.log` in the project folder (`EVORIUM_LOG_FILE` picks another
+file; an empty value turns it off, which the tests do).
+
+
+## Decisions and consequences (M4)
+
+Characters can change prices and shifts, restore the quiz, negotiate or accept offers,
+ask for loans, warn neighbours, organise a petition or darts team, share facts and look
+for work. Their morning plan and conversation notes can propose decisions; a small
+reaction call follows important news. Python owns the fixed menu, validates arguments,
+ownership, opening times, money, cooldowns and evidence, then applies every effect.
+Rejected proposals remain in the action history and appear in the live feed.
+
+Each character can act once per sim day, plus one `tell`. Major choices need an
+important fact and two matching proposals at least twelve sim hours apart; at most
+two major actions complete across the world each day. Waiting is always allowed.
+Simon can reopen a refused offer for fourteen days: a replacement retains the earlier
+refusal in history. Offers otherwise expire automatically, as do unanswered asks after
+72 sim hours. Jess also has explicit accept/refuse actions for an outside job offer.
+
+The pub settles each Sunday at 23:59, with no model call. The constants at the top of
+`economy.py` give about £240 profit at £2,400 rent and a £106 loss at £3,900 (weekly
+running overheads tuned to £525); the quiz and a price rise improve the result, while
+prices affect regulars and shifts cost wages. Rent changes only when the lease begins
+on 25 March 2027. A missing renewal or savings below −£2,000 shuts the pub. Raj accepting
+his surrender adds the payment to his savings and closes the shop thirty days later.
+The Northgate ending records both businesses' outcomes. Small darts and flat-hunt arcs
+can follow after two days. Chloe's template uses a Python-set £850 flat and £900 budget,
+with Simon's viewing invitation introduced as a director event; answering it resolves
+that small arc. No additional person is invented.
+
+The terrace card is the owner's view: private figures are labelled, while characters
+only receive figures they know. Notices are learned once on a visit. A returning player
+gets a dismissable **While you were away** panel after two sim hours; dismissing it saves
+the player's checkpoint. `/catchup` uses a cached paragraph or plain bullets on failure.
+The Timeline page keeps its separate browser-based last-visit marker.
+
+New routes: `GET /world/ledger`, `GET /actions?since=YYYY-MM-DD HH:MM`, `GET /catchup`,
+`POST /catchup/seen`. `/agents` adds `today_action` and `considering`; `/usage` includes
+`ledger`, `sim_at` and `model_paused_until` (real UTC time); `/timeline?kind=` accepts
+`action`, `offer` and `arc`. The map reuses these existing polls.
+
+DeepSeek failures pause calls for 1, 2, 4, 8 then 15 real minutes until recovery. Routines,
+letters, settlement and deadlines continue. Empty failed conversations remain in SQLite
+but disappear from the timeline and latest-conversation/map views. Budget/balance errors
+still stop auto mode. Optional settings in `config.example.py`: `REACTION_CALLS_PER_DAY`
+(default and maximum 12), `CATCHUP_COOLDOWN_SECONDS` (default and minimum 600).
+
+Startup appends migrations 10–13 and creates only missing ledger records; delivered
+seed letters become offers once, with deadlines measured from their saved delivery time.
+It preserves the live database and all history. This build was tested only with fake
+clients; no live API smoke test or live-save migration was performed.

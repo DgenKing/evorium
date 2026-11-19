@@ -30,6 +30,9 @@ def stall_report(now,db_path=DEFAULT_DB_PATH):
     with connect(db_path) as c:
         important=c.execute('SELECT 1 FROM timeline WHERE importance>=3 AND sim_at>=? AND sim_at<=? LIMIT 1',(low,now.strftime(DUE_FMT))).fetchone() is not None
         pending=c.execute('SELECT 1 FROM scheduled_events WHERE delivered=0 AND at<=? LIMIT 1',(high,)).fetchone() is not None
+        pending = pending or c.execute("SELECT 1 FROM offers WHERE status='open' LIMIT 1").fetchone() is not None
+        pending = pending or c.execute("SELECT 1 FROM reactions WHERE status='pending' LIMIT 1").fetchone() is not None
+        pending = pending or c.execute("SELECT 1 FROM actions WHERE status='considering' LIMIT 1").fetchone() is not None
         recent=c.execute("SELECT 1 FROM scheduled_events WHERE origin='director' AND delivered=1 AND at>=? AND at<=?",(low,now.strftime(DUE_FMT))).fetchone() is not None
         recent=recent or c.execute("SELECT 1 FROM timeline WHERE kind='director' AND sim_at>=? AND sim_at<=?",(low,now.strftime(DUE_FMT))).fetchone() is not None
         # Going round in circles: the same subject in several conversations lately, and nothing serious happening.
@@ -53,6 +56,10 @@ def validate(proposal,now,db_path=DEFAULT_DB_PATH):
     if exists:raise ValueError('Only one director event per sim day.')
     if p.for_name not in cast or (p.type=='chance_meeting' and (p.with_name not in cast or p.with_name==p.for_name)):
         raise ValueError('Director participants must be distinct NPCs.')
+    if re.search(r'\b(accept|refuse|renew|resolve|surrender|close|buy|sell|sign|transfer|pay|lend|set|increase|reduce)\w*\b', p.content, re.I):
+        raise ValueError('Director cannot perform decisions or resolve arcs.')
+    if re.search(r'\d', p.content):
+        raise ValueError('Director cannot introduce numerical terms.')
     if '£' in p.content or re.search(r'\d[\d,.]*\s*(?:k\b|thousand\b)',p.content,re.I):raise ValueError('Director cannot set money terms.')
     # Reject unfamiliar proper-name tokens. This deliberately prefers dropping a proposal
     # over admitting an invented person; no NER service or additional model call.
@@ -82,6 +89,8 @@ def validate(proposal,now,db_path=DEFAULT_DB_PATH):
 
 def check(client,now,db_path=DEFAULT_DB_PATH):
     if world.get_setting('director','1',db_path)!='1':return False
+    from evorium import arcs, economy
+    arcs.start_next(now, db_path)
     previous=world.get_setting('director_check',None,db_path)
     if previous and timedelta(0)<=now-datetime.strptime(previous,DUE_FMT)<timedelta(hours=CHECK_EVERY_HOURS):return False
     world.set_setting('director_check',now.strftime(DUE_FMT),db_path)
@@ -92,11 +101,14 @@ def check(client,now,db_path=DEFAULT_DB_PATH):
         cast=npc_agents(c);aid=system_id(c)
         known=[r[0] for r in c.execute('SELECT name FROM npcs')]
     recent=timeline.entries(db_path,since=(now-timedelta(days=3)).strftime(DUE_FMT),until=now.strftime(DUE_FMT))
+    with connect(db_path) as c:
+        active_arcs = [dict(r) for r in c.execute("SELECT key,started_at FROM arcs WHERE status='active'")]
+        arc_stats = economy.stats(c)
     prompt='''Nudge a stalled Manchester neighbourhood with one mundane event. Invent no people or money terms, and do not contradict existing facts.
 Return JSON {"type":"small_incident","for":"full cast name","with":null,"content":"one or two sentences in second person, at most 300 characters","in_hours":1,"rationale":"why this helps"}.
 Allowed types: letter, phone_call, small_incident, chance_meeting. For a letter or phone call name an established sender, asking for an update or arranging an ordinary appointment; do not settle offers, leases or planning decisions.
 Small incidents ONLY: a barrel going off, late delivery, burst pipe, child off school ill. Chance meetings require two cast members and free time in an open pub or shop. No new fact is created for a meeting.
-'''+(f"Conversations keep circling back to '{report['looping_on']}'. Give someone something different to think or talk about. " if report['looping_on'] else '')+f"Now: {now.strftime(DUE_FMT)}. Cast: {json.dumps([{'name':a['name'],'occupation':a['occupation']} for a in cast])}. Other known people: {json.dumps(known)}. Established organisation: Northgate Estates.\nRecent timeline: {json.dumps([{'at':e['sim_at'],'text':e['text']} for e in recent])}"
+'''+f'Active arcs: {json.dumps(active_arcs)}. Arc stats (context only, never alter or disclose private figures): {json.dumps(arc_stats)}. '+(f"Conversations keep circling back to '{report['looping_on']}'. Give someone something different to think or talk about. " if report['looping_on'] else '')+f"Now: {now.strftime(DUE_FMT)}. Cast: {json.dumps([{'name':a['name'],'occupation':a['occupation']} for a in cast])}. Other known people: {json.dumps(known)}. Established organisation: Northgate Estates.\nRecent timeline: {json.dumps([{'at':e['sim_at'],'text':e['text']} for e in recent])}"
     try:
         proposal=client.propose(aid,[{'role':'user','content':prompt}],schema=Proposal,max_tokens=300)
         p,cast=validate(proposal,now,db_path)

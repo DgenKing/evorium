@@ -66,7 +66,7 @@ the player's view. It started as a single-player experiment; the owner now wants
 ## 2. Where it stands today
 
 **One sentence:** eight AI characters live real-time daily routines around a pub and a newsagent in Ancoats,
-Manchester; they talk, gossip, remember, make plans and react to a property company buying their terrace; you
+Manchester; they talk, gossip, remember, make plans and take validated decisions with financial and social consequences; you
 can walk in and talk to them; a dashboard and a 2D map show it all live.
 
 | Area | State |
@@ -78,7 +78,11 @@ can walk in and talk to them; a dashboard and a 2D map show it all live.
 | Memory | Facts (seed / observed / told / claim) scored 1–5 for importance; only ≥3 saved or shown |
 | Relationships | Directed trust, warmth, familiarity (0–100), shown as words to the model, bars on the map |
 | Promises | Extracted from talk, with deadlines; kept/broken changes trust |
-| Plans | Up to two a day per NPC: visit, phone, stay home |
+| Plans | Up to two visits/calls per NPC; at most one action proposal on the morning call |
+| Decisions | Fixed menu; one action plus one tell per NPC/day; major decisions need evidence and twelve hours to reconsider |
+| Economy | Visible/private ledger, offers and deadlines, weekly pub settlement, notices and changing routines |
+| Story arcs | Python resolves Northgate; darts and flat-hunt templates can follow |
+| Catch-up | Player checkpoint, significant events and gossip, cached narration or bullet fallback |
 | Director | Nudges a stalled or looping world with one mundane event a day at most |
 | Timeline | Permanent record + daily digest, at `/timeline-page` |
 | Player | Name, enter pub/shop, chat, promises, "what you've learned" |
@@ -86,7 +90,7 @@ can walk in and talk to them; a dashboard and a 2D map show it all live.
 | Map tab | 2D canvas: pub, shop, empty unit, street; pixel sprites walk, idle, show speech bubbles; click for portrait + stats |
 | Model | DeepSeek `deepseek-flash`, JSON mode, temperature 0.8 (0.2 for structured calls) |
 | Cost | ~$0.03 for the first 70 calls; roughly 0.3–0.5 US cents per conversation including notes |
-| Tests | 133 Python tests + 7 Node map tests, none hitting the real API |
+| Tests | 214 Python tests + 7 Node map tests, all offline |
 
 ### Tech stack and dependencies
 
@@ -102,11 +106,34 @@ files — the API key is hardcoded in the git-ignored `config.py` (dotenv loads 
 
 1. Read the sim clock (`world.now`).
 2. Execute due plans; move everyone to their routine or plan location (`tick.update_routines`).
-3. Deliver scheduled world events (letters, phone calls) as `observed` facts.
+3. Deliver scheduled world events (letters, phone calls), create offers, notice posted signs, expire deadlines,
+   settle overdue Sundays and evaluate Python-owned story outcomes. These continue during model outages.
 4. Close idle player chats.
 5. In auto mode ("Let them live"):
-   daily digest → due-promise checks → daily plans → director check →
+   daily digest → due-promise checks → daily plans → budgeted reactions → optional ending narration → director check →
    at most one conversation, at whichever public place has 2+ people and has waited longest.
+
+### Decisions, knowledge and consequences (M4)
+
+`economy.py` owns integer stats, changes, offers and notices. `actions.py` is the fixed registry: typed arguments,
+Python checks, atomic effects, durable considering/done/rejected proposals, witnesses and relationship changes.
+Morning planning, verbatim conversation decisions and `decide.py` reactions use the same path. Big decisions need
+an actor-owned importance-4 fact, a second proposal after twelve hours and room in the daily limits. A scheduled
+follow-up gives them a chance to reconsider. Reactions are at most twelve calls per day, ordinarily one per NPC
+(two near expiry), and postponed when over budget. Hidden negotiation limits stay with Python and Simon.
+
+The weekly pub calculation is deterministic: £240 profit at the old rent, £106 loss at the proposed rent, before
+levers or falling-outs. Overheads are tuned to £525. Rent changes on the lease date; bankruptcy or no renewal
+closes the pub. Raj's surrender closes the shop thirty days later. `arcs.py` writes outcomes and canonical facts
+before attempting a single narration call; failures retain readable fallback text. A refusal may be followed by
+a fresh offer within fourteen days, preserving the refusal. The next small arc starts no earlier than two days
+after resolution. The flat template uses a fixed affordable viewing invitation from Simon via a director event,
+and the ordinary answer-ask path; it does not simulate a housing market.
+
+`catchup.py` collects significant history, ledger changes and gossip since the player's checkpoint, caching a
+250-token paragraph by checkpoint/latest timeline id. Calls are limited to once per sim day and real ten minutes.
+Dismiss updates the checkpoint. The map adds no polls. Provider failures share one process-wide exponential pause
+(1/2/4/8/15 real minutes), reset by a successful call; empty failed conversations are retained but hidden.
 
 ### A conversation (`sim.run_conversation`)
 
@@ -118,7 +145,8 @@ files — the API key is hardcoded in the git-ignored `config.py` (dotenv loads 
 3. After the last line, one **note-taking** call extracts per speaker: facts (with source and importance),
    promises (with deadlines), a **feeling** about the other person, and new named people; plus a summary and
    any promises now done.
-4. Python stores it: facts scored below 3 are dropped (max 3 kept per person per conversation); feelings are
+4. Notes may also identify one decision per speaker, with at least six verbatim words from that speaker.
+   Python validates it against the action menu. Python stores facts: facts scored below 3 are dropped (max 3 kept per person per conversation); feelings are
    capped at ±2 and applied ×2; promises get deadlines; both speakers get the summary as a memory; the timeline
    gets an entry.
 
@@ -275,6 +303,88 @@ DeepSeek; the owner later ran the live server on the new code.
 - **Art**: a friend produced all eight portraits in one style, photoreal place renders and an
   `Ancoats_Blender_Unreal_Kit.zip` (see §10).
 - **Online plan** discussed (see §8 and §9).
+- **Conversation count** (evening check):
+  - The old world (15–16 Nov, before the database was restarted) had 16 conversations; they're kept in
+    `evorium-backup-20261116.sqlite3`.
+  - The current world has 48 conversation rows and none are missing: 25 real (10 with the player, 15 between
+    NPCs) and 23 empty failures.
+  - All 23 failures came within 5 minutes (19 Nov, 16:00–16:05). DeepSeek was failing and auto mode retried
+    every tick.
+- **Best conversations so far:**
+  - #10, Dez rings Simon about the £3,900 rent;
+  - #11–12, Simon and Raj, where Raj learns Northgate owns the whole terrace;
+  - #41, Jess holds Dez to account and asks for quiz-night hours.
+  - They are good dialogue that never turns into action, which is what M4 addresses.
+- **Cost estimates fixed:**
+  - `llm.py` now reads `prompt_cache_hit_tokens` from each reply and prices cached input at $0.006/M instead
+    of $0.30/M (`CACHED_INPUT_USD_PER_MILLION`).
+  - It halves the cost outside DeepSeek's peak hours (01–04 and 06–10 UTC, Mon–Fri).
+  - Before this, estimates were about 3× the real bill. The DeepSeek dashboard showed $0.07 for 441 requests,
+    about $0.00016 a call, while a typical reply is now estimated at about $0.00014.
+  - Two tiny live calls confirmed the field (384 of 596 tokens cached on the repeat).
+  - 136 tests pass.
+- **Git:** a VS Code commit hung for hours waiting for the `COMMIT_EDITMSG` tab to close, and had the 26 MB
+  Unreal zip staged.
+  - The stuck commit was stopped and the zip unstaged; `.gitignore` now has `*.zip`.
+  - The earlier commit, which had only caught the doc deletions, was amended to include the restart button and
+    EVORIUM.md (`02e1875`).
+- **M4 brief written:** [CODEX_PROMPT_M4.md](CODEX_PROMPT_M4.md), "decisions and consequences", for Codex to
+  build. It covers:
+  - failure backoff;
+  - a money ledger with a weekly pub settlement;
+  - an action menu of about 25 actions, checked by Python, with Simon's hidden limits;
+  - routines, notices and noticing;
+  - three moments to decide (morning plan, in conversation, reacting to news), with sleep-on-it and evidence
+    rules for big decisions;
+  - Northgate endings and follow-on story arcs;
+  - a "While you were away" catch-up.
+- **Docs rule added:** `AGENTS.md` and `CLAUDE.md` tell every AI to keep this file and the README current (§12
+  rule 11).
+
+### M4 build — 19 November 2026
+
+- Implemented the decisions-and-consequences brief: outage backoff, ledger/weekly finances, offers, 28 menu
+  actions including job choices, shared validation and decision guards, dynamic routines/notices, reactions,
+  Northgate outcomes, follow-on templates, catch-up, dashboard/API/map/timeline fields.
+- Appended migrations 10 (ledger), 11 (actions/asks/reactions), 12 (arcs), 13 (player checkpoint/cache).
+  Migration tests preserve a version-9 world's conversations, facts, delivered letters and all history.
+- Added 78 offline rule, integration and multi-day scripted story tests; 214 Python and 7 Node tests pass. Existing schema-table assertion updated
+  for the deliberately added tables. Test fixtures reset provider pause state between independent tests.
+- The sandbox blocks FastAPI test-client event-loop sockets; checks run with the existing `.venv` outside that
+  sandbox. No dependencies installed, no real API calls, no live database writes, no commits.
+- Deliberate choices: fourteen-day reopening after refusal supports the specified smoke story; overheads £525
+  hit the requested profit/loss targets; fixed affordable flat invitation uses Simon rather than inventing a
+  landlord. Cash and other state always come from Python, never narration.
+
+### M4 review (Claude) — 19 November 2026
+
+- **The live world is already on M4.** The server was restarted on the new code at 20:37 sim time, and the
+  database migrated to version 13 with nothing lost: 57 conversations, 252 messages, 157 facts, 102 timeline
+  entries and 80 relationships, the same before and after on a copy.
+- **Offers were created from the letters already delivered:** Dez's £3,900 renewal is due 17 Dec 09:00 (28
+  days) and Raj's £45,000 surrender runs out 18 Dec 11:00 (30 days).
+- **First real decisions:** Raj and Dez both chose `wait`, with in-character reasons. Raj: tempted by £45k
+  against his £18k savings, but suspicious that Northgate is buying the whole block. Dez: the rent is firm, so
+  he'll see what the takings look like before countering.
+- **Weekly settlement checked:** +£240 a week at £2,400 rent, −£106 at £3,900, and +£133 at £3,900 with the quiz
+  running and a 20p rise.
+- **Fixed in review:**
+  - The note-taker's prompt listed every action's argument limits, which included Simon's hidden £60,000 and
+    £3,300. It now lists only the two speakers' own actions, by argument name. This also cut about 6,000
+    characters from every note-taking call.
+  - "What people say about you" matched the player's name inside words, so "Rob" matched "problem". It now
+    matches whole words only.
+  - An invalid model reply paused all DeepSeek calls as if the service were down. Now only real outages
+    (network, HTTP, missing usage data) trigger the pause.
+  - Rejected actions showed a multi-line pydantic dump in the live feed. They now show one readable line.
+  - The morning plan's `max_tokens` went from 300 to 400, since it can now carry a decision as well.
+  - Tests were writing into the real `evorium.log` (a bug from the 19 Nov persistent-log change). The log path
+    can now be set with `EVORIUM_LOG_FILE`; an empty value turns the file log off, and `tests/conftest.py`
+    does that.
+  - 4 new tests: 218 Python and 7 Node tests pass. A smoke run of the server on a copy (port 8011) loaded every
+    page and endpoint with no errors.
+- **Behaviour change to know about:** Jess's bar nights moved from Mon, Tue, Thu, Fri to Thu, Fri, Sat, Sun (the
+  brief's order for a shift count). Mo drives on Thursday evenings, so he never makes the quiz.
 
 ---
 
@@ -285,12 +395,19 @@ DeepSeek; the owner later ran the live server on the new code.
 - **Daytime pub is empty on weekdays**: it opens at 09:00 but nobody except Dez visits before late afternoon.
   Option: Tommy after his walk, Brenda at lunchtime.
 - **Promises are rare**: the note-taker correctly ignores vague offers; worth watching after a few real days.
-- **Director heuristics** are conservative word checks; valid but unfamiliar wording gets dropped.
+- **Director heuristics** are conservative word checks; valid but unfamiliar wording gets dropped. Since M4 it
+  also rejects any digit and words such as set, pay, close and sign, so expect more of its ideas to be dropped.
+- **A failed reaction call is used up.** If DeepSeek fails during a character's reaction, that reaction isn't
+  retried. The "offer nearly due" reminder three days before expiry gives them another chance.
 - **Real-API behaviour** of the 19 Nov fixes (importance scores, feelings, loop detection) not yet observed
   live — check `evorium.log` and the timeline after a day or two.
+- **M4 simplifications:** fixed two-hour reaction delay (sixteen hours for reconsideration); flat viewing and
+  outside-job offers use small Python templates. Pub income is an illustrative weekly model, not accounting.
 - **The dashboard is a god view**: it shows every character's private knowledge. Fine for one owner, not for
   public players (§8).
 - **Starlette test-client deprecation warning** (harmless).
+- **Spend recorded before 19 Nov is overstated** (old peak, uncached pricing), so the local total and the $4 cap
+  count about $0.09 too much. Calls from 19 Nov onwards are priced properly.
 - `Ancoats_Blender_Unreal_Kit.zip` (26 MB) is in the project root, untracked — keep it out of git.
 
 ---
@@ -305,6 +422,10 @@ Short term (single owner):
    for the five) and register the new three in the `portraits` map in `index.html`.
 3. Use the place renders as the map backdrop or a click-through "street view".
 4. Decide on daytime pub visitors.
+5. **M4 is built, reviewed and live** (migrations applied, first decisions made). Restart once more to load the
+   review fixes, then watch decisions over a few sim days and play Northgate to an ending: both offers come to a
+   head on 17–18 Dec. Review the pacing and the settlement constants against the story.
+6. Then a small online test with 5–10 friends using their own keys, before planning for large numbers.
 
 Then: the online version (§8) and levelling (§9), and later the 3D/Unreal client (§10).
 
@@ -461,6 +582,9 @@ pkill -f "uvicorn evorium.main:app"
 8. **Don't invent requirements.** Pick the simplest option where unspecified and say so.
 9. **Keep it runnable** after every change: tests green, server starts, dashboard loads.
 10. **Commit locally only when asked; the owner pushes.** GitHub account: DgenKing.
+11. **Keep this file and README.md up to date after every piece of work.** Add what was done to §5 under a
+    dated session heading, and update §2, §3, §6 and §7 to match. Put anything about running the game in
+    README.md. If nothing needs changing, say so. (Also in `AGENTS.md` for Codex and `CLAUDE.md` for Claude.)
 
 ---
 

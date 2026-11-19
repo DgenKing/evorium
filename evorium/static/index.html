@@ -94,14 +94,15 @@
   <a href="/timeline-page" style="color:var(--accent)">Timeline</a>
   <span class="loc" id="location">—</span>
   <button id="restart" type="button" title="Restart the server so code changes take effect">Restart server</button>
-</header>
+<small id="model-pause"></small></header>
 <nav class="view-tabs" role="tablist" aria-label="Dashboard views">
   <button id="dashboard-tab" role="tab" aria-selected="true" aria-controls="dashboard-view" tabindex="0">Dashboard</button>
   <button id="map-tab" role="tab" aria-selected="false" aria-controls="map-view" tabindex="-1">Map</button>
 </nav>
 <div id="dashboard-view" role="tabpanel" aria-labelledby="dashboard-tab">
+<section id="catchup" class="card" hidden style="margin:16px 20px"></section>
 <main>
-  <aside id="agents"></aside>
+  <aside><section id="terrace" class="card"></section><div id="agents"></div></aside>
   <section>
     <div class="controls">
       <button id="run">Run conversation</button>
@@ -200,6 +201,8 @@ async function loadAgents(){
       <div class="row"><b>Goal</b>${esc(a.current_goal)}</div>
       <div class="row"><b>Now</b><span style="color:${a.in_pub?'var(--ok)':'var(--muted)'}">${esc(a.activity||'—')} · ${esc((a.location||'').split(',')[0])}</span></div>
       <div class="row"><b>Knowledge</b>${fc.seed||0} known · ${fc.told||0} told · <span style="color:var(--err)">${fc.claim||0} rumour</span></div>
+      ${a.today_action?`<div class="row"><b>Today:</b> ${esc(a.today_action)}</div>`:''}
+      ${a.considering?`<div class="row"><b>Thinking about:</b> ${esc(a.considering)}</div>`:''}
       <div class="mem"><b>Today's plans</b>${(a.plans||[]).filter(p=>p.status!=='cancelled').map(p=>`<div>${esc(p.start_at.slice(11))} · ${esc(p.action)} ${esc(p.place||'')} [${esc(p.status)}] — ${esc(p.reason)}</div>`).join('')||'<div>Following their routine.</div>'}</div>
       <div class="mem"><b>Relationships</b>${(a.relationships||[]).map(r=>`<div title="${esc(r.reason)}">${esc(r.name)}: ${esc(r.trust)} · ${esc(r.warmth)}</div>`).join('')}</div>
       ${a.resolved && a.resolved.length ? `<div class="mem"><b>Promises kept / broken</b>${a.resolved.map(p=>`<div>• <span style="color:${p.status==='done'?'var(--ok)':'var(--err)'}">[${p.status}]</span> ${esc(p.content)}${p.outcome?' — <i>'+esc(p.outcome)+'</i>':''}</div>`).join('')}</div>` : ''}
@@ -232,6 +235,7 @@ function renderConv(c){
 async function loadUsage(){
   const u = await j('/usage');
   latestUsage = u;
+  renderLedger(u.ledger, u.sim_at);
   if(document.activeElement!==$('director'))$('director').checked=u.director;
   $('u-calls').textContent = u.api_calls;
   $('u-tokens').textContent = u.total_tokens;
@@ -239,6 +243,7 @@ async function loadUsage(){
   $('u-cap').textContent = u.max_spend_usd==null ? 'no config' : '$'+u.max_spend_usd.toFixed(2);
   $('u-left').textContent = '$' + u.estimated_remaining_usd.toFixed(4);
   $('location').textContent = `${u.sim_time}${u.speed!=1?' · '+u.speed+'×':''}${u.tick_alive?'':' · ⚠ tick stalled'}`;
+  $('model-pause').textContent = u.model_paused_until ? 'DeepSeek paused until '+new Date(u.model_paused_until).toLocaleTimeString() : '';
   $('whereabouts').innerHTML='<b>Where everyone is</b>'+(u.places||[]).map(p=>`<div class="row"><b>${esc(p.name.split(',')[0])}</b> ${p.open?esc(p.people.map(a=>a.name.split(' ')[0]).join(', ')||'Nobody here'):'Shut'}</div>`).join('');
   if (document.activeElement !== $('speed')) $('speed').value = String(u.speed);
   $('error').textContent = u.last_error || '';
@@ -368,6 +373,35 @@ async function pollEvents(){
   } catch(e){ /* server restarting; try again next tick */ }
 }
 
+function renderLedger(ledger, simAt){
+  if(!ledger)return;
+  const s=ledger.stats||{}, at=new Date((simAt||'').replace(' ','T'));
+  const lease=new Date(s['pub.lease_end']*86400000), days=Math.max(0,Math.ceil((lease-at)/86400000));
+  const money=n=>'£'+Number(n||0).toLocaleString('en-GB');
+  const offers=(ledger.offers||[]).filter(o=>o.status==='open').map(o=>{
+    const left=Math.max(0,Math.ceil((new Date(o.expires_at.replace(' ','T'))-at)/86400000));
+    return `<div class="row">${esc(o.kind)}: ${esc(money(o.amount))} · ${esc(left)} days to reply</div>`;
+  }).join('');
+  $('terrace').innerHTML=`<h2>The terrace</h2><div class="row">${s['pub.closed']?'The Billet is closed':esc(days)+' days left on the pub lease'}</div>${offers}
+    <div class="row">Pint: ${esc('£'+((s['pub.pint_price_p']||460)/100).toFixed(2))}</div>
+    <div class="row">Quiz: ${esc(['not announced','announced','running weekly'][s['pub.quiz']||0])}</div>
+    <div class="row">Jess: ${esc(s['jess.shifts']??4)} shifts a week · Jess and Dez know</div>
+    ${s['terrace.petition']?`<div class="row">Petition: ${esc(s['terrace.petition'])} signatures</div>`:''}
+    ${s['mo.darts_started']?`<div class="row">Darts: ${esc(s['mo.darts_signups']||0)} signups</div>`:''}
+    <div class="row">Last week's takings: ${esc(money(s['pub.takings_last_week']))}<small> · Dez and Jess know</small></div>
+    <div class="row">Dez's savings: ${esc(money(s['pub.savings']))}<small> · only Dez knows this</small></div>
+    ${(ledger.arcs||[]).map(a=>`<div class="mem"><b>${esc(a.key.replaceAll('_',' '))} · ${esc(a.status)}</b>${a.summary?`<p>${esc(a.summary)}</p>`:''}</div>`).join('')}`;
+}
+async function loadCatchup(){
+  try{
+    const c=await j('/catchup');
+    if(c.gap_hours<2||!c.items.length)return;
+    $('catchup').hidden=false;
+    $('catchup').innerHTML=`<button type="button" id="catchup-dismiss" style="float:right">Dismiss</button><h2>While you were away</h2>${c.paragraph?`<p>${esc(c.paragraph)}</p>`:''}<ul>${c.items.map(x=>`<li>${esc(x)}</li>`).join('')}</ul>`;
+    $('catchup-dismiss').onclick=async()=>{try{await j('/catchup/seen',{method:'POST'});$('catchup').hidden=true;}catch(e){$('error').textContent=e.message;}};
+  }catch(e){$('error').textContent=e.message;}
+}
+loadCatchup();
 refresh(); setInterval(refresh, 2000);
 pollEvents(); setInterval(pollEvents, 1000);
 </script>

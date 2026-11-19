@@ -19,7 +19,7 @@ from fastapi.responses import FileResponse, Response
 from evorium.configuration import load
 from pydantic import BaseModel, Field
 
-from evorium import tick, world, timeline, player, relationships, places, plans, director
+from evorium import economy, actions, decide, backoff, tick, world, timeline, player, relationships, places, plans, director
 from evorium.db import DEFAULT_DB_PATH, VISIBLE_IMPORTANCE, connect, init_db, npc_agents
 from evorium.events import emit, since
 from evorium.llm import DeepSeekClient, DeferredClient, LLMError, get_usage
@@ -28,14 +28,15 @@ from evorium.seed import seed_agents, seed_events
 from evorium.sim import get_conversation, latest_conversation_id, mark_interrupted, run_conversation, turns_for
 
 LOG_FORMAT = "%(asctime)s %(levelname)s %(name)s: %(message)s"
-LOG_FILE = Path(__file__).resolve().parent.parent / "evorium.log"
+# EVORIUM_LOG_FILE picks another file; set it empty to turn the file log off (the tests do).
+LOG_FILE = os.environ.get("EVORIUM_LOG_FILE", str(Path(__file__).resolve().parent.parent / "evorium.log"))
 logging.basicConfig(level=logging.INFO, format=LOG_FORMAT)
 
 
 def _persistent_log():
     """Always keep a log on disk, however the server was started (terminal, nohup or systemd)."""
     root = logging.getLogger()
-    if any(getattr(h, "_evorium", False) for h in root.handlers):
+    if not LOG_FILE or any(getattr(h, "_evorium", False) for h in root.handlers):
         return
     try:
         handler = RotatingFileHandler(LOG_FILE, maxBytes=5_000_000, backupCount=3, encoding="utf-8")
@@ -78,14 +79,21 @@ def _tick_loop():
             for change in tick.update_routines(now, DEFAULT_DB_PATH):
                 emit(f"[{world.describe(now)}] {change}")
             tick.deliver_events(now, DEFAULT_DB_PATH)
+            economy.maintain(now, DEFAULT_DB_PATH)
             player.maintenance(DeferredClient(DEFAULT_DB_PATH), now, DEFAULT_DB_PATH)
-            if _state["auto"]:
+            if _state["auto"] and not backoff.paused():
                 try:
                     client = DeepSeekClient(DEFAULT_DB_PATH)
                     timeline.daily_digest(client, now, DEFAULT_DB_PATH)
+                    if backoff.paused():raise LLMError('DeepSeek calls are paused while the service recovers.')
                     tick.check_due_promises(client, now, DEFAULT_DB_PATH)
+                    if backoff.paused():raise LLMError('DeepSeek calls are paused while the service recovers.')
                     plans.daily(client,now,DEFAULT_DB_PATH)
+                    if backoff.paused():raise LLMError('DeepSeek calls are paused while the service recovers.')
+                    decide.run(client,now,DEFAULT_DB_PATH)
+                    economy.maintain(now, DEFAULT_DB_PATH, client)
                     director.check(client,now,DEFAULT_DB_PATH)
+                    if backoff.paused():raise LLMError('DeepSeek calls are paused while the service recovers.')
                     if _run_lock.acquire(blocking=False):
                         try:
                             plans.execute(client,now,DEFAULT_DB_PATH,auto=True)
@@ -98,6 +106,7 @@ def _tick_loop():
                                 break
                         finally:_run_lock.release()
                 except LLMError as exc:
+                    backoff.failed(exc)
                     _last_error["message"] = str(exc)
                     if "budget cap" in str(exc) or "balance" in str(exc):
                         _state["auto"] = False
@@ -114,6 +123,7 @@ async def lifespan(app: FastAPI):
     init_db(DEFAULT_DB_PATH)
     seed_agents(DEFAULT_DB_PATH)
     seed_events(DEFAULT_DB_PATH, world.now(DEFAULT_DB_PATH))
+    economy.ensure(DEFAULT_DB_PATH, world.now(DEFAULT_DB_PATH))
     player.maintenance(DeferredClient(DEFAULT_DB_PATH), world.now(DEFAULT_DB_PATH), DEFAULT_DB_PATH, startup=True)
     stuck = mark_interrupted(DEFAULT_DB_PATH)
     now = world.now(DEFAULT_DB_PATH)
@@ -194,7 +204,9 @@ async def agents():
                 "SELECT content, created_at FROM memories WHERE agent_id=? ORDER BY id DESC LIMIT 3", (aid,))]
             resolved = [dict(c) for c in connection.execute(
                 "SELECT content, status, outcome FROM commitments WHERE agent_id=? AND status!='open' ORDER BY id DESC LIMIT 3", (aid,))]
-            out.append({**dict(r), "in_pub": r["location"] == world.PUB, "facts": facts, "fact_counts": counts,
+            today_action = connection.execute("SELECT result FROM actions WHERE agent_id=? AND status='done' AND substr(sim_at,1,10)=? AND key!='wait' ORDER BY id DESC LIMIT 1", (aid, now.strftime('%Y-%m-%d'))).fetchone()
+            considering = connection.execute("SELECT result FROM actions WHERE agent_id=? AND status='considering' ORDER BY id DESC LIMIT 1", (aid,)).fetchone()
+            out.append({"today_action": today_action[0] if today_action else None, "considering": considering[0] if considering else None, **dict(r), "in_pub": r["location"] == world.PUB, "facts": facts, "fact_counts": counts,
                         "plans": plans.today(connection,aid,now), "relationships": relationships.for_card(connection, aid), "promises": open_commitments(connection, aid), "resolved": resolved, "memories": memories})
     return out
 
@@ -213,11 +225,11 @@ async def usage():
         cap = None
     now = world.now(DEFAULT_DB_PATH)
     data.update({
-        "director": world.get_setting("director","1",DEFAULT_DB_PATH)=="1", "places": places.describe(now,DEFAULT_DB_PATH), "max_spend_usd": cap, "last_error": _last_error["message"], "running": _run_lock.locked(),
+        "ledger": economy.ledger(DEFAULT_DB_PATH, now), "director": world.get_setting("director","1",DEFAULT_DB_PATH)=="1", "places": places.describe(now,DEFAULT_DB_PATH), "max_spend_usd": cap, "last_error": _last_error["message"], "running": _run_lock.locked(),
         "auto": _state["auto"], "auto_conversations": _state["conversations"], "gap_minutes": _state["gap_minutes"],
-        "sim_time": world.describe(now), "speed": world.get_speed(DEFAULT_DB_PATH), "pub_open": world.pub_open(now),
+        "sim_at": now.strftime("%Y-%m-%d %H:%M"), "sim_time": world.describe(now), "speed": world.get_speed(DEFAULT_DB_PATH), "pub_open": world.pub_open(now, economy.read(DEFAULT_DB_PATH)),
         "present": [p["name"].split()[0] for p in tick.who_is_in_the_pub(now, DEFAULT_DB_PATH)],
-        "boot_id": BOOT_ID,
+        "boot_id": BOOT_ID, "model_paused_until": backoff.until(),
         "tick_alive": _state["last_tick"] is not None and time.time() - _state["last_tick"] < TICK_REAL_SECONDS * 4,
     })
     return data
@@ -298,6 +310,8 @@ async def conversation(conversation_id: int):
 
 @app.post("/conversations/run")
 async def run(req: RunRequest):
+    if backoff.paused():
+        raise HTTPException(503, "DeepSeek is paused while the service recovers.")
     if not _run_lock.acquire(blocking=False):
         raise HTTPException(409, "A conversation is already running.")
     try:
@@ -332,8 +346,8 @@ async def run(req: RunRequest):
 
 
 @app.get('/timeline')
-async def timeline_data(since: str | None = None, until: str | None = None, agent_id: int | None = None, min_importance: int = 1):
-    return timeline.days(DEFAULT_DB_PATH, since=since, until=until, agent_id=agent_id, min_importance=min_importance)
+async def timeline_data(since: str | None = None, until: str | None = None, agent_id: int | None = None, min_importance: int = 1, kind: str | None = None):
+    return timeline.days(DEFAULT_DB_PATH, since=since, until=until, agent_id=agent_id, min_importance=min_importance, kinds=[kind] if kind else None)
 
 
 @app.get('/timeline-page')
@@ -393,3 +407,23 @@ class DirectorRequest(BaseModel):
 def director_toggle(req: DirectorRequest):
     world.set_setting('director','1' if req.enabled else '0',DEFAULT_DB_PATH)
     return {'enabled':req.enabled}
+
+
+@app.get('/world/ledger')
+def world_ledger():
+    return economy.ledger(DEFAULT_DB_PATH, world.now(DEFAULT_DB_PATH))
+
+@app.get('/actions')
+def action_history(since: str | None = None):
+    return actions.listing(DEFAULT_DB_PATH, since)
+
+@app.get('/catchup')
+def catchup_data():
+    from evorium import catchup
+    return catchup.get(DeferredClient(DEFAULT_DB_PATH), world.now(DEFAULT_DB_PATH), DEFAULT_DB_PATH)
+
+@app.post('/catchup/seen')
+def catchup_seen():
+    from evorium import catchup
+    catchup.seen(world.now(DEFAULT_DB_PATH), DEFAULT_DB_PATH)
+    return {'seen': True}

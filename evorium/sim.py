@@ -39,7 +39,7 @@ def get_conversation(conversation_id: int, db_path: str | Path = DEFAULT_DB_PATH
 
 def latest_conversation_id(db_path: str | Path = DEFAULT_DB_PATH) -> int | None:
     with connect(db_path) as connection:
-        row = connection.execute("SELECT id FROM conversations ORDER BY id DESC LIMIT 1").fetchone()
+        row = connection.execute("SELECT id FROM conversations WHERE status!='failed' OR EXISTS (SELECT 1 FROM messages WHERE conversation_id=conversations.id) ORDER BY id DESC LIMIT 1").fetchone()
     return row["id"] if row else None
 
 
@@ -114,6 +114,9 @@ def turns_for(agent_a_id: int, agent_b_id: int, db_path: str | Path = DEFAULT_DB
 
 def run_conversation(client, agent_a_id: int, agent_b_id: int, turns: int = 4,
                      db_path: str | Path = DEFAULT_DB_PATH, location: str | None = None) -> int:
+    from evorium import backoff
+    if backoff.paused():
+        raise LLMError('DeepSeek calls are paused while the service recovers.')
     now = world.now(db_path)
     sim_label = world.describe(now)
     with connect(db_path) as connection:

@@ -4,7 +4,7 @@
 body{background:#141414;color:#e8e8e8;font:15px/1.5 system-ui;margin:0 auto;padding:20px;max-width:950px}a{color:#d4a24c}header,nav{display:flex;gap:20px;align-items:center;flex-wrap:wrap}h1{font-size:20px}h1 a{text-decoration:none}select{background:#222;color:inherit;padding:8px;border:1px solid #444;border-radius:5px}.day{background:#1e1e1e;padding:20px;border-radius:8px;margin-top:20px}.entry{padding:12px 0;border-top:1px solid #333}.tag{color:#d4a24c;font-size:12px}.director{color:#ba9cfa}.people,time{color:#aaa;font-size:12px}.digest{border-left:3px solid #d4a24c;padding-left:12px}.divider{border-top:2px dashed #d4a24c;color:#d4a24c;padding:10px}#error{color:#e06060}
 </style></head><body>
 <header><h1><a href="/">EVORIUM</a></h1><span>Timeline</span></header>
-<nav><label>Character <select id="character"><option value="">Everyone</option></select></label><label><input type="checkbox" id="important"> Important only</label></nav>
+<nav><label>Character <select id="character"><option value="">Everyone</option></select></label><label><input type="checkbox" id="important"> Important only</label><label>Kind <select id="kind"><option value="">All</option><option value="action">Actions</option><option value="offer">Offers</option><option value="arc">Story arcs</option></select></label></nav>
 <p id="error" role="status"></p><main id="days"></main>
 <script>
 const $=id=>document.getElementById(id);
@@ -14,6 +14,7 @@ try{lastVisit=localStorage.getItem('evorium.timelineVisit');localStorage.setItem
 async function load(){
  try{
   const params=new URLSearchParams({min_importance:$('important').checked?'3':'1'});
+  if($('kind').value)params.set('kind',$('kind').value);
   if($('character').value)params.set('agent_id',$('character').value);
   const response=await fetch('/timeline?'+params);if(!response.ok)throw Error('Could not load the timeline.');
   const data=await response.json();let divided=false;
@@ -24,5 +25,5 @@ async function load(){
  }catch(e){$('error').textContent=e.message;}
 }
 fetch('/agents').then(r=>r.json()).then(list=>{$('character').innerHTML+=list.map(a=>`<option value="${esc(a.id)}">${esc(a.name)}</option>`).join('');}).catch(()=>{});
-$('character').onchange=load;$('important').onchange=load;load();setInterval(load,5000);
+$('kind').onchange=load;$('character').onchange=load;$('important').onchange=load;load();setInterval(load,5000);
 </script></body></html>

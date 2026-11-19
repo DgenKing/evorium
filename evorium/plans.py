@@ -21,6 +21,8 @@ class PlanProposal(BaseModel):
     reason: str = Field(min_length=1,max_length=300)
 
 class DailyPlans(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    actions: list[Any] = Field(default_factory=list, max_length=1)
     plans: list[Any] = Field(max_length=2)
 
 
@@ -36,6 +38,8 @@ def validate(proposal,agent,now,db_path=DEFAULT_DB_PATH):
     end=start+timedelta(minutes=p.duration_minutes)
     if start<=now or end.date()!=now.date():raise ValueError('Plan must start later today and end today.')
     with connect(db_path) as c:
+        from evorium.economy import stats
+        values=stats(c)
         people=npc_agents(c)
         person=next((a for a in people if a['name']==p.person),None)
         count=c.execute("SELECT count(*) FROM plans WHERE agent_id=? AND sim_day=? AND status!='cancelled'",(agent['id'],now.date().isoformat())).fetchone()[0]
@@ -45,13 +49,13 @@ def validate(proposal,agent,now,db_path=DEFAULT_DB_PATH):
     if overlaps:raise ValueError('Plans cannot overlap.')
     if p.action=='visit':
         if p.place not in places.REGISTRY:raise ValueError('Unknown public place.')
-        if not all(places.is_open(p.place,t) and world.is_free(agent['name'],t) for t in moments(start,end)):raise ValueError('Place closed or character working during visit.')
+        if not all(places.is_open(p.place,t,values) and world.is_free(agent['name'],t,values) for t in moments(start,end)):raise ValueError('Place closed or character working during visit.')
     elif p.action=='phone':
         if not person or person['id']==agent['id']:raise ValueError('Phone another NPC.')
-        if not all(world.is_free(agent['name'],t) or (agent['name'].split()[0] in ('Dez','Raj','Simon') and world.routine(agent['name'],t)[1] in ('behind the bar','behind the counter','at the office')) for t in moments(start,end)):
+        if not all(world.is_free(agent['name'],t,values) or (agent['name'].split()[0] in ('Dez','Raj','Simon') and world.routine(agent['name'],t,values)[1] in ('behind the bar','behind the counter','at the office')) for t in moments(start,end)):
             raise ValueError('Cannot phone while asleep or unavailable at work.')
     else:
-        if start.hour<17 or not all(world.routine(agent['name'],t)[0]==world.PUB and world.is_free(agent['name'],t) for t in moments(start,end)):
+        if start.hour<17 or not all(world.routine(agent['name'],t,values)[0]==world.PUB and world.is_free(agent['name'],t,values) for t in moments(start,end)):
             raise ValueError('Stay home can only replace an evening pub visit as a customer.')
     return {'agent_id':agent['id'],'action':p.action,'place':p.place if p.action=='visit' else None,'person_id':person['id'] if person and p.action=='phone' else None,
             'start_at':start.strftime(DUE_FMT),'end_at':end.strftime(DUE_FMT),'reason':p.reason,'fulfils_commitment_id':fulfils[0] if fulfils else None,'sim_day':now.date().isoformat()}
@@ -69,6 +73,10 @@ def daily(client,now,db_path=DEFAULT_DB_PATH):
     for a in agents:
         with connect(db_path) as c:
             if c.execute('SELECT 1 FROM plans WHERE agent_id=? AND sim_day=?',(a['id'],now.date().isoformat())).fetchone():continue
+            from evorium import actions
+            from evorium.economy import stats
+            values=stats(c)
+            menu=actions.candidates(c,a,now)
             knowledge=knowledge_for_prompt(c,a,a,now)
             promises=open_commitments(c,a['id'])
             relations=relationships.for_card(c,a['id'])
@@ -78,21 +86,27 @@ def daily(client,now,db_path=DEFAULT_DB_PATH):
         timetable=[]
         for hour in range(7,24):
             t=now.replace(hour=hour,minute=0)
-            loc,act=world.routine(a['name'],t)
-            timetable.append(f"{hour:02d}:00 {act} at {loc} ({'free' if world.is_free(a['name'],t) else 'working or asleep'})")
+            loc,act=world.routine(a['name'],t,values)
+            timetable.append(f"{hour:02d}:00 {act} at {loc} ({'free' if world.is_free(a['name'],t,values) else 'working or asleep'})")
         prompt=f'''You are {a['name']}, {a['occupation']}. {a['personality']} Goal: {a['current_goal']}.
 It is {now.strftime(DUE_FMT)}. Most days you simply follow your routine; return an empty list unless you have a real reason.
-{('Serious news on your mind: '+json.dumps(big_news)+'. Real people rarely sit on news like this: if it affects you or someone you know, consider ringing someone about it, or going where you can tell or ask someone you trust. ') if big_news else ''}Return JSON {{"plans": [{{"action":"visit","place":"shop","person":null,"hour":0,"minute":0,"duration_minutes":30,"fulfils":null,"reason":"one sentence"}}]}}.
+{('Serious news on your mind: '+json.dumps(big_news)+'. Real people rarely sit on news like this: if it affects you or someone you know, consider ringing someone about it, or going where you can tell or ask someone you trust. ') if big_news else ''}Return JSON {{"actions": [], "plans": [{{"action":"visit","place":"shop","person":null,"hour":0,"minute":0,"duration_minutes":30,"fulfils":null,"reason":"one sentence"}}]}}.
 Actions: visit, phone, stay_home. Places: pub, shop or null. Person: another NPC full name or null. Use actual JSON null, zero to two plans, minute 0 or 30, duration 30–180. Only later today, while free; places must be open throughout. Phone another NPC; stay_home only replaces an evening pub customer visit.
 Timetable: {json.dumps(timetable)}
 Public places: pub (every day 09–24); shop (Mon–Sat 07–19).
 Open promises with ids and deadlines: {json.dumps(promises)}
 Relationships and cast: {json.dumps(relations)}
-Your knowledge: {json.dumps(knowledge)}'''
+Your knowledge: {json.dumps(knowledge)}
+You may also take at most one decision today from this menu: {json.dumps(menu)}.
+The actions list is normally empty, or [{{"action":"menu key","args":{{}},"reason":"one sentence","evidence":[fact ids]}}].
+Your important fact ids: {json.dumps(_decision_facts(a['id'], db_path))}'''
         calls+=1
-        try:result=client.propose(a['id'],[{'role':'user','content':prompt}],schema=DailyPlans,max_tokens=300)
+        try:result=client.propose(a['id'],[{'role':'user','content':prompt}],schema=DailyPlans,max_tokens=400)
         except LLMError:
             emit(f"Daily planning unavailable for {a['name']}.",'error');continue
+        with connect(db_path) as c:
+            for proposal in result.actions:
+                actions.propose(c,a,proposal,now,'plan')
         valid=0
         for proposal in result.plans:
             try:plan=validate(proposal,a,now,db_path)
@@ -103,6 +117,11 @@ Your knowledge: {json.dumps(knowledge)}'''
         if valid:
             with connect(db_path) as c:c.execute('DELETE FROM plans WHERE id=?',(marker,))
     return calls
+
+
+def _decision_facts(aid, db_path):
+    with connect(db_path) as c:
+        return [dict(r) for r in c.execute('SELECT id,content FROM facts WHERE agent_id=? AND importance>=4 ORDER BY id DESC LIMIT 8', (aid,))]
 
 
 def today(c,agent_id,now):
