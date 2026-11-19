@@ -36,7 +36,7 @@ venv/
 *.py[cod]
 
 # Local exports and OS files.
-evorium-github.zip
+*.zip
 .DS_Store
 Thumbs.db
 Built-Through-Time.mp4

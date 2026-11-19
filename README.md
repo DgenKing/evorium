@@ -3,6 +3,9 @@
 Eight persistent characters in an Ancoats neighbourhood, with player chat,
 memories, relationships and plans. Python 3.11+, FastAPI, SQLite and plain HTML/JavaScript.
 
+**The whole project — idea, history, current state, known issues, next steps and the online plan — is in
+[EVORIUM.md](EVORIUM.md).** This README is just how to run it.
+
 ## Run locally
 
 From this project directory:
@@ -37,7 +40,7 @@ through GitHub's browser uploader: that bypasses `.gitignore`.
 
 ## Status: Milestone 1 complete (2026-11-15)
 
-All five steps of `EVORIUM_BUILD_BRIEF_M1.md` are done:
+All five steps of the Milestone 1 brief are done (history in `EVORIUM.md`):
 
 1. Database schema, migrations and seeded characters.
 2. DeepSeek client with JSON validation, one retry on bad JSON, per-call usage records.

@@ -4,6 +4,8 @@ import base64
 import binascii
 import hmac
 import logging
+import os
+import sys
 import threading
 from logging.handlers import RotatingFileHandler
 import time
@@ -215,9 +217,37 @@ async def usage():
         "auto": _state["auto"], "auto_conversations": _state["conversations"], "gap_minutes": _state["gap_minutes"],
         "sim_time": world.describe(now), "speed": world.get_speed(DEFAULT_DB_PATH), "pub_open": world.pub_open(now),
         "present": [p["name"].split()[0] for p in tick.who_is_in_the_pub(now, DEFAULT_DB_PATH)],
+        "boot_id": BOOT_ID,
         "tick_alive": _state["last_tick"] is not None and time.time() - _state["last_tick"] < TICK_REAL_SECONDS * 4,
     })
     return data
+
+
+RESTART_GRACE_SECONDS = 30
+BOOT_ID = f"{os.getpid()}-{time.time():.0f}"   # changes on every start, so the dashboard can tell a restart finished
+
+
+def _restart_process():
+    """Let the reply reach the browser, stop the heartbeat cleanly, then re-run the same command line."""
+    time.sleep(0.5)
+    _state["stop"].set()
+    thread = _state.get("tick_thread")
+    if thread:
+        thread.join(RESTART_GRACE_SECONDS)   # a conversation in progress gets time to finish
+    for handler in logging.getLogger().handlers:
+        handler.flush()
+    # Same interpreter and arguments (works for `uvicorn ...`, `python -m uvicorn ...` and systemd).
+    # The listening socket is not inherited, so the new process binds the port afresh.
+    os.execv(sys.executable, [sys.executable, *sys.orig_argv[1:]])
+
+
+@app.post("/server/restart")
+async def restart_server():
+    if any(arg.startswith(("--reload", "--workers")) for arg in sys.orig_argv):
+        raise HTTPException(409, "Started with --reload or --workers; restart it from the terminal instead.")
+    emit("Restart requested from the dashboard — reloading code. Back in a few seconds.")
+    threading.Thread(target=_restart_process, name="restart", daemon=True).start()
+    return {"restarting": True}
 
 
 @app.post("/speed")
