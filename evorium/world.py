@@ -92,12 +92,8 @@ def describe(dt: datetime) -> str:
 # ---- Pub hours and routines -------------------------------------------------
 
 def pub_open(dt: datetime) -> bool:
-    h = dt.hour + dt.minute / 60
-    if dt.weekday() in (4, 5):        # Fri, Sat
-        return 12 <= h < 24
-    if dt.weekday() == 6:             # Sun
-        return 12 <= h < 22.5
-    return 16 <= h < 23               # Mon–Thu
+    """Open every day 09:00 until midnight."""
+    return 9 <= dt.hour < 24
 
 
 def _between(dt, start, end) -> bool:
@@ -112,7 +108,7 @@ def _routine_location(name: str, dt: datetime) -> tuple[str, str]:
     if first == "Dez":
         if pub_open(dt):
             return PUB, "behind the bar"
-        if _between(dt, 9, 12):
+        if _between(dt, 7, 9):
             return "Cash and carry, Openshaw", "doing the pub's shopping"
         return "Flat above The Crooked Billet", "off duty upstairs" if _between(dt, 7, 24) else "asleep"
     if first == "Jess":

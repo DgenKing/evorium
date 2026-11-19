@@ -84,7 +84,7 @@ It is {now.strftime(DUE_FMT)}. Most days you simply follow your routine; return 
 Return JSON {{"plans": [{{"action":"visit","place":"shop","person":null,"hour":0,"minute":0,"duration_minutes":30,"fulfils":null,"reason":"one sentence"}}]}}.
 Actions: visit, phone, stay_home. Places: pub, shop or null. Person: another NPC full name or null. Use actual JSON null, zero to two plans, minute 0 or 30, duration 30–180. Only later today, while free; places must be open throughout. Phone another NPC; stay_home only replaces an evening pub customer visit.
 Timetable: {json.dumps(timetable)}
-Public places: pub (Mon–Thu 16–23, Fri–Sat 12–24, Sun 12–22:30); shop (Mon–Sat 07–19).
+Public places: pub (every day 09–24); shop (Mon–Sat 07–19).
 Open promises with ids and deadlines: {json.dumps(promises)}
 Relationships and cast: {json.dumps(relations)}
 Your knowledge: {json.dumps(knowledge)}'''

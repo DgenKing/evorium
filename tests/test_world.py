@@ -37,7 +37,13 @@ def test_pub_hours_and_routines():
     mon_3pm = datetime(2026, 11, 16, 15, 0)
     mon_8pm = datetime(2026, 11, 16, 20, 0)
     sun_1pm = datetime(2026, 11, 22, 13, 0)
-    assert not world.pub_open(mon_3pm) and world.pub_open(mon_8pm) and world.pub_open(sun_1pm)
+    for day in range(16, 23):                                   # every day of the week
+        assert not world.pub_open(datetime(2026, 11, day, 8, 59))
+        assert world.pub_open(datetime(2026, 11, day, 9, 0))
+        assert world.pub_open(datetime(2026, 11, day, 23, 59))
+        assert not world.pub_open(datetime(2026, 11, day, 0, 0))
+    assert world.pub_open(mon_3pm) and world.pub_open(mon_8pm) and world.pub_open(sun_1pm)
+    assert world.routine("Dez Whitworth", datetime(2026, 11, 16, 8, 0))[0] == "Cash and carry, Openshaw"
     assert world.routine("Dez Whitworth", mon_8pm)[0] == world.PUB
     assert world.routine("Jess Hartley", mon_8pm) == (world.PUB, "working the bar")
     assert world.routine("Raj Patel", mon_3pm)[0].startswith("Patel's News")
@@ -50,7 +56,8 @@ def test_presence_filters_who_can_talk(db):
         agents = [dict(r) for r in c.execute("SELECT * FROM agents")]
     names = {a["name"].split()[0] for a in world.present_in_pub(agents, datetime(2026, 11, 16, 20, 30))}  # Monday 20:30
     assert names == {"Dez", "Jess", "Tommy"}            # Raj Monday = home; Chloe Monday = home
-    assert world.present_in_pub(agents, datetime(2026, 11, 16, 10, 0)) == []
+    assert world.present_in_pub(agents, datetime(2026, 11, 16, 8, 30)) == []      # before opening
+    assert {a["name"].split()[0] for a in world.present_in_pub(agents, datetime(2026, 11, 16, 10, 0))} == {"Dez"}
 
 
 def test_update_routines_writes_locations(db):
