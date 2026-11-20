@@ -6,7 +6,11 @@
     "tint": "#303e40",
     "skin": "#c99b79",
     "trousers": "#323239",
-    "hair": "#9b9990"
+    "hair": "#9b9990",
+    "model": "cast/dez.glb",
+    "height": 1.75,
+    "labelOffset": 0.22,
+    "sitOffset": 0
   },
   "Jess Hartley": {
     "body": "female",
@@ -15,7 +19,11 @@
     "tint": "#34373d",
     "skin": "#d1a184",
     "trousers": "#343039",
-    "hair": "#49362d"
+    "hair": "#49362d",
+    "model": "cast/jess.glb",
+    "height": 1.67,
+    "labelOffset": 0.22,
+    "sitOffset": 0
   },
   "Tommy Shaw": {
     "body": "male",
@@ -24,7 +32,11 @@
     "tint": "#354761",
     "skin": "#d2aa8c",
     "trousers": "#4c4e52",
-    "hair": "#c9c9bf"
+    "hair": "#c9c9bf",
+    "model": "cast/tommy.glb",
+    "height": 1.68,
+    "labelOffset": 0.22,
+    "sitOffset": 0
   },
   "Raj Patel": {
     "body": "male",
@@ -33,7 +45,11 @@
     "tint": "#c7c8ad",
     "skin": "#af7e58",
     "trousers": "#55585e",
-    "hair": "#26282a"
+    "hair": "#26282a",
+    "model": "cast/raj.glb",
+    "height": 1.73,
+    "labelOffset": 0.22,
+    "sitOffset": 0
   },
   "Chloe Barlow": {
     "body": "female",
@@ -42,7 +58,11 @@
     "tint": "#668367",
     "skin": "#dbb79a",
     "trousers": "#414c59",
-    "hair": "#98744d"
+    "hair": "#98744d",
+    "model": "cast/chloe.glb",
+    "height": 1.68,
+    "labelOffset": 0.22,
+    "sitOffset": 0
   },
   "Simon Ferris": {
     "body": "male",
@@ -51,7 +71,11 @@
     "tint": "#7c7f80",
     "skin": "#cfad90",
     "trousers": "#515960",
-    "hair": "#38302c"
+    "hair": "#38302c",
+    "model": "cast/simon.glb",
+    "height": 1.84,
+    "labelOffset": 0.22,
+    "sitOffset": 0
   },
   "Brenda Ashworth": {
     "body": "female",
@@ -60,7 +84,11 @@
     "tint": "#a18bab",
     "skin": "#d1a78f",
     "trousers": "#565269",
-    "hair": "#b7b5aa"
+    "hair": "#b7b5aa",
+    "model": "cast/brenda.glb",
+    "height": 1.56,
+    "labelOffset": 0.22,
+    "sitOffset": 0
   },
   "Mohammed \"Mo\" Iqbal": {
     "body": "male",
@@ -69,7 +97,11 @@
     "tint": "#333d50",
     "skin": "#ab7753",
     "trousers": "#34363b",
-    "hair": "#24252a"
+    "hair": "#24252a",
+    "model": "cast/mo.glb",
+    "height": 1.79,
+    "labelOffset": 0.22,
+    "sitOffset": 0
   },
   "player": {
     "body": "male",
@@ -78,6 +110,10 @@
     "tint": "#e9dfc9",
     "skin": "#c79d7a",
     "trousers": "#536c7d",
-    "hair": "#483b33"
+    "hair": "#483b33",
+    "model": "cast/player.glb",
+    "height": 1.76,
+    "labelOffset": 0.22,
+    "sitOffset": 0
   }
 }

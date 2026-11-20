@@ -7,11 +7,15 @@ import fs from 'node:fs/promises';
 await MeshoptEncoder.ready;await MeshoptSimplifier.ready;
 const io=new NodeIO().registerExtensions(ALL_EXTENSIONS).registerDependencies({'meshopt.encoder':MeshoptEncoder});
 const reports={};
+const cast=JSON.parse(await fs.readFile('tools/web3d/raw/cast/inventory.json','utf8'));
+const caster={};
+
 for(const quality of ['high','low']){
  let bytes=0,triangles=0,gpu=0;
- for(const file of ['shuttle_street','collision','characters','animations']){
- const input=file==='shuttle_street'?'shuttle_street_lit':file;
+ for(const file of ['shuttle_street','collision','characters','animations','animations_ual']){
+ const input=file==='shuttle_street'?'shuttle_street_lit':file==='animations'?'animations_mpfb':file==='animations_ual'?'animations':file;
  const d=await io.read(`tools/web3d/raw/${input}.glb`);
+ if(file==='animations'){const map=JSON.parse(await fs.readFile('tools/web3d/data/mpfb_to_ual_bones.json','utf8'));for(const a of d.getRoot().listAnimations())for(const c of a.listChannels()){const name=c.getTargetNode()?.getName();if(!map[name]||c.getTargetPath()!=='rotation'&&!(name==='pelvis'&&c.getTargetPath()==='translation'))c.dispose();}}
  if(file==='shuttle_street')await d.transform(flatten(),join({keepNamed:false}));
  await d.transform(dedup(),prune(),weld());
  if(quality==='low' && ['shuttle_street','characters'].includes(file))await d.transform(simplify({simplifier:MeshoptSimplifier,ratio:file==='characters'?.35:.35,error:file==='characters'?.01:.001}));
@@ -33,13 +37,24 @@ for(const quality of ['high','low']){
  await d.transform(resample(),textureCompress({encoder:sharp,targetFormat:'webp',resize:[quality==='low'?(file==='characters'?512:1024):2048,quality==='low'?(file==='characters'?512:1024):2048]}),meshopt({encoder:MeshoptEncoder,level:'medium'}));
  const output=`evorium/static/world3d/assets/${quality}/${file}.glb`;await io.write(output,d);bytes+=(await fs.stat(output)).size;
  let t=0;for(const m of d.getRoot().listMeshes())for(const p of m.listPrimitives())t+=(p.getIndices()?.getCount()||p.getAttribute('POSITION').getCount())/3;
- if(file!=='collision'&&file!=='animations')triangles+=t;
+ if(!['collision','animations','animations_ual','characters'].includes(file))triangles+=t;
  for(const tex of d.getRoot().listTextures()){const sz=tex.getSize();if(sz)gpu+=sz[0]*sz[1]*4*4/3;}
  console.log(quality,file,'triangles',t);
  }
+ const perCharacter={};
+ await fs.mkdir(`evorium/static/world3d/assets/${quality}/cast`,{recursive:true});
+ for(const id of Object.keys(cast)){
+  const d=await io.read(`tools/web3d/raw/cast/${id}.glb`);
+  await d.transform(dedup(),prune(),weld(),simplify({simplifier:MeshoptSimplifier,ratio:quality==='low'?.30:.85,error:quality==='low'?.008:.001}),textureCompress({encoder:sharp,targetFormat:'webp',resize:quality==='low'?[512,512]:[1024,1024]}),meshopt({encoder:MeshoptEncoder,level:'medium'}));
+  const file=`evorium/static/world3d/assets/${quality}/cast/${id}.glb`;await io.write(file,d);
+  const size=(await fs.stat(file)).size;let count=0;for(const m of d.getRoot().listMeshes())for(const p of m.listPrimitives())count+=(p.getIndices()?.getCount()||p.getAttribute('POSITION').getCount())/3;
+  let textureBytes=0;for(const texture of d.getRoot().listTextures()){const dims=texture.getSize();if(dims)textureBytes+=dims[0]*dims[1]*4*4/3;}gpu+=textureBytes;perCharacter[id]={bytes:size,megabytes:size/1e6,triangles:count,estimatedTextureMB:textureBytes/1e6};bytes+=size;triangles+=count;
+  if(size>(quality==='low'?.7:1.6)*1e6||count>(quality==='low'?12000:25000))throw Error('Cast budget exceeded '+id+' '+quality+' '+JSON.stringify(perCharacter[id]));
+ }
+ caster[quality]=perCharacter;
  const lightmap=`evorium/static/world3d/assets/${quality}/lightmap.webp`;await sharp(`tools/web3d/raw/lightmaps/day-${quality}.png`).webp({quality:85}).toFile(lightmap);bytes+=(await fs.stat(lightmap)).size;gpu+=(quality==='low'?1024:2048)**2*4*4/3;
- reports[quality]={bytes,megabytes:bytes/1e6,triangles,estimatedTextureMB:gpu/1e6};
- if(bytes>(quality==='low'?12:30)*1e6||triangles>(quality==='low'?150000:400000))throw Error('Budget exceeded '+JSON.stringify(reports[quality]));
+ reports[quality]={bytes,megabytes:bytes/1e6,triangles,estimatedTextureMB:gpu/1e6,cast:perCharacter};
+ if(bytes>(quality==='low'?12:30)*1e6)throw Error('Budget exceeded '+JSON.stringify(reports[quality]));
 }
 await fs.writeFile('evorium/static/world3d/data/budgets.json',JSON.stringify(reports,null,2));
 for(const file of ['waypoints','routes'])await fs.copyFile(`tools/web3d/raw/${file}.json`,`evorium/static/world3d/data/${file}.json`);

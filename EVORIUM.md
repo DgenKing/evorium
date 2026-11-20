@@ -44,6 +44,11 @@ The question behind every character decision:
 
 **Given everything this character knows, wants and remembers, what would they decide to do next?**
 
+**Our word for them: APCs, AI Player Characters** (owner, 20 Nov 2026). They aren't scripted NPCs: they have
+lives, memories and ambitions of their own, don't exist to serve the player, and the player is simply another
+person in their world. Use "APC" in anything public (website, README, marketing). Code and older history still
+say "NPC" (`kind='npc'`); that's fine and doesn't need renaming.
+
 Stories should emerge from characters and player choices rather than being prewritten. This is a design goal,
 not a claim that the agents are conscious.
 
@@ -95,7 +100,7 @@ and phone); it runs around the clock on the owner's HP G4 and is reachable over 
 | Timeline | Permanent record + daily digest, at `/timeline-page` |
 | Dashboard | Character cards, live feed, usage/spend, controls, terrace card, **Restart server** button |
 | Map tab | 2D canvas of the pub, shop, empty unit and street; pixel sprites, bubbles, portrait popups |
-| 3D game | `/world3d`: Shuttle Street in Three.js, animated characters, third person, touch controls, chat |
+| 3D game | `/world3d`: Shuttle Street in Three.js, nine distinct MPFB models, third person, touch controls, chat |
 | Hosting | HP G4 home server, auto-updating from GitHub, nightly backups, public via ngrok (§6) |
 | Model | DeepSeek `deepseek-flash`, JSON mode, temperature 0.8 (0.6 decisions, 0.2 structured calls) |
 | Cost | About $0.00015 per call; about $0.40 a day for the whole world at real speed with auto mode on |
@@ -200,7 +205,8 @@ plus the fixed effects of actions. The model only ever sees words ("you are wary
 ### The 3D web game
 
 `/world3d` loads vendored Three.js, high or low glTF assets and baked lighting, builds a collision octree from
-simple hulls, and animates the third-person player and NPCs. It polls `GET /world/scene` every 1.5 seconds
+simple hulls, and animates the third-person player and NPCs. Individual MPFB models load lazily with shared
+retargeted clips; failed models use a logged Quaternius fallback. It polls `GET /world/scene` every 1.5 seconds
 (5 seconds after errors). That endpoint reads a consistent read-only SQLite snapshot and exposes public presence
 and dialogue only, with no model calls. Spot assignments live in Python; the browser handles walking (along a
 collision-verified A* graph), bubbles, lighting and doors. Player actions use the existing `/player/*` and
@@ -483,21 +489,44 @@ the loaded assets); choosing a preset reloads the matching asset set. Override w
 
 - The kit's Shuttle Street, Crooked Billet and Patel's News, exported from `Ancoats.blend`, with 44 collision
   hulls and 15 waypoints converted to three.js space (x, z, −y).
-- Characters: CC0 Quaternius Universal Base Characters (male and female "Superhero" stand-ins, the bodies in the
-  free Standard pack), tinted per character with clothing masks and scaled, using 10 clips from the Universal
-  Animation Library (idle, walk, run, jump, land, sit, talk and more). The rigs match, so no retargeting.
+- Characters: nine individually built MakeHuman/MPFB models, with age/build morphs, textured faces,
+  hair, beards where appropriate, and actual clothing meshes. MPFB 2.0.18 is a build-only Blender extension;
+  all selected graphics are CC0. `build_cast_mpfb.py` defines the cast and exports metre/Y-up models.
+  The MPFB game-engine rig uses an explicit UAL bone map and rest-pose calibration; `retarget_cast.py`
+  bakes the same ten clip names. Only Rob and visible NPCs load in normal play; models are cached as they
+  appear. Old Quaternius bodies and original clips load only after a model failure, listed in the debug HUD.
 - Baked indirect lighting (Cycles, 128 samples, 2048 high / 1024 low atlas); night dims the bake and uses
   glowing windows and runtime lights.
-- Assets: **low 3.40 MB / 124,232 triangles**, **high 5.15 MB / 173,338 triangles**; vendor modules add about
-  2.4 MB uncompressed. Licences in `evorium/static/world3d/assets/LICENSES.md`.
+- Assets after the MPFB upgrade: **low 6.53 MB**, **high 10.73 MB**, including all nine models and
+  fallback files; normal play loads a visible subset. Vendor modules add about 2.4 MB uncompressed.
+  Per-character budgets are below; licences are in `evorium/static/world3d/assets/LICENSES.md`.
 - Physics: capsule-and-octree walking with step-up, a 1.03 m jump, wall and closed-door blocking, and a camera
   that never clips through walls.
 - NPCs follow `/world/scene` along a route graph (746 nodes, 4,697 verified edges; every waypoint reachable from
   both street ends), with slot offsets, sitting and talking poses, name cards and speech bubbles.
 
+### MPFB model budgets (measured)
+
+| Character | Low MB | Low triangles | High MB | High triangles |
+|---|---:|---:|---:|---:|
+| Dez | 0.342 | 4,679 | 0.695 | 13,280 |
+| Jess | 0.260 | 4,488 | 0.482 | 12,525 |
+| Tommy | 0.352 | 5,237 | 0.750 | 14,607 |
+| Raj | 0.313 | 4,598 | 0.618 | 12,991 |
+| Chloe | 0.248 | 4,015 | 0.476 | 11,182 |
+| Simon | 0.274 | 10,004 | 0.473 | 22,630 |
+| Brenda | 0.272 | 6,330 | 0.453 | 14,348 |
+| Mo | 0.338 | 6,714 | 0.668 | 18,973 |
+| Rob | 0.277 | 4,706 | 0.514 | 12,260 |
+
+Whole-package texture estimates including mipmaps, fallback textures and all nine models are
+122.7 MB low / 504.4 MB high. These exclude
+renderer buffers, geometry and JavaScript; normal-play allocation is lower because models/fallbacks
+load lazily. Real iPhone memory remains unverified.
+
 ### Rebuilding the assets
 
-Needs Blender 4.3+ (built with 5.3.0), Node 24/npm, Python with Pillow, Chrome, both Quaternius **Standard** zips
+Needs Blender 5.3 with MPFB 2.0.18 (verified headless), Node 24/npm, Python with Pillow, Chrome, both Quaternius **Standard** zips
 in `~/Downloads/evorium-characters/`, and the unlocked kit at
 `/run/media/user/Data Storage/Evorium/AncoatsKit/Ancoats_Blender_Kit/`. Run from the repository root:
 
@@ -515,6 +544,8 @@ npm ci --prefix tools/web3d --registry=https://registry.npmjs.org
 node tools/web3d/vendor.mjs
 blender -b '/run/media/user/Data Storage/Evorium/AncoatsKit/Ancoats_Blender_Kit/Ancoats.blend' -P tools/web3d/export_set.py -- --out tools/web3d/raw
 node tools/web3d/build_characters.mjs
+blender -b --addons bl_ext.blender_org.mpfb --python-exit-code 1 -P tools/web3d/build_cast_mpfb.py
+blender -b --python-exit-code 1 -P tools/web3d/retarget_cast.py
 blender -b -P tools/web3d/bake_lighting.py
 bash tools/web3d/optimise.sh
 ```
@@ -523,18 +554,71 @@ bash tools/web3d/optimise.sh
   pack are the packs' own names; leave them.
 - `raw/blend_inventory.txt` and `raw/characters_inventory.txt` record what was exported and checked. A broken
   `_png.png` texture name in the pack is repaired from its matching PNG.
-- `data/budgets.json` fails the build above 12 MB / 150k triangles (low) or 30 MB / 400k (high).
+- `data/budgets.json` enforces whole-game download and per-person limits below; in-view geometry is checked by Chrome (150k low / 400k high).
 - Three.js 0.187.0 ships no minified build: `three.module.min.js` is the unmodified module, plus its
   `three.core.js` sibling. `node_modules/` and `raw/` are git-ignored.
+
+### Installing MPFB and its CC0 assets
+
+Install through Blender's CLI, then confirm background loading:
+
+```bash
+blender --background --online-mode --command extension install mpfb --sync --enable
+blender -b --addons bl_ext.blender_org.mpfb --python-expr "import bl_ext.blender_org.mpfb; print('MPFB loaded')"
+```
+
+The tested version is 2.0.18 (Blender Extensions, build 20261010, minimum Blender 4.2).
+To reinstall that exact extension instead of the current repository release, download
+`https://extensions.blender.org/download/sha256:c075b3e9b94b8e5556a5f03f4653602d02ea306de08126e8f55ed6dee28a2dad/add-on-mpfb-v2.0.18.zip`
+and run `blender -b --command extension install-file --repo blender_org --enable /absolute/path/to/add-on-mpfb-v2.0.18.zip`.
+Its SHA-256 is `c075b3e9b94b8e5556a5f03f4653602d02ea306de08126e8f55ed6dee28a2dad`.
+For reproducible rebuilds retain that version; a fresh CLI install may select a later release.
+Official source: https://extensions.blender.org/add-ons/mpfb/ . Download the following packs
+into ignored `tools/web3d/raw/mpfb/` from the official secondary mirror (the primary was slow):
+
+- https://files.makehumancommunity.org/asset_packs/makehuman_system_assets/makehuman_system_assets_cc0.zip
+- https://files.makehumancommunity.org/asset_packs/hair01/hair01_cc0.zip
+- https://files.makehumancommunity.org/asset_packs/bodyparts05/bodyparts05_cc0.zip
+
+Install each downloaded zip using the headless operator (replace the filename):
+
+```bash
+blender -b --addons bl_ext.blender_org.mpfb --python-expr "import bpy; bpy.ops.mpfb.load_pack(filepath='/absolute/path/to/pack.zip')"
+```
+
+MPFB resolves its user data folder with `LocationService.get_user_data()`; on this machine it is
+`~/.config/blender/5.3/extensions/.user/blender_org/mpfb/data/`. Keep that separate from the
+extension's source `data/` folder. CC0 pack tables and individual selected assets are listed in
+`evorium/static/world3d/assets/LICENSES.md`. MPFB's code is GPL, its core graphics are CC0;
+the extension is not included in game downloads.
+
+To tweak a person, edit the `CAST` dictionary at the top of `tools/web3d/build_cast_mpfb.py`:
+name, age, gender macro, weight, muscle, proportions, race mix, height in metres, skin, hair,
+beard and clothing. Brenda's fitted hair is rebuilt as opaque low-poly curls; Dez's beard is projected toward
+the face for stubble, and Tommy's top hair is removed for his receding style. Run the cast builder, `retarget_cast.py`, then `optimise.sh` as above.
+`--only dez` supports a diagnostic single-character build; run the full builder before a release
+so the complete inventory and licence manifest are regenerated. Intermediates are in `raw/cast/`.
+The explicit mapping is `tools/web3d/data/mpfb_to_ual_bones.json`; animation inventory is in
+`raw/cast/retarget_inventory.json`. Rest translation channels are stripped except pelvis bob/sit;
+the browser rebases that channel to each model's pelvis. Grounded clips use a sole-vertex correction to
+avoid retargeting penetration; airborne clips keep their pose. Ten shared clip names stay unchanged.
+
+Per-character limits: low **0.7 MB / 12k triangles / 512px textures**, high **1.6 MB / 25k / 1024px**.
+The optimizer fails on those limits or total downloads above **12 MB low / 30 MB high**,
+including fallback files. `budgets.json` records per-character sizes/triangles and texture estimates.
 
 ### Checks
 
 `bash tools/web3d/run_checks.sh` starts its own smoke server, then drives Chrome over the DevTools protocol:
 20 screenshots (street, pub, shop, cast, player × low/high × 1280×720 and 390×844) to `tools/web3d/raw/screens/`
-with a contact sheet, plus a scripted walk through both doors, jump, closed doors, camera collision, fake chat
+with JSON reports, plus a scripted walk through both doors, jump, closed doors, camera collision, fake chat
 and a 60× routine change. Blank images fail. `--movement-only` and `--screens-only` run parts. Test URLs:
 `/world3d?test=1&cam=street|pub|shop|cast|player&quality=low|high` (fixed camera and time; exposes
 `__evoriumReady` and `__evoriumReport`). Player-writing checks refuse any server that isn't the fake one.
+The cast-specific captures are `--cast` (nine-person lineup and all head close-ups, desktop/phone low/high)
+and `--poses` (Dez/Tommy/Brenda idle, walk, run, jump, sit and talk on desktop low). Use
+`?test=1&cam=lineup`, or `cam=head|body&character=dez|jess|tommy|raj|chloe|simon|brenda|mo|player`,
+with optional `pose=walk` and `frame=0.5`. These studio-only views deliberately load all nine models.
 
 Headless Chrome uses software rendering (SwiftShader), so its FPS (about 4–11 low, 2 high) says nothing about
 real phones or the GTX 1060. Real iOS memory, keyboard and touch need a physical phone.
@@ -553,7 +637,8 @@ python3 -m http.server 8080 --bind 127.0.0.1 --directory website
 
 Images are generated, labelled concept art; full-size masters stay in the git-ignored `website/images/src/`.
 Some image filenames keep their original names (`unreal-hero`). The waitlist still uses the placeholder
-`hello@example.com`. Editing these files doesn't publish the site. Personal contact details remain deferred.
+`hello@example.com`. Editing these files doesn't publish the site. Personal contact details remain deferred. The characters
+section is **"Meet the APCs"** (nav label "The APCs"), and the hero and share descriptions use "APC".
 
 **Briefing website changes** (the old `CODEX_PROMPT_WEBSITE.md`, merged here and deleted 20 Nov): describe it as
 a Three.js browser game for desktop and phone; plain HTML/CSS with at most ~30 lines of JS; no frameworks or
@@ -576,7 +661,7 @@ streets, film grain, matching the game's portraits.
   only −4. Consider down to −5 (×2 = −10) for threats and violence.
 - **The quiz loops.** "Forty by Sunday" was restated in 4 conversations before promises were recorded; check it
   stops now that promises save.
-- **3D polish:** stand-in bodies (bald, simple clothing masks, no hair or faces); NPC catch-up snaps rather than
+- **3D polish:** MPFB models are stylised low-poly interpretations rather than exact portrait likenesses; some garments are the nearest CC0 shirt/jacket styles and Brenda's curls remain faceted; no facial/lip animation. NPC catch-up snaps rather than
   fading and departures vanish at the route end; NPCs can overlap while walking; speech bubbles near the screen
   edge get cut off; shared lightmap gives small props little detail; no separate night bake or bloom.
 - **Not yet tested on a real phone**, especially iPhone memory, keyboard and touch.
@@ -597,8 +682,8 @@ streets, film grain, matching the game's portraits.
 
 ## 10. Next steps
 
-1. **Play and review the 3D game** on desktop and a real phone; fix whatever is worst (likely the stand-in
-   bodies, bubbles at the screen edge, NPC overlap and fades).
+1. **Play and review the MPFB cast** on desktop and a real phone; refine likenesses, seated poses, bubbles at
+   the screen edge, NPC overlap and fades.
 2. **Watch the story run** on the G4 for a few days: decisions, promises now being recorded, and Northgate coming
    to a head on 17–18 Dec. Review the pacing and the settlement constants.
 3. **Multiplayer accounts** (§11): each player their own character, login, reputation, catch-up and spending
@@ -717,6 +802,15 @@ Suggested order: invite-only with friends, accounts + player view, then the key 
 
 ## 13. Art
 
+- **Current 3D cast:** MakeHuman/MPFB 2.0.18, scripted from `tools/web3d/build_cast_mpfb.py`,
+  with game-ready male1591/female1605 proxies, CC0 system skins/eyes/brows/lashes/garments,
+  CC0 hair01 hairstyles and the CC0 bodyparts05 beard. Hair and clothing colours are explicit.
+  Balding hair is edited in geometry; Tommy's checked shirt is generated procedurally.
+  Real meshes replace runtime body tint masks (those remain only on fallback bodies).
+  See §7 for installation/rebuilding and the adjacent asset licence manifest for every source.
+  The portraits and website images were viewed as references; website files were not changed.
+
+
 - **Portraits** (`evorium/static/portraits/`, 256×256 PNG, fictional people): `dez`, `chloe`, `tommy`, `jess`,
   `raj`. Generated with one shared prompt: *"Use case: photorealistic-natural. Square character avatar for
   Evorium, a Manchester pub social simulation. One fictional character portrait: [who]. Natural realistic
@@ -746,13 +840,63 @@ Suggested order: invite-only with friends, accounts + player view, then the key 
     NEWS_QUEUE, NEWS_RACK, NEWS_CHILLER, NEWS_PARCELS, STREET_LINK, STREET_WAIT, CYCLE_RAIL (metres, Blender
     axes).
   - **The kit's own 8 characters** (Janine Ward, Sanjay Patel, Frank Doyle, Amina Okafor, Imran Malik, Ewa
-    Kowalska, Rory Campbell, Val Mercer) have an idle pose only and aren't used; the game uses the Quaternius
-    bodies. If the friend ever builds animated models of Evorium's own cast, they can replace the stand-ins.
+    Kowalska, Rory Campbell, Val Mercer) have an idle pose only and aren't used; the game now uses scripted MPFB models of Evorium's cast instead.
 - **Voice** (speech in and out) remains a later goal.
 
 ---
 
 ## 14. History
+
+### Session of 20 November 2026 — Scripted MPFB cast
+
+- Installed official MPFB 2.0.18 through Blender's CLI, verified it in Blender 5.3 background
+  mode, and installed the official CC0 system, hair01 and bodyparts05 packs into MPFB user data.
+  The primary asset mirror was slow; the secondary completed normally. CC-BY alternatives were excluded.
+- Viewed the five portraits and eight website references; scripted nine age/build/skin/hair/clothing
+  configurations, game-engine rigs and low-poly proxies. Exported individual models and explicit asset
+  inventories; added a rest-pose-aware UAL retarget script and bone map, keeping all ten clip names.
+- Added lazy per-model loading, a logged Quaternius fallback with original clips, model-height labels,
+  per-person download/geometry gates and studio lineup/head/body test cameras. The public scene API,
+  simulation, player APIs, website and live G4 world are unchanged. No commits.
+- First visual review caught duplicated trousers on the cardigan outfit, dark cardigan colours and missing
+  iris textures; corrected those, beard colours and Tommy's checked shirt before the final capture run.
+  Further review flattened Dez's beard to stubble, rebuilt Brenda's fitted hair as an opaque curly perm,
+  and made Tommy's checks finer. Added a sole-vertex grounding correction after measuring 3–4 cm of
+  idle/sit penetration. Airborne animation keeps its lift. Fixed a smoke-harness shutdown race by waiting
+  for its owned process and failing if it exits before readiness. NPC placement now uses the actual
+  pub/shop floor levels instead of marker-height or chair-back collision, keeping feet and sitting poses grounded.
+- Final asset totals: **6.53 MB low / 10.73 MB high**, including all nine people and fallback files. Each
+  low model is **0.248–0.352 MB / 4,015–10,004 triangles**; each high model is
+  **0.453–0.750 MB / 11,182–22,630 triangles**. Vendor files add about 2.4 MB. All configured budgets pass.
+- **226 Python tests**, seven map tests and the expanded Web3D Node checks pass, including lazy cache,
+  model presence, fallback selection and unchanged ten-clip mapping. The final Chrome review has **78 captures**:
+  20 world views, 40 lineup/head views (all nine, desktop/phone, low/high), 18 pose checks for Dez/Tommy/Brenda.
+  No browser errors or model fallbacks. Grounded studio poses measure soles within 2 mm of the floor;
+  airborne poses retain lift. Walk-throughs finish within 0.13 m with no final penetration, pub/leave/shop/leave
+  calls, fake chat, 1.03 m jump, camera/closed-door blocking and a successful 60× routine change.
+- World-view total draw calls: **88–135 low / 207–254 high**; visible geometry **75,148–137,636 low /
+  139,046–209,599 high** (including only the main visible geometry, separate from shadow/transparent passes).
+  Lineup/head views: **12–190 total calls**, **4,017–132,798 visible triangles**. SwiftShader world FPS is about
+  **3.8–7.9 low / 1.5–1.9 high**; hardware phone/desktop performance and iOS memory remain unverified.
+- Reviewed every capture via the contact sheets in ignored `tools/web3d/raw/mpfb/`: `cast-review.png`,
+  `lineup-review.png`, `world-review.png`, `poses-review.png`. Individual PNGs and `mpfb-reports.json` are under
+  `tools/web3d/raw/screens/`. Faces/garments are stylised approximations, not photographic replicas; no black
+  textures or twisted wrists/shoulders were seen in the reviewed poses. Portrait cards still use the existing 2D art.
+
+
+#### Cast appearance review
+
+| Character | What the final screenshots show | Approximation to retain or refine |
+|---|---|---|
+| Dez | Stockier man, short grey hair, grey facial hair, black collared top and dark trousers | Facial hair remains fuller-looking than the portrait's light stubble; collared shirt replaces exact polo |
+| Jess | Slim woman, fair skin, dark swept-back bun, dark work top and black trousers | Simple top and low-poly face |
+| Tommy | Shorter older man, bald crown with silver sides, navy outer layer, checked shirt, grey trousers | Cardigan-style jacket and generic shared gait rather than a bespoke elderly animation |
+| Raj | Medium build, brown skin, short black hair, neat dark beard, muted grey shirt/dark trousers | Broad MPFB phenotype and simplified facial detail |
+| Chloe | Slim woman, light-brown bob, green top and dark jeans | Straighter bob and simpler top than the reference's wavy hair/knit |
+| Simon | Tall/trim, neat dark hair, clean-shaven, charcoal suit | Simplified shirt/lapel detail |
+| Brenda | Short/rounder older woman, irregular grey curls, lilac outer layer, dark trousers | Faceted procedural curls and jacket-style garment rather than exact cardigan |
+| Mo | Solid build, short dark hair and beard, dark navy jacket/trousers | Shared CC0 hair/beard style with Raj, different skin/body/clothes |
+| Rob | Average build, short brown hair, cream top and blue jeans | Intentionally plain; readable from the follow camera |
 
 ### Session of 20 November 2026 — Website brief corrected
 
@@ -847,6 +991,8 @@ Unreal from the project.
 - **All docs merged into this file.** The old README, the home server guide, the Web3D pipeline, controls and
   verification notes, the portrait prompts, the old LAN service notes and the finished M4 and Web3D briefs were
   folded in and deleted (they're in git history). `README.md` now just points here.
+- **"APCs" (AI Player Characters)** adopted as Evorium's name for its characters: website (people section
+  "Meet the APCs", nav, hero line, meta and share descriptions, amber highlight on the term) and README updated.
 - **Clean-up:** the website brief merged into §8 and deleted; the old `server.log` and `__pycache__` deleted; the
   two old world backups moved into `backups/`; the art kit zip moved to the Data Storage drive next to the
   unpacked kit. The project folder now holds only code, config, the dev world copy and this document.

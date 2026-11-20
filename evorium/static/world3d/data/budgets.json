@@ -1,14 +1,126 @@
 {
   "high": {
-    "bytes": 5149538,
-    "megabytes": 5.149538,
-    "triangles": 173338,
-    "estimatedTextureMB": 271.93070933333337
+    "bytes": 10725450,
+    "megabytes": 10.72545,
+    "triangles": 276756,
+    "estimatedTextureMB": 504.365056,
+    "cast": {
+      "dez": {
+        "bytes": 695472,
+        "megabytes": 0.695472,
+        "triangles": 13280,
+        "estimatedTextureMB": 30.75822933333333
+      },
+      "jess": {
+        "bytes": 481620,
+        "megabytes": 0.48162,
+        "triangles": 12525,
+        "estimatedTextureMB": 25.165823999999997
+      },
+      "tommy": {
+        "bytes": 749876,
+        "megabytes": 0.749876,
+        "triangles": 14607,
+        "estimatedTextureMB": 25.515349333333333
+      },
+      "raj": {
+        "bytes": 618380,
+        "megabytes": 0.61838,
+        "triangles": 12991,
+        "estimatedTextureMB": 30.75822933333333
+      },
+      "chloe": {
+        "bytes": 475844,
+        "megabytes": 0.475844,
+        "triangles": 11182,
+        "estimatedTextureMB": 25.165823999999997
+      },
+      "simon": {
+        "bytes": 473380,
+        "megabytes": 0.47338,
+        "triangles": 22630,
+        "estimatedTextureMB": 19.573418666666665
+      },
+      "brenda": {
+        "bytes": 452656,
+        "megabytes": 0.452656,
+        "triangles": 14348,
+        "estimatedTextureMB": 19.573418666666665
+      },
+      "mo": {
+        "bytes": 668452,
+        "megabytes": 0.668452,
+        "triangles": 18973,
+        "estimatedTextureMB": 30.75822933333333
+      },
+      "player": {
+        "bytes": 514376,
+        "megabytes": 0.514376,
+        "triangles": 12260,
+        "estimatedTextureMB": 25.165823999999997
+      }
+    }
   },
   "low": {
-    "bytes": 3404006,
-    "megabytes": 3.404006,
-    "triangles": 124232,
-    "estimatedTextureMB": 45.43829333333333
+    "bytes": 6526526,
+    "megabytes": 6.526526,
+    "triangles": 164723,
+    "estimatedTextureMB": 122.68339199999998,
+    "cast": {
+      "dez": {
+        "bytes": 342344,
+        "megabytes": 0.342344,
+        "triangles": 4679,
+        "estimatedTextureMB": 9.786709333333333
+      },
+      "jess": {
+        "bytes": 259900,
+        "megabytes": 0.2599,
+        "triangles": 4488,
+        "estimatedTextureMB": 8.388608
+      },
+      "tommy": {
+        "bytes": 351844,
+        "megabytes": 0.351844,
+        "triangles": 5237,
+        "estimatedTextureMB": 8.738133333333332
+      },
+      "raj": {
+        "bytes": 312692,
+        "megabytes": 0.312692,
+        "triangles": 4598,
+        "estimatedTextureMB": 9.786709333333333
+      },
+      "chloe": {
+        "bytes": 248436,
+        "megabytes": 0.248436,
+        "triangles": 4015,
+        "estimatedTextureMB": 8.388608
+      },
+      "simon": {
+        "bytes": 273588,
+        "megabytes": 0.273588,
+        "triangles": 10004,
+        "estimatedTextureMB": 6.990506666666666
+      },
+      "brenda": {
+        "bytes": 272320,
+        "megabytes": 0.27232,
+        "triangles": 6330,
+        "estimatedTextureMB": 6.990506666666666
+      },
+      "mo": {
+        "bytes": 338356,
+        "megabytes": 0.338356,
+        "triangles": 6714,
+        "estimatedTextureMB": 9.786709333333333
+      },
+      "player": {
+        "bytes": 277184,
+        "megabytes": 0.277184,
+        "triangles": 4706,
+        "estimatedTextureMB": 8.388608
+      }
+    }
   }
 }
