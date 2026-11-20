@@ -788,6 +788,7 @@ For an online version:
     by default. The main PC's server is stopped.
   - **Public address:** https://<tunnel-domain> (ngrok free plan, EU region), run by
     `evorium-ngrok.service` (a systemd unit; snap ngrok can't run `ngrok service install`). Protected by
+  - **First auto-update (20 Nov, 12:29) was rolled back as designed:** `tests/test_world3d_route.py` failed
 
 ### What has to be built
 
