@@ -283,7 +283,7 @@ def whereabouts(agent,now,db_path=DEFAULT_DB_PATH):
         from evorium.places import is_open
         if not is_open(plan['place'], now, values):
             return routine(agent['name'], now, values)
-        return REGISTRY[plan['place']], 'popping into the shop' if plan['place']=='shop' else 'in for a drink'
+        return REGISTRY[plan['place']], {'shop':'popping into the shop','street':'out on the street'}.get(plan['place'],'in for a drink')
     loc, act = routine(agent['name'],now,values)
     if loc == PUB and not pub_open(now, values):
         return home_location(agent['name']), 'at home while the pub is shut'

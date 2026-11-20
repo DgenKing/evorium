@@ -65,7 +65,7 @@ def close(client, db_path=DEFAULT_DB_PATH):
 def enter(client,place,db_path=DEFAULT_DB_PATH):
     with lock:
         now=world.now(db_path)
-        if place not in places.REGISTRY:raise HTTPException(409,'Choose the pub or the shop.')
+        if place not in places.REGISTRY:raise HTTPException(409,'Choose the pub, the shop or the street.')
         if not places.is_open(place,now,economy.read(db_path)):raise HTTPException(409,'That place is shut right now.')
         if world.get_setting('player_place','',db_path)!=place:close(client,db_path)
         with connect(db_path) as c:
@@ -89,8 +89,15 @@ def say(client,to_agent_id,text,db_path=DEFAULT_DB_PATH):
     with lock:
         if backoff.paused():raise HTTPException(503,"DeepSeek is paused while the service recovers.")
         now=world.now(db_path);text=text.strip();place=world.get_setting('player_place','',db_path)
-        if not place:raise HTTPException(409,'Walk into a place before speaking.')
         if not 1<=len(text)<=500:raise HTTPException(409,'Say between 1 and 500 characters.')
+        if not place:
+            # Outside the pub and shop means you're on Shuttle Street: talking to someone there puts you on the street.
+            if not any(a['id']==to_agent_id for a in places.present(now,db_path).get('street',[])):
+                raise HTTPException(409,'Walk into a place before speaking.')
+            place='street'
+            with connect(db_path) as c:
+                me=row(c);world._set(c,'player_place','street')
+                c.execute('UPDATE agents SET location=? WHERE id=?',(world.STREET,me['id']))
         target=next((a for a in places.present(now,db_path).get(place,[]) if a['id']==to_agent_id),None)
         if target is None:raise HTTPException(409,'That person is not here right now.')
         with connect(db_path) as c:

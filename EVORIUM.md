@@ -85,7 +85,7 @@ and phone); it runs around the clock on the owner's HP G4 and is reachable over 
 | Area | State |
 |---|---|
 | Characters | 18 APCs + 1 player (Rob, shared by everyone for now) + 1 system ("World") row |
-| Places | The Crooked Billet (pub, 09:00–24:00 every day), Patel's News (shop, Mon–Sat 07:00–19:00) |
+| Places | The Crooked Billet (pub, 09:00–24:00 every day), Patel's News (shop, Mon–Sat 07:00–19:00), Shuttle Street (always) |
 | Clock | Real UK time × speed multiplier (0 = paused, 1 = real, up to 600×+) |
 | Conversations | 4 lines, or 6 for a pair's first meeting or fresh serious news; one at a time worldwide |
 | Memory | Facts (seed / observed / told / claim) scored 1–5 for importance; only ≥3 saved or shown |
@@ -1205,6 +1205,12 @@ Unreal from the project.
   the street and in the pub and shop, story facts and relationships. 18 APCs in all. A simulated week now shows
   2–6 APCs about on most weekday half-hours besides Dez and Raj (Sunday stays quiet). Seeding a copy of the live
   world added exactly these APCs with no duplicates. 234 tests pass.
+- **Talking on the street.** The owner pressed E on Peggy outside the Billet and got "Walk into a place before
+  speaking": street APCs had arrived but street conversations hadn't. `places.REGISTRY` now includes
+  `'street': world.STREET` (always open), so the player can talk to anyone on Shuttle Street (being outside counts
+  as being on the street, set automatically on the first line), APCs can chat to each other on the pavement, and
+  the dashboard's "Where everyone is" lists the street. You still can't talk to someone who isn't there. Test
+  added; 235 pass.
 - **Owner's rule: APCs only.** No fake or background people (passers-by, crowds, non-AI extras) anywhere, on the
   map or in 3D. A cosmetic passers-by feature was written for the map and removed the same day at the owner's
   request. Busier streets come from more APCs and denser routines. Animals and blowing rubbish are fine; they

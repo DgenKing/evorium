@@ -2,11 +2,12 @@
 from evorium import world
 from evorium.db import DEFAULT_DB_PATH, connect, npc_agents
 
-REGISTRY={'pub':world.PUB,'shop':"Patel's News, Ancoats"}
+REGISTRY={'pub':world.PUB,'shop':"Patel's News, Ancoats",'street':world.STREET}   # the street is always 'open'
 
 
 def is_open(key, now, stats=None):
     stats = stats or {}
+    if key=='street':return True
     if key=='pub':return world.pub_open(now, stats)
     if stats.get('shop.open', 1) == 0:return False
     return key=='shop' and now.weekday()<6 and 7<=now.hour<19

@@ -123,3 +123,29 @@ def test_second_batch_routines():
     assert world.routine('Grace Adeyemi',mon.replace(hour=13,minute=40))==(world.STREET,'on patrol')
     assert not world.is_free('Grace Adeyemi',mon.replace(hour=13,minute=40))
     assert world.routine('Grace Adeyemi',datetime(2026,11,20,22,50))==(world.PUB,'looking in at closing time')
+
+
+def test_player_can_talk_to_an_apc_on_the_street(tmp_path):
+    from evorium import player, tick
+    from evorium.models import ActionProposal
+    from fastapi import HTTPException
+    path=tmp_path/'world.sqlite3';init_db(path);seed_agents(path)
+    tue_1505=datetime(2026,11,17,15,5)   # Peggy is on the bench outside the Billet
+    with connect(path) as c:
+        c.execute("INSERT OR REPLACE INTO world(key,value) VALUES ('anchor_sim',?)",(tue_1505.strftime(world.FMT),))
+    world.set_speed(0,path)                # freeze the clock at that moment
+    tick.update_routines(world.now(path),path)
+    with connect(path) as c:
+        peggy=c.execute("SELECT id FROM agents WHERE name='Peggy Coyle'").fetchone()[0]
+        dez=c.execute("SELECT id FROM agents WHERE name='Dez Whitworth'").fetchone()[0]
+    class Fake:
+        def propose(self,aid,messages,schema=None,max_tokens=0):
+            return ActionProposal(say="Afternoon, love. Sit yourself down.",rationale='friendly',mood='chatty')
+    reply=player.say(Fake(),peggy,'hi',path)               # no place entered: you're on the street
+    assert reply['reply']['text'].startswith('Afternoon')
+    assert world.get_setting('player_place','',path)=='street'
+    try:
+        player.say(Fake(),dez,'hi',path)                   # Dez is inside behind the bar, not on the street
+        assert False, 'should refuse'
+    except HTTPException as e:
+        assert e.status_code==409
