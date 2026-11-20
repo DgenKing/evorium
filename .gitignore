@@ -43,3 +43,12 @@ Built-Through-Time.mp4
 
 # Website image masters (large PNGs); the optimised WebP/JPG in website/images are committed
 website/images/src/
+
+# Web3D source assets and pipeline dependencies.
+tools/web3d/raw/
+tools/web3d/node_modules/
+
+# Home server runtime files
+last_update_tests.txt
+backups/
+.update_failed
