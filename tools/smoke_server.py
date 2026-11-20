@@ -1,4 +1,4 @@
-"""Offline-only Unreal smoke server: a DB copy, port 8011, fake model replies.
+"""Offline-only smoke server for the 3D web client and tests: a DB copy, port 8011, fake model replies.
 Run with the repository's .venv/bin/python. Never changes config.py or the live DB.
 """
 import os

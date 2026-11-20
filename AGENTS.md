@@ -1,25 +1,18 @@
 # Instructions for any AI working on Evorium (Codex, Claude, others)
 
-Read `EVORIUM.md` first. It's the one working document for the whole project: the idea, current state, how it
-works, history, known issues, next steps and the rules in §12. `README.md` covers how to run it.
+**`EVORIUM.md` is the only project document.** Read it first, and follow its rules in §15.
 
-## Always keep the docs up to date
+After **every** piece of work (feature, fix, setting change, investigation with a finding, plan or prompt),
+before you finish, update `EVORIUM.md`:
+- add a dated entry to §14 History: what changed, why, and anything learned;
+- update §2 (where it stands), §3 (how it works), §5 (running it), §6 (home server), §7 (3D game), §9 (known
+  issues) and §10 (next steps) wherever they're affected.
 
-After **every** piece of work (feature, fix, setting change, investigation with a finding, plan or prompt
-written), before you finish:
+**Don't create other Markdown files** (no new READMEs, notes or reports). Put it in `EVORIUM.md`. The only other
+`.md` files are `README.md` (a pointer), this file, `CLAUDE.md`, and `evorium/static/world3d/assets/LICENSES.md`.
+If nothing in `EVORIUM.md` needs changing, say so in your final message.
 
-1. **EVORIUM.md:**
-   - add what was done to §5 History, under a dated session heading (create one for today if needed): what
-     changed, why, and anything learned;
-   - update §2 "Where it stands today" if the game now behaves differently;
-   - update §3 "How it works" if the mechanics changed;
-   - update §6 "Known issues": add new problems, remove fixed ones;
-   - update §7 "Next steps": tick off what's done, add what's now next.
-2. **README.md:** update anything a person running the game needs: commands, settings, routes, files, limits,
-   costs.
-3. If neither file needs a change, say so in your final message.
-
-The aim is that anyone can open EVORIUM.md and know exactly where the project is.
-
-Follow the rules in EVORIUM.md §12 (never lose the live database, append-only migrations, no secrets, no new
-dependencies, tests never hit the real API, don't commit unless asked).
+Key rules (details in §15): never lose the live world (it's on the G4 server); append-only migrations; never
+print or commit secrets; no dotenv; tests never call the real API or depend on the machine's own `config.py`;
+no new runtime dependencies without asking; don't commit unless asked. **A push to `main` goes live on the G4
+within minutes**, so only finished, tested work belongs on `main`.

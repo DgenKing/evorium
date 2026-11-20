@@ -149,12 +149,12 @@ em { font-weight: inherit; color: var(--amber); }
 .time-strip::before { content: ''; position: absolute; z-index: -1; inset: 0; background: linear-gradient(90deg, rgb(13 14 17 / 85%), rgb(13 14 17 / 25%), rgb(13 14 17 / 75%)); }
 .time-strip > p { font-family: var(--serif); font-size: 2.25rem; line-height: 1.2; }
 .time-strip > span { font-size: .75rem; align-self: end; }
-.unreal-visual { position: relative; }
-.unreal-visual picture { border-radius: 12px; aspect-ratio: 12/5; }
-.unreal-visual img { height: 100%; width: 100%; object-fit: cover; }
+.browser-visual { position: relative; }
+.browser-visual picture { border-radius: 12px; aspect-ratio: 12/5; }
+.browser-visual img { height: 100%; width: 100%; object-fit: cover; }
 .development-badge { position: absolute; top: 24px; left: 24px; padding: 8px 14px; border: 1px solid rgb(232 165 72 / 65%); border-radius: 6px; color: var(--amber); background: rgb(13 14 17 / 80%); font-size: .75rem; letter-spacing: .12em; text-transform: uppercase; }
-.unreal-visual figcaption { font-size: .75rem; color: var(--mist); margin-top: 20px; }
-.unreal-visual figcaption span { color: var(--amber); padding-inline: 8px; }
+.browser-visual figcaption { font-size: .75rem; color: var(--mist); margin-top: 20px; }
+.browser-visual figcaption span { color: var(--amber); padding-inline: 8px; }
 .waitlist-section { min-height: 680px; display: flex; align-items: center; position: relative; isolation: isolate; overflow: hidden; padding-block: 120px; }
 .waitlist-section .section-background img { object-position: 70% center; }
 .waitlist-shade { z-index: -1; background: linear-gradient(90deg, rgb(13 14 17 / 96%) 5%, rgb(13 14 17 / 85%) 40%, rgb(13 14 17 / 18%) 85%), linear-gradient(var(--ink), transparent 25%, transparent 80%, var(--ink)); }
@@ -283,10 +283,10 @@ em { font-weight: inherit; color: var(--amber); }
   .how-steps p { grid-column: 2; margin: 0; font-size: .875rem; }
   .time-strip { min-height: 300px; padding: 28px; align-items: start; flex-direction: column; }
   .time-strip > span { align-self: start; }
-  .unreal-visual picture { aspect-ratio: 4/3; }
-  .unreal-visual img { object-position: 58% center; }
+  .browser-visual picture { aspect-ratio: 4/3; }
+  .browser-visual img { object-position: 58% center; }
   .development-badge { left: 16px; top: 16px; font-size: .75rem; }
-  .unreal-visual figcaption { font-size: .75rem; }
+  .browser-visual figcaption { font-size: .75rem; }
   .waitlist-section { min-height: 640px; padding-block: 80px; }
   .waitlist-content h2 { font-size: clamp(3rem, 12vw, 4rem); }
   .waitlist-shade { background: linear-gradient(90deg, rgb(13 14 17 / 90%), rgb(13 14 17 / 65%)), linear-gradient(var(--ink), transparent 25%, transparent 80%, var(--ink)); }
