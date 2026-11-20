@@ -109,7 +109,7 @@ def _routine_location(name: str, dt: datetime, stats=None) -> tuple[str, str]:
         return home_location(name), 'at home after the pub closed'
     if stats.get('shop.open', 1) == 0 and first == 'Raj':
         return home_location(name), 'at home after the shop closed'
-    if stats.get('pub.quiz') == 2 and not stats.get('pub.closed') and dt.weekday() == 3 and _between(dt, 19.5, 22.5) and first in ('Tommy', 'Mohammed', 'Brenda', 'Chloe'):
+    if stats.get('pub.quiz') == 2 and not stats.get('pub.closed') and dt.weekday() == 3 and _between(dt, 19.5, 22.5) and first in ('Tommy', 'Mohammed', 'Brenda', 'Chloe', 'Peggy', 'Hannah', 'Liam'):
         # Work still takes priority; Mo is driving after 19:30 on Thursdays.
         base_loc, base_act = _routine_location(name, dt)
         if base_act not in ('driving', 'at work', 'asleep'):
@@ -146,9 +146,11 @@ def _routine_location(name: str, dt: datetime, stats=None) -> tuple[str, str]:
             return PUB, "Sunday pint"
         return "Home, Cheetham Hill", "with the family" if _between(dt, 7, 23) else "asleep"
     if first == "Chloe":
+        if wd < 5 and _between(dt, 8.25, 8.6):
+            return "Patel's News, Ancoats", "grabbing a coffee on the way to work"
         if wd < 5 and _between(dt, 9, 18):
             return "Architecture practice, Northern Quarter", "at work"
-        if wd in (1, 2, 4) and _between(dt, 18.5, 22) and pub_open(dt, stats):
+        if wd in (1, 2, 3, 4) and _between(dt, 18.25, 21.5) and pub_open(dt, stats):
             return PUB, "unwinding after work"
         if wd == 5 and _between(dt, 15, 20) and pub_open(dt, stats):
             return PUB, "Saturday afternoon drink"
@@ -157,25 +159,51 @@ def _routine_location(name: str, dt: datetime, stats=None) -> tuple[str, str]:
         return "Rented room, Stockport", "at home" if _between(dt, 7, 23) else "asleep"
     if first == 'Simon':
         if wd==3 and _between(dt,14,14.5):return "Patel's News, Ancoats",'visiting the newsagent'
+        if wd==1 and _between(dt,12.5,13.5) and pub_open(dt, stats):return PUB,'having lunch and looking over the terrace'
         if wd<5 and _between(dt,9,17.5):return 'Northgate Estates office, Spinningfields','at the office'
         return 'Home, Hale','at home' if _between(dt,7,23) else 'asleep'
     if first == 'Brenda':
         if wd<6 and _between(dt,9,9.5):return "Patel's News, Ancoats",'buying the morning paper'
-        if ((wd==2 and _between(dt,19,21)) or (wd==6 and _between(dt,13,15))) and pub_open(dt, stats):return PUB,'catching up with the neighbours'
+        if ((wd in (1,3) and _between(dt,12.5,14)) or (wd==2 and _between(dt,19,21)) or (wd in (5,6) and _between(dt,13,15))) and pub_open(dt, stats):return PUB,'catching up with the neighbours'
         return 'Home, Blossom Street','at home' if _between(dt,7,23) else 'asleep'
     if first == 'Mohammed':
         if _between(dt,5,12):return 'Home, Manchester','asleep'
         if wd<6 and _between(dt,16,16+20/60):return "Patel's News, Ancoats",'picking up supplies before his shift'
-        if ((wd==1 and _between(dt,18,19.5)) or (wd==6 and _between(dt,14,16))) and pub_open(dt, stats):return PUB,'here for darts and company'
+        if ((wd in (1,3,4) and _between(dt,18,19.5)) or (wd==6 and _between(dt,14,16))) and pub_open(dt, stats):return PUB,'here for darts and company'
         if _between(dt,19.5,24) or _between(dt,0,4):return 'Manchester','driving'
         return 'Home, Manchester','off duty'
+    if first == 'Peggy':
+        if wd<6 and _between(dt,9.5,9.75):return "Patel's News, Ancoats",'buying her paper and a quarter of mints'
+        if wd<6 and _between(dt,12,14.5) and pub_open(dt, stats):return PUB,'having her half of stout at the bar'
+        if wd==6 and _between(dt,13,15) and pub_open(dt, stats):return PUB,'Sunday half with the regulars'
+        return 'Sheltered flat, Ancoats','at home' if _between(dt,7,22) else 'asleep'
+    if first == 'Liam':
+        if wd<5 and _between(dt,7,7.4):return "Patel's News, Ancoats",'grabbing breakfast before work'
+        if wd<5 and _between(dt,12.5,13.25) and pub_open(dt, stats):return PUB,'on his dinner break'
+        if wd<5 and _between(dt,7.5,16.5):return 'Mill conversion site, Ancoats','on the scaffold'
+        if wd==4 and _between(dt,17,21) and pub_open(dt, stats):return PUB,'Friday pint after work'
+        return 'Flat, Clayton','at home' if _between(dt,6.5,23.5) else 'asleep'
+    if first == 'Anjali':
+        if ((wd in (0,2,4) and _between(dt,15,19)) or (wd==5 and _between(dt,9,17))):return "Patel's News, Ancoats",'helping on the counter'
+        if wd<5 and _between(dt,10,14):return 'Manchester Met, All Saints','at lectures'
+        return 'Home, Cheetham Hill','studying at home' if _between(dt,7,23.5) else 'asleep'
+    if first == 'Pete':
+        if wd in (1,4) and _between(dt,10,10.75):return PUB,'delivering the barrels'
+        if wd<5 and _between(dt,6,15):return 'Brewery round, Greater Manchester','on his delivery round'
+        if wd==5 and _between(dt,13,16) and pub_open(dt, stats):return PUB,'Saturday afternoon pint'
+        return 'Home, Failsworth','at home' if _between(dt,6,22.5) else 'asleep'
+    if first == 'Hannah':
+        if wd<5 and _between(dt,8.5,8.75):return "Patel's News, Ancoats",'picking up the papers and a coffee'
+        if wd in (2,4) and _between(dt,17.5,19.5) and pub_open(dt, stats):return PUB,'having a drink and listening'
+        if wd<5 and _between(dt,9,17.5):return 'Newsroom, Northern Quarter','working on her story'
+        return 'Flat, Northern Quarter','at home' if _between(dt,7,24) else 'asleep'
     return "Ancoats", "about"
 
 
 
 def _routine(name,dt,stats=None):
     location,activity=_routine_location(name,dt,stats)
-    free=activity not in ('asleep','behind the bar',"doing the pub's shopping",'working the bar','cleaning shift','behind the counter','at work','at the office','driving')
+    free=activity not in ('asleep','behind the bar',"doing the pub's shopping",'working the bar','cleaning shift','behind the counter','at work','at the office','driving','on the scaffold','helping on the counter','at lectures','delivering the barrels','on his delivery round','working on her story')
     return location,activity,free
 
 
@@ -189,7 +217,8 @@ def is_free(name,dt,stats=None):
 
 def home_location(name):
     return {'Dez':'Flat above The Crooked Billet','Jess':'Flat, Miles Platting','Tommy':'Flat, Blossom Street',
-            'Raj':'Home, Cheetham Hill','Chloe':'Rented room, Stockport','Simon':'Home, Hale','Brenda':'Home, Blossom Street','Mohammed':'Home, Manchester'}.get(name.split()[0],'Home, Ancoats')
+            'Raj':'Home, Cheetham Hill','Chloe':'Rented room, Stockport','Simon':'Home, Hale','Brenda':'Home, Blossom Street','Mohammed':'Home, Manchester','Peggy':'Sheltered flat, Ancoats','Liam':'Flat, Clayton',
+            'Anjali':'Home, Cheetham Hill','Pete':'Home, Failsworth','Hannah':'Flat, Northern Quarter'}.get(name.split()[0],'Home, Ancoats')
 
 
 def whereabouts(agent,now,db_path=DEFAULT_DB_PATH):
@@ -231,14 +260,20 @@ def pick_pair(ids: list[int], db_path: str | Path = DEFAULT_DB_PATH, recent_wind
     if len(ids) < 2:
         raise ValueError("Fewer than two available characters.")
     last_seen: dict[frozenset, int] = {}
+    person_seen: dict[int, int] = {}
     recent: set[frozenset] = set()
     for rank, r in enumerate(rows):
         key = frozenset((r["agent_a_id"], r["agent_b_id"]))
         last_seen.setdefault(key, rank)
+        person_seen.setdefault(r["agent_a_id"], rank)
+        person_seen.setdefault(r["agent_b_id"], rank)
         if rank < recent_window:
             recent.add(key)
     pairs = [(a, b) for i, a in enumerate(ids) for b in ids[i + 1:]]
     candidates = [p for p in pairs if frozenset(p) not in recent] or pairs
-    weights = [1 + last_seen.get(frozenset(p), 50) for p in candidates]
+    # Favour pairs who haven't met lately AND people who haven't spoken lately, so quiet characters get a turn
+    # rather than whoever is always behind the bar.
+    weights = [(1 + last_seen.get(frozenset(p), 50)) * (1 + (person_seen.get(p[0], 50) + person_seen.get(p[1], 50)) / 2)
+               for p in candidates]
     a, b = random.choices(candidates, weights=weights, k=1)[0]
     return (a, b) if random.random() < 0.5 else (b, a)

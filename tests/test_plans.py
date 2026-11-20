@@ -1,3 +1,4 @@
+from evorium.seed import CHARACTERS
 from datetime import datetime,timedelta
 import pytest
 from evorium import world,places,plans,tick
@@ -78,9 +79,9 @@ def test_phone_retries_once(db):
 
 def test_planning_once_daily_and_per_place_gap(db):
     now=datetime(2026,11,16,8);client=Fake();client.calls=[]
-    assert plans.daily(client,now,db)==8
+    assert plans.daily(client,now,db)==len(CHARACTERS)
     assert plans.daily(client,now+timedelta(hours=1),db)==0
-    assert len(client.calls)==8
+    assert len(client.calls)==len(CHARACTERS)
     with connect(db) as c:
         c.execute("insert into conversations(location,status,agent_a_id,agent_b_id,sim_at) values (?,'completed',1,3,?)",(world.PUB,now.strftime('%Y-%m-%d %H:%M')))
     assert not tick.conversation_due(now,20,db,world.PUB)
@@ -104,6 +105,6 @@ def test_failed_daily_planning_is_not_repeated(db):
         calls=0
         def propose(self,*a,**k):self.calls+=1;raise LLMError('unavailable')
     client=Bad();now=datetime(2026,11,16,8)
-    assert plans.daily(client,now,db)==8
+    assert plans.daily(client,now,db)==len(CHARACTERS)
     assert plans.daily(client,now+timedelta(hours=1),db)==0
-    assert client.calls==8
+    assert client.calls==len(CHARACTERS)

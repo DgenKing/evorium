@@ -1,3 +1,4 @@
+from evorium.seed import CHARACTERS
 from datetime import datetime
 from evorium import world
 from evorium.db import init_db,connect,npc_agents
@@ -25,8 +26,9 @@ def test_new_routines_and_free_flags():
 def test_expanded_seed_is_idempotent_and_cast_in_notes(tmp_path):
     path=tmp_path/'world.sqlite3';init_db(path);seed_agents(path);seed_agents(path)
     with connect(path) as c:
-        cast=npc_agents(c);assert len(cast)==8
-        assert c.execute('select count(*) from facts').fetchone()[0]==26
+        cast=npc_agents(c);assert len(cast)==len(CHARACTERS)
+        from evorium.seed import SEED_FACTS
+        assert c.execute('select count(*) from facts').fetchone()[0]==len(SEED_FACTS)
         names={a['name']:a['id'] for a in cast}
         assert get(c,names['Brenda Ashworth'],names['Tommy Shaw'])['trust']==75
         assert get(c,names['Simon Ferris'],names['Tommy Shaw'])['trust']==40
@@ -48,3 +50,50 @@ def test_note_taker_cast_excludes_player_and_system(tmp_path):
                 return Extraction(summary='Dez and Tommy talked.')
             return ActionProposal(say='Hello.',rationale='Greeting.',mood='happy')
     run_conversation(Fake(),1,3,1,path)
+
+
+def test_new_apcs_join_an_existing_world_without_duplicating_facts(tmp_path, monkeypatch):
+    # The live world was seeded with the original 8 characters and 26 facts. Restarting on the new code must
+    # add the 5 newcomers and their facts only: seed keys are list positions, so old facts must not repeat.
+    from evorium import seed as seedmod
+    path=tmp_path/'world.sqlite3';init_db(path)
+    monkeypatch.setattr(seedmod,'CHARACTERS',seedmod.CHARACTERS[:8]);monkeypatch.setattr(seedmod,'SEED_FACTS',seedmod.SEED_FACTS[:26])
+    seedmod.seed_agents(path)
+    monkeypatch.undo()
+    seedmod.seed_agents(path)
+    with connect(path) as c:
+        names=[a['name'] for a in npc_agents(c)]
+        assert names[8:]==['Peggy Coyle','Liam Byrne','Anjali Patel','Pete Lomax','Hannah Kerr']
+        assert c.execute('select count(*) from facts').fetchone()[0]==len(seedmod.SEED_FACTS)
+        assert c.execute('select count(*) from (select content from facts group by agent_id,content having count(*)>1)').fetchone()[0]==0
+        ids={a['name']:a['id'] for a in npc_agents(c)}
+        assert get(c,ids['Anjali Patel'],ids['Raj Patel'])['trust']==85
+        assert get(c,ids['Peggy Coyle'],ids['Brenda Ashworth'])['warmth']==75
+
+
+def test_quieter_apcs_now_have_company():
+    tue=datetime(2026,11,17)
+    assert world.routine('Brenda Ashworth',tue.replace(hour=13))[0]==world.PUB          # pensioners' lunch
+    assert world.routine('Peggy Coyle',tue.replace(hour=13))[0]==world.PUB              # her half of stout
+    assert world.routine('Chloe Barlow',tue.replace(hour=8,minute=20))[0]=="Patel's News, Ancoats"
+    assert world.routine('Chloe Barlow',datetime(2026,11,19,19))[0]==world.PUB          # Thursdays too now
+    assert world.routine('Pete Lomax',tue.replace(hour=10,minute=15))==(world.PUB,'delivering the barrels')
+    assert not world.is_free('Pete Lomax',tue.replace(hour=10,minute=15))
+    assert world.routine('Anjali Patel',datetime(2026,11,16,16))==("Patel's News, Ancoats",'helping on the counter')
+    assert world.routine('Liam Byrne',tue.replace(hour=12,minute=45))[0]==world.PUB
+    assert world.routine('Hannah Kerr',datetime(2026,11,18,18))[0]==world.PUB
+    assert world.routine('Simon Ferris',tue.replace(hour=13))[0]==world.PUB
+
+
+def test_pick_pair_favours_people_who_have_not_spoken(tmp_path):
+    import random
+    path=tmp_path/'world.sqlite3';init_db(path);seed_agents(path)
+    with connect(path) as c:
+        ids={a['name'].split()[0]:a['id'] for a in npc_agents(c)}
+        for _ in range(6):
+            c.execute("INSERT INTO conversations(location,status,sim_time,agent_a_id,agent_b_id) VALUES ('pub','completed','x',?,?)",(ids['Dez'],ids['Jess']))
+            c.execute("INSERT INTO conversations(location,status,sim_time,agent_a_id,agent_b_id) VALUES ('pub','completed','x',?,?)",(ids['Dez'],ids['Tommy']))
+    random.seed(1)
+    picks=[frozenset(world.pick_pair([ids['Dez'],ids['Jess'],ids['Tommy'],ids['Brenda']],path)) for _ in range(300)]
+    with_brenda=sum(ids['Brenda'] in p for p in picks)
+    assert with_brenda>200   # Brenda hasn't spoken, so most conversations include her

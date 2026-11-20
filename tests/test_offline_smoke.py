@@ -1,3 +1,4 @@
+from evorium.seed import CHARACTERS
 """A deterministic, local-only day across planning, shop chat, digest and player."""
 from datetime import datetime,timedelta
 from evorium import plans,places,sim,timeline,world,player,tick
@@ -21,7 +22,7 @@ def test_complete_day_without_external_api(tmp_path,monkeypatch):
                 return Extraction(summary='Neighbours talked about life in Ancoats.')
             return ActionProposal(say='Good to see you.',rationale='Greeting a neighbour.',mood='friendly')
     client=Fake()
-    assert plans.daily(client,now,path)==8
+    assert plans.daily(client,now,path)==len(CHARACTERS)
     now=now.replace(hour=9,minute=5)
     present=places.present(now,path)['shop'];assert len(present)==2
     sim.run_conversation(client,present[0]['id'],present[1]['id'],2,path,location=places.REGISTRY['shop'])

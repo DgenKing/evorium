@@ -70,5 +70,5 @@ def test_shop_departure_records_an_arrival(db):
     before=len(timeline.entries(db,kinds=['arrival']))
     tick.update_routines(morning.replace(minute=35),db)
     arrivals=timeline.entries(db,kinds=['arrival'])
-    assert len(arrivals)==before+1
-    assert arrivals[0]['agent_name']=='Brenda Ashworth'
+    new=arrivals[:len(arrivals)-before]
+    assert any(a['agent_name']=='Brenda Ashworth' for a in new)  # her departure from the shop is recorded

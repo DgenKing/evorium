@@ -50,7 +50,12 @@ def seed(c):
     names={r['name']:r['id'] for r in c.execute("SELECT id,name FROM agents WHERE kind!='system'")}
     def insert(a,b,trust,warmth):
         if a in names and b in names:c.execute('INSERT INTO relationships(agent_id,other_id,trust,warmth) VALUES (?,?,?,?) ON CONFLICT DO NOTHING',(names[a],names[b],trust,warmth))
-    pairs=[('Dez Whitworth','Tommy Shaw',80,75),('Tommy Shaw','Jess Hartley',65,70),('Raj Patel','Dez Whitworth',60,55),('Raj Patel','Tommy Shaw',55,55),('Brenda Ashworth','Tommy Shaw',75,70),('Brenda Ashworth','Dez Whitworth',60,60),('Mohammed "Mo" Iqbal','Raj Patel',65,65),('Mohammed "Mo" Iqbal','Dez Whitworth',55,60)]
+    pairs=[('Dez Whitworth','Tommy Shaw',80,75),('Tommy Shaw','Jess Hartley',65,70),('Raj Patel','Dez Whitworth',60,55),('Raj Patel','Tommy Shaw',55,55),('Brenda Ashworth','Tommy Shaw',75,70),('Brenda Ashworth','Dez Whitworth',60,60),('Mohammed "Mo" Iqbal','Raj Patel',65,65),('Mohammed "Mo" Iqbal','Dez Whitworth',55,60),
+           ('Peggy Coyle','Dez Whitworth',75,80),('Peggy Coyle','Brenda Ashworth',70,75),('Peggy Coyle','Tommy Shaw',65,70),('Peggy Coyle','Jess Hartley',60,70),
+           ('Liam Byrne','Dez Whitworth',55,60),('Liam Byrne','Jess Hartley',55,60),('Liam Byrne','Raj Patel',55,55),
+           ('Anjali Patel','Raj Patel',85,90),('Anjali Patel','Mohammed "Mo" Iqbal',60,65),
+           ('Pete Lomax','Dez Whitworth',75,70),('Pete Lomax','Tommy Shaw',55,60),
+           ('Hannah Kerr','Raj Patel',45,55),('Hannah Kerr','Chloe Barlow',50,55)]
     for a,b,t,w in pairs:insert(a,b,t,w);insert(b,a,t,w)
     insert('Dez Whitworth','Jess Hartley',75,65);insert('Jess Hartley','Dez Whitworth',65,65)
     for name in names:

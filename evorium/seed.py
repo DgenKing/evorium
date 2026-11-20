@@ -64,6 +64,42 @@ CHARACTERS = (
         "Get a darts team going at the Billet and save enough for his own vehicle licence.",
         "easygoing","Home, Manchester",
     ),
+    # Added 20 Nov 2026: five more APCs, chosen to fill the daytime and pull the Northgate story along.
+    (
+        "Peggy Coyle", 82, "Retired mill worker",
+        "Widow, Ancoats born. Worked in the cotton mills behind the terrace as a girl and has drunk in The Crooked Billet for sixty years. Lives in sheltered housing round the corner. Has a half of stout at the bar most lunchtimes.",
+        "Sharp-tongued, funny, nosy and sentimental; remembers what the street used to be and says so.",
+        "Keep the Billet open: it's the one place she still talks to people every day.",
+        "chatty", "Sheltered flat, Ancoats",
+    ),
+    (
+        "Liam Byrne", 27, "Scaffolder",
+        "Works on the conversion of the old mill behind the terrace into flats. Pops into Patel's News first thing and the Billet at lunch; Friday after work is pint night. Saving a deposit with his girlfriend, Kayleigh.",
+        "Cheerful, loud, a grafter; says what he thinks and loves a bit of banter.",
+        "Get more overtime on the mill job and save a deposit for a flat with Kayleigh.",
+        "cheerful", "Flat, Clayton",
+    ),
+    (
+        "Anjali Patel", 19, "Law student and shop assistant",
+        "Raj's eldest, in her second year studying law at Manchester Met. Helps behind the counter at Patel's News on Monday, Wednesday and Friday afternoons and on Saturdays. Has noticed her dad is worried about something.",
+        "Bright, direct, funny and protective of her family; asks the questions other people avoid.",
+        "Find out what is worrying her dad, and stop him working himself into the ground.",
+        "curious", "Home, Cheetham Hill",
+    ),
+    (
+        "Pete Lomax", 58, "Brewery drayman",
+        "Has delivered beer to pubs across Manchester for thirty years and hears every landlord's troubles. Drops the Billet's barrels on Tuesday and Friday mornings; drinks there on Saturday afternoons.",
+        "Gruff, kind, a gossip in the nicest way; full of stories about pubs that have gone.",
+        "Retire in two years with his knees intact, and get Dez to take a guest ale.",
+        "steady", "Home, Failsworth",
+    ),
+    (
+        "Hannah Kerr", 31, "Local news reporter",
+        "Freelance reporter for a Manchester news site, working on a story about property firms quietly buying up Ancoats. Grabs a coffee and the papers at Patel's most weekday mornings and drinks at the Billet on Wednesday and Friday evenings.",
+        "Friendly, persistent, a good listener; careful with facts and with her sources.",
+        "Get someone on the terrace to go on the record about what Northgate Estates is doing.",
+        "focused", "Flat, Northern Quarter",
+    ),
 )
 
 
@@ -96,6 +132,22 @@ SEED_FACTS = (
     ("Brenda Ashworth","people","I have known Tommy Shaw for thirty years."),
     ('Mohammed "Mo" Iqbal',"terrace","I have not driven anyone from Northgate and have heard nothing concrete about the terrace."),
     ('Mohammed "Mo" Iqbal',"darts","The pub's dartboard has not had a team since before the pandemic."),
+    # Added 20 Nov 2026 (append only: seed keys are list positions).
+    ("Peggy Coyle","history","The Crooked Billet has been a pub since 1890. I had my wedding do there in 1964."),
+    ("Peggy Coyle","people","I've known Brenda Ashworth from the tenants' meetings for years, and Tommy Shaw since he was a lad on the buses."),
+    ("Peggy Coyle","terrace","Nobody has told me anything about the terrace being sold. I only know what I hear at the bar."),
+    ("Liam Byrne","work","I'm a scaffolder on the mill conversion behind the terrace. The flats are due to finish next summer."),
+    ("Liam Byrne","terrace","I overheard the site foreman say Northgate 'will want the corner' once the mill flats are done. I don't know what he meant by it."),
+    ("Liam Byrne","money","Kayleigh and I need another £6,000 for a deposit. Overtime is the only way."),
+    ("Anjali Patel","family","Dad has been quiet and keeps checking his phone. Mum says it's the shop's accounts, but I don't think that's it."),
+    ("Anjali Patel","shop","I help on the counter Monday, Wednesday and Friday afternoons and all day Saturday."),
+    ("Anjali Patel","study","I'm studying law. A lease is a contract like any other; I'd want to see one before anyone signed anything."),
+    ("Pete Lomax","trade","The Crown on Bengal Street shut in the summer after its new owners doubled the rent. Same story at two other pubs on my round this year."),
+    ("Pete Lomax","pub","I deliver the Billet's barrels on Tuesday and Friday mornings. Dez always pays on time."),
+    ("Pete Lomax","ale","I've told Dez for years he should take a guest ale. Pubs with a quiz and a guest beer do better midweek."),
+    ("Hannah Kerr","story","Land Registry records show Northgate Estates bought at least four buildings in Ancoats this year, including this terrace."),
+    ("Hannah Kerr","story","Northgate's press office hasn't answered my questions. I have no one on the record yet."),
+    ("Hannah Kerr","ethics","I never quote anyone without their permission, and I protect my sources."),
 )
 
 

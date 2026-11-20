@@ -84,7 +84,7 @@ and phone); it runs around the clock on the owner's HP G4 and is reachable over 
 
 | Area | State |
 |---|---|
-| Characters | 8 NPCs + 1 player (Rob, shared by everyone for now) + 1 system ("World") row |
+| Characters | 13 APCs + 1 player (Rob, shared by everyone for now) + 1 system ("World") row |
 | Places | The Crooked Billet (pub, 09:00–24:00 every day), Patel's News (shop, Mon–Sat 07:00–19:00) |
 | Clock | Real UK time × speed multiplier (0 = paused, 1 = real, up to 600×+) |
 | Conversations | 4 lines, or 6 for a pair's first meeting or fresh serious news; one at a time worldwide |
@@ -100,7 +100,7 @@ and phone); it runs around the clock on the owner's HP G4 and is reachable over 
 | Timeline | Permanent record + daily digest, at `/timeline-page` |
 | Dashboard | Character cards, live feed, usage/spend, controls, terrace card, **Restart server** button |
 | Map tab | 2D canvas of the pub, shop, empty unit and street; pixel sprites, bubbles, portrait popups |
-| 3D game | `/world3d`: Shuttle Street in Three.js, nine distinct MPFB models, third person, touch controls, chat |
+| 3D game | `/world3d`: Shuttle Street in Three.js, nine distinct MPFB models, third person, touch controls, chat and optional cosmetic street life |
 | Hosting | HP G4 home server, auto-updating from GitHub, nightly backups, public via ngrok (§6) |
 | Model | DeepSeek `deepseek-flash`, JSON mode, temperature 0.8 (0.6 decisions, 0.2 structured calls) |
 | Cost | About $0.00015 per call; about $0.40 a day for the whole world at real speed with auto mode on |
@@ -209,7 +209,7 @@ simple hulls, and animates the third-person player and NPCs. Individual MPFB mod
 retargeted clips; failed models use a logged Quaternius fallback. It polls `GET /world/scene` every 1.5 seconds
 (5 seconds after errors). That endpoint reads a consistent read-only SQLite snapshot and exposes public presence
 and dialogue only, with no model calls. Spot assignments live in Python; the browser handles walking (along a
-collision-verified A* graph), bubbles, lighting and doors. Player actions use the existing `/player/*` and
+collision-verified A* graph), bubbles, lighting and doors. `ambient.js` adds browser-local cosmetic street life with its own visible-tab clock, lazy animal loads and no collision in the player octree. Player actions use the existing `/player/*` and
 `/catchup` endpoints. NPC rationale and private facts never appear in the player UI. Details in §7.
 
 ### Code map
@@ -273,12 +273,17 @@ collision-verified A* graph), bubbles, lighting and doors. Player actions use th
 | **Jess Hartley**, 34 | Barmaid, single mum to Alfie. Sharp, tired, needs hours. | Office cleaning weekday mornings; bar shifts 17–23 on Thu, Fri, Sat, Sun (her shift count from the ledger, filled in that order, then Wed, Tue); a drink on Wed evening |
 | **Tommy Shaw**, 67 | Retired bus driver. Mischievous; wants the Thursday quiz back. | Walk to shops 10–12; pub most evenings 19–22:30 (Thu from 18) |
 | **Raj Patel**, 41 | Runs Patel's News (family shop since 1988). Careful, warm. | Shop Mon–Sat 07–19; quiet half Tue/Thu/Fri evening; Sunday pint |
-| **Chloe Barlow**, 29 | Junior architect from Stockport. Looking for a flat. | Work weekdays 9–18; pub Tue/Wed/Fri evening, Saturday afternoon |
-| **Simon Ferris**, 46 | Asset Manager, Northgate Estates. Polite, corporate, evasive. | Office weekdays; in Patel's News Thursdays 14:00–14:30 |
-| **Brenda Ashworth**, 71 | Retired dinner lady, tenants' association chair. Loves a petition. | Paper at the shop 09:00–09:30; pub Wed evening and Sunday lunchtime |
-| **Mo Iqbal**, 38 | Private hire driver, nights. Funny, observant, doesn't drink. | Shop 16:00–16:20; pub Tue early evening and Sunday afternoon; drives 19:30–04 (so never at the Thursday quiz) |
+| **Chloe Barlow**, 29 | Junior architect from Stockport. Looking for a flat. | Coffee at Patel's 08:15–08:35 weekdays; work 9–18; pub Tue–Fri 18:15–21:30, Saturday afternoon |
+| **Simon Ferris**, 46 | Asset Manager, Northgate Estates. Polite, corporate, evasive. | Office weekdays; lunch at the Billet Tuesdays 12:30–13:30; Patel's News Thursdays 14:00–14:30 |
+| **Brenda Ashworth**, 71 | Retired dinner lady, tenants' association chair. Loves a petition. | Paper at the shop 09:00–09:30; pensioners' lunch at the pub Tue/Thu 12:30–14; Wed evening; Sat and Sun 13–15 |
+| **Mo Iqbal**, 38 | Private hire driver, nights. Funny, observant, doesn't drink. | Shop 16:00–16:20; pub Tue/Thu/Fri 18–19:30 before his shift and Sunday afternoon; drives 19:30–04 |
+| **Peggy Coyle**, 82 | Retired mill worker, widow, sixty years a regular. Sharp, funny, nosy, remembers the old street. | Paper at Patel's 09:30; half of stout at the bar Mon–Sat 12–14:30; Sunday 13–15 |
+| **Liam Byrne**, 27 | Scaffolder on the mill conversion behind the terrace. Cheerful, loud, saving a deposit with Kayleigh. | Breakfast at Patel's 07:00; on site 07:30–16:30; Billet at lunch 12:30–13:15; Friday pint 17–21 |
+| **Anjali Patel**, 19 | Raj's daughter, law student at Manchester Met. Bright, direct, protective; knows her dad's worried. | Lectures weekdays; behind the counter Mon/Wed/Fri 15–19 and Saturday 9–17 |
+| **Pete Lomax**, 58 | Brewery drayman for thirty years. Gruff, kind, a gossip; knows which pubs have shut. | Delivers to the Billet Tue/Fri 10:00–10:45; on his round weekdays; Saturday afternoon pint |
+| **Hannah Kerr**, 31 | Local news reporter digging into firms buying up Ancoats. Friendly, persistent, protects sources. | Papers and coffee at Patel's 08:30 weekdays; Billet Wed/Fri 17:30–19:30 |
 
-When the quiz runs (Thursdays 19:30–22:30), Tommy, Brenda and Chloe come in if they're free. A closed pub or shop
+When the quiz runs (Thursdays 19:30–22:30), Tommy, Brenda, Chloe, Peggy, Hannah and Liam come in if they're free. A closed pub or shop
 sends its people home. House rule: names mostly British, a few others.
 
 ### The story seed
@@ -291,6 +296,10 @@ months ago. Simon's instructions: bring rents to market level, buy out leases wh
 - Raj offered **£45,000 to surrender his lease** (phone call Wed 18 Nov 11:00). **Expires 18 Dec 11:00.**
   Simon can go to £60,000 and won't volunteer it.
 - No planning application yet; redevelopment discussed but not decided.
+- **New threads (20 Nov):** Liam overheard the mill site foreman say Northgate "will want the corner"; Pete knows
+  pubs on his round that shut after new owners doubled the rent; Hannah has Land Registry proof Northgate bought
+  four Ancoats buildings this year and wants someone on the record; Anjali (law student) can tell her dad is hiding
+  something and would want to read any lease before he signs.
 - Side threads: the Thursday quiz (quizmaster left 18 months ago; Tommy promised forty questions by Sunday),
   a darts team for Mo, Jess's shifts, Chloe's flat hunt, Brenda's petitions.
 
@@ -477,7 +486,7 @@ ten animation clips and baked lighting are served by FastAPI. The EVORIUM wordma
 - **Phone:** left-thumb joystick (push far to run), drag on the right to look, two-finger pinch to zoom, Jump
   button and a Talk button that appears near someone. Landscape is suggested. The chat panel stays above the
   on-screen keyboard (`visualViewport`).
-- **Settings (gear):** quality, name tags, invert look, sensitivity; remembered in the browser.
+- **Settings (gear):** quality, name tags, Street life, invert look, sensitivity; remembered in the browser.
 
 ### Quality
 
@@ -497,13 +506,64 @@ the loaded assets); choosing a preset reloads the matching asset set. Override w
   appear. Old Quaternius bodies and original clips load only after a model failure, listed in the debug HUD.
 - Baked indirect lighting (Cycles, 128 samples, 2048 high / 1024 low atlas); night dims the bake and uses
   glowing windows and runtime lights.
-- Assets after the MPFB upgrade: **low 6.53 MB**, **high 10.73 MB**, including all nine models and
+- Assets after the MPFB upgrade: **low 6.76 MB**, **high 10.96 MB**, including all nine models and
   fallback files; normal play loads a visible subset. Vendor modules add about 2.4 MB uncompressed.
   Per-character budgets are below; licences are in `evorium/static/world3d/assets/LICENSES.md`.
 - Physics: capsule-and-octree walking with step-up, a 1.03 m jump, wall and closed-door blocking, and a camera
   that never clips through walls.
 - NPCs follow `/world/scene` along a route graph (746 nodes, 4,697 verified edges; every waypoint reachable from
   both street ends), with slot offsets, sitting and talking poses, name cards and speech bubbles.
+
+### Street life
+
+Cosmetic and client-only: no simulation, `/world/scene`, player endpoint or model-call changes.
+Each browser schedules independently using time spent in a visible tab. **Street life** in the
+gear menu defaults on and is remembered as `evorium3d.street-life`; turning it off removes all
+active events. `?ambient=off` overrides that setting and prevents ambient loading.
+
+| Event | Timing and behaviour |
+|---|---|
+| Pigeons | 2–5 in daylight (`daylight >= 0.3`); procedural pecking, short walks and turns. The entire flock takes off/flaps away when Rob or an APC comes within 2.5 m, disappears after 3 s, and returns after 60–180 s. Removed at night. |
+| Rubbish | One crisp packet, newspaper page or can every 120–240 s, from the windward street end. Gusts spin/skitter packets and paper; cans roll along the gutter with a quiet synthetic rattle after a user gesture. A doorway/bollard stop lasts 8–25 s, then it moves on; it fades at the route end or after 110 s of activity. |
+| Cat | Every 300–600 s; walks across the street pavement and sometimes idles at the shop doorstep for 20–60 s. It never enters either interior. |
+| Dog | Daylight only, every 600–900 s; trots, stops by the actual cast bollard near x=8.08 to sniff using its idle clip, then leaves. |
+| Fox | Only `daylight < 0.3`, every 600–1200 s; slow walk on the outer street lane, looking around by the quiet street end, then leaves. The owner-approved model is a resized/recoloured wolf (§13). |
+
+Animal motion uses the street subset of `data/routes.json`, with ground rays and extra sphere/
+segment checks around props and kerbs. Separation steers or waits around Rob/APCs. Ambient
+objects are never inserted into the player collision octree. Low permits **one event at a time**
+(a flock counts as one event) and at most **2 pigeons**, medium two events / 4 pigeons, high five
+events / 5 pigeons. Pigeons and newspaper print use instancing. Hidden tabs stop movement,
+animation, timers and rendering; returning does not catch up missed events. Animal meshes load
+only when needed, after the first street view and visible cast; a disabled client loads none.
+
+Fixed screenshot URLs (on the fake server, port **8011**):
+`/world3d?test=1&ambient=pigeons|rubbish|cat|dog|fox&quality=low|high`.
+These select fixed close cameras, poses and day/night lighting; explicit test types override a
+saved off setting. Add `&debris=paper|can` for the other rubbish forms. `ambient=fox` uses night;
+the other types use day. `cam=ambient&ambient=off` gives the matching daytime performance baseline.
+Normal play always uses the server's daylight. `?ambient=cat` without `test=1` does not force a spawn.
+
+All three animal downloads total **232,548 bytes (0.233 MB)** per tier: cat 79,560 / dog 75,748 /
+fox 77,240 bytes, **807 / 602 / 622 triangles**. Both tiers keep these already tiny meshes.
+`data/budgets.json` records and enforces **1.2 MB low / 2.5 MB high** ambient limits plus the
+existing **12 MB / 30 MB** whole-package limits. Total assets including all cast and fallbacks:
+**6,759,074 bytes low / 10,957,998 bytes high**. No new runtime or build dependencies.
+
+To rebuild just the ambient assets, retain
+`~/Downloads/evorium-animals/Animal Pack Vol.2 by @Quaternius.zip`, then run:
+
+```bash
+blender -b --python-exit-code 1 -P tools/web3d/build_ambient.py
+node tools/web3d/optimise_ambient.mjs
+```
+
+The builder extracts to ignored `tools/web3d/raw/animals/`, exports to `raw/ambient/`, and never
+saves the supplied blends. It exports sampled Idle/Walking clips, metre scale, +Z forward and
+coat vertex colours. Optimisation writes `assets/{low,high}/ambient/{cat,dog,fox}.glb` with
+Meshopt, and converts any textures to WebP (128px low / 256px high); these models have none.
+The full `optimise.sh` also includes ambient processing. Run the ambient builder before a full
+optimisation on a fresh checkout. Source provenance is in the existing asset licence manifest.
 
 ### MPFB model budgets (measured)
 
@@ -547,6 +607,7 @@ node tools/web3d/build_characters.mjs
 blender -b --addons bl_ext.blender_org.mpfb --python-exit-code 1 -P tools/web3d/build_cast_mpfb.py
 blender -b --python-exit-code 1 -P tools/web3d/retarget_cast.py
 blender -b -P tools/web3d/bake_lighting.py
+blender -b --python-exit-code 1 -P tools/web3d/build_ambient.py
 bash tools/web3d/optimise.sh
 ```
 
@@ -611,11 +672,11 @@ including fallback files. `budgets.json` records per-character sizes/triangles a
 
 `bash tools/web3d/run_checks.sh` starts its own smoke server, then drives Chrome over the DevTools protocol:
 20 screenshots (street, pub, shop, cast, player × low/high × 1280×720 and 390×844) to `tools/web3d/raw/screens/`
-with JSON reports, plus a scripted walk through both doors, jump, closed doors, camera collision, fake chat
+with JSON reports, plus 16 ambient captures (desktop high / phone low: off, pigeons, three rubbish forms, cat, dog and night fox), plus a scripted walk through both doors, jump, closed doors, camera collision, fake chat
 and a 60× routine change. Blank images fail. `--movement-only` and `--screens-only` run parts. Test URLs:
 `/world3d?test=1&cam=street|pub|shop|cast|player&quality=low|high` (fixed camera and time; exposes
 `__evoriumReady` and `__evoriumReport`). Player-writing checks refuse any server that isn't the fake one.
-The cast-specific captures are `--cast` (nine-person lineup and all head close-ups, desktop/phone low/high)
+Ambient reports/captures are in `raw/screens/ambient/`; the harness checks scale, grounding, actual walk-bone changes, day/night removal, hidden-time pause, saved toggle, lazy loading, quality caps and pigeon scatter/player passage, and measures 30 rendered frames against ambient-off. `node tools/web3d/ambient_checks.mjs --one=cat` reruns one type while the fake server is running. The cast-specific captures are `--cast` (nine-person lineup and all head close-ups, desktop/phone low/high)
 and `--poses` (Dez/Tommy/Brenda idle, walk, run, jump, sit and talk on desktop low). Use
 `?test=1&cam=lineup`, or `cam=head|body&character=dez|jess|tommy|raj|chloe|simon|brenda|mo|player`,
 with optional `pose=walk` and `frame=0.5`. These studio-only views deliberately load all nine models.
@@ -652,6 +713,11 @@ streets, film grain, matching the game's portraits.
 
 ## 9. Known issues and open questions
 
+- **Street life art limits:** the fox is the owner-approved small recoloured wolf, retaining its wolf
+  silhouette and walk/idle clips. Cat doorstep rests, dog sniffing and fox look-arounds use idle clips
+  and small root turns; there is no dedicated sit/sniff animation. No windowsill jump or shop-interior
+  visit. The can's quiet procedural rattle is subject to browser audio/gesture support and has not
+  been checked by listening on physical speakers. Real-phone FPS and memory still need hardware.
 - **One shared player.** Everyone who logs in is Rob and sees the owner's god view. Accounts are the next big job (§11).
 - **Barring isn't enforced.** A character can say the player is barred, but nothing stops them walking back in,
   and a later greeting may be friendly. Needs an action (e.g. `bar_customer` for Dez and Jess) that the player
@@ -673,6 +739,10 @@ streets, film grain, matching the game's portraits.
   chance.
 - **M4 simplifications:** fixed two-hour reaction delay (sixteen hours to reconsider); the flat viewing and the
   outside job are small Python templates; pub income is an illustrative model, not accounting.
+- **The five new APCs have no 3D models yet:** in `/world3d` they borrow Rob's body (the cast lookup's default)
+  until MPFB models are built for them. Dashboard, map and conversations are fine.
+- **Some facts are stored twice** (5 in the 20 Nov copy, e.g. "Dez chose to wait" noted in two conversations).
+  Harmless; a de-duplication on insert would tidy it.
 - **Old trivia still visible** until `python -m evorium.rescore --apply` is run once.
 - **Spend recorded before 19 Nov is overstated** by about $0.09 (old pricing).
 - **Security to-dos:** reset the ngrok authtoken (exposed in chat on 20 Nov) and replace the placeholder
@@ -682,8 +752,11 @@ streets, film grain, matching the game's portraits.
 
 ## 10. Next steps
 
-1. **Play and review the MPFB cast** on desktop and a real phone; refine likenesses, seated poses, bubbles at
-   the screen edge, NPC overlap and fades.
+1. **Build MPFB 3D models for the five new APCs** (Peggy, Liam, Anjali, Pete, Hannah) with the existing
+   `build_cast_mpfb.py` pipeline, and give them waypoints and poses. Then watch whether Brenda, Chloe and Mo now
+   join conversations (they had 0, 0 and 2 before the routine changes).
+2. **Play and review the MPFB cast** on desktop and a real phone; refine likenesses, seated poses, bubbles at
+   the screen edge, NPC overlap and fades; review street life and its quiet can rattle on real hardware.
 2. **Watch the story run** on the G4 for a few days: decisions, promises now being recorded, and Northgate coming
    to a head on 17–18 Dec. Review the pacing and the settlement constants.
 3. **Multiplayer accounts** (§11): each player their own character, login, reputation, catch-up and spending
@@ -802,6 +875,17 @@ Suggested order: invite-only with friends, accounts + player view, then the key 
 
 ## 13. Art
 
+- **Street animals:** Quaternius's *Animal Pack Vol.2 by @Quaternius.zip*, supplied by the owner,
+  CC0-1.0 according to the creator's OpenGameArt upload:
+  https://opengameart.org/content/animated-animales-low-poly . Uses `Cat.blend`, `Dog.blend` and
+  `Wolf.blend` with their original Idle/Walking clips. The archive has no separate licence text;
+  source declaration, creator announcement and archive SHA-256 are recorded in the existing
+  `assets/LICENSES.md`. On 20 November the owner explicitly approved the wolf as the fox substitute
+  because the official fox file remained quota-blocked. It is 0.48 m tall, fox-orange with a white
+  chest/tail tip and dark legs. Cat height is 0.40 m including its raised tail; dog height 0.56 m.
+  Coat colours are per-face vertex colours. Pigeons and all three rubbish forms are original
+  procedural geometry. No new external imagery, sounds or runtime dependencies.
+
 - **Current 3D cast:** MakeHuman/MPFB 2.0.18, scripted from `tools/web3d/build_cast_mpfb.py`,
   with game-ready male1591/female1605 proxies, CC0 system skins/eyes/brows/lashes/garments,
   CC0 hair01 hairstyles and the CC0 bodyparts05 beard. Hair and clothing colours are explicit.
@@ -846,6 +930,21 @@ Suggested order: invite-only with friends, accounts + player view, then the key 
 ---
 
 ## 14. History
+
+### Session of 20 November 2026 — Street life asset preflight
+
+- Read the project rules and inspected the current 3D client, quality presets, route graph,
+  asset pipeline and check harness. The working tree was clean before this investigation.
+- Found CC0 candidate animal sources on the creator's official site and OpenGameArt upload:
+  Animal Pack Vol.2 for cat/dog, Ultimate Animated Animal Pack for fox. The expected local
+  `~/Downloads/evorium-animals/` directory does not exist.
+- The official fox download returned an HTML **Google Drive - Quota exceeded** page rather
+  than a model; the cat/dog archive page returned HTTP 403 to automated access. Stopped at
+  asset acquisition, respecting the owner's instruction to request browser downloads rather
+  than proceed without the required models. Exact downloads are recorded in §7.
+- Documentation only: no runtime, simulation, API, asset, dependency or budget changes;
+  no tests, screenshots or FPS measurements run, and no commits. Full implementation and
+  requested checks remain pending. README remains the existing pointer and needs no change.
 
 ### Session of 20 November 2026 — Scripted MPFB cast
 
@@ -991,6 +1090,22 @@ Unreal from the project.
 - **All docs merged into this file.** The old README, the home server guide, the Web3D pipeline, controls and
   verification notes, the portrait prompts, the old LAN service notes and the finished M4 and Web3D briefs were
   folded in and deleted (they're in git history). `README.md` now just points here.
+- **More active APCs, and five new ones (Claude).** Activity check on the 20 Nov world copy: Dez 26
+  conversations, Jess 21, Raj 17, Tommy 16, Simon 3, Mo 2, **Brenda 0, Chloe 0**. Their routines rarely overlapped
+  anyone while auto mode was on (most play was on Thursdays). Changes:
+  - Routines: Brenda gets pensioners' lunches (Tue/Thu) and weekend afternoons; Chloe a morning coffee at Patel's
+    and pub evenings Tue–Fri; Mo an hour before his Thu/Fri shifts; Simon a Tuesday lunch at the Billet.
+  - **New APCs:** Peggy Coyle (82, the daytime regular), Liam Byrne (27, scaffolder on the mill job), Anjali Patel
+    (19, Raj's daughter, law student, shop Mon/Wed/Fri and Saturday), Pete Lomax (58, drayman, Tue/Fri deliveries)
+    and Hannah Kerr (31, reporter on the Northgate story). Each has seed facts (appended, since seed keys are list
+    positions), starting relationships and a weekly routine. A simulated week: every APC now spends time with
+    company (Brenda about 12 h, Chloe about 20 h, Mo about 10 h a week).
+  - `world.pick_pair` now also favours **people** who haven't spoken lately, not just pairs, so whoever is behind
+    the bar no longer dominates.
+  - Tests: cast-size assertions now use `len(CHARACTERS)`; new tests for seeding the newcomers into an existing
+    world without duplicating facts, the new routines, and fairer pair picking. 229 pass. Seeding a copy of the live
+    world added exactly 5 APCs and 15 facts, touching no conversations. On the G4 they appear at the next restart
+    (the auto-update restart does it).
 - **"APCs" (AI Player Characters)** adopted as Evorium's name for its characters: website (people section
   "Meet the APCs", nav, hero line, meta and share descriptions, amber highlight on the term) and README updated.
 - **Clean-up:** the website brief merged into §8 and deleted; the old `server.log` and `__pycache__` deleted; the

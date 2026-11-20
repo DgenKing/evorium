@@ -1,3 +1,4 @@
+from evorium.seed import CHARACTERS
 """End-to-end routes and migration preservation; no model/network requests."""
 import sqlite3
 from datetime import datetime
@@ -29,7 +30,7 @@ def api(tmp_path,monkeypatch):
 
 def test_routes_full_player_exchange(api):
     client,path=api
-    assert len(client.get('/agents').json())==8
+    assert len(client.get('/agents').json())==len(CHARACTERS)
     assert client.post('/player/profile',json={'name':'Sam','about':'Neighbour'}).status_code==200
     assert client.post('/player/enter',json={'place':'shop'}).status_code==409
     assert client.post('/player/enter',json={'place':'pub'}).status_code==200

@@ -1,3 +1,4 @@
+from evorium.seed import CHARACTERS
 """Offline decisions, ledger, migrations and multi-day consequences."""
 import json
 import sqlite3
@@ -329,7 +330,7 @@ def test_northgate_outcomes_and_narration_fallback(saved, outcome):
         arc = c.execute("SELECT * FROM arcs WHERE key='northgate'").fetchone()
         assert arc['outcome'] == outcome and arc['summary']
         assert c.execute("SELECT count(*) FROM timeline WHERE kind='arc' AND importance=5").fetchone()[0] == 1
-        assert c.execute('SELECT count(*) FROM facts WHERE content=?', (arc['summary'],)).fetchone()[0] == 8
+        assert c.execute('SELECT count(*) FROM facts WHERE content=?', (arc['summary'],)).fetchone()[0] == len(CHARACTERS)
         if outcome != 'renewed':
             assert e.stats(c)['pub.closed'] == 1
     e.maintain(now, saved, Fail())

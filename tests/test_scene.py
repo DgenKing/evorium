@@ -1,3 +1,4 @@
+from evorium.seed import CHARACTERS
 import json
 from datetime import datetime, timezone
 
@@ -35,7 +36,7 @@ def test_empty_conversations_visibility_privacy_and_no_writes(db):
     before=db.read_bytes()
     data=scene.snapshot(db)
     assert before==db.read_bytes()
-    assert len(data['characters'])==8
+    assert len(data['characters'])==len(CHARACTERS)
     dez=next(a for a in data['characters'] if a['first']=='Dez')
     assert dez['waypoint']=='PUB_HOST' and dez['visible'] and dez['line'] is None
     assert dez['portrait']=='/static/portraits/dez.png'

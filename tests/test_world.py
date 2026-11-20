@@ -1,3 +1,4 @@
+from evorium.seed import CHARACTERS
 from datetime import datetime, timedelta
 
 import pytest
@@ -62,7 +63,7 @@ def test_presence_filters_who_can_talk(db):
 
 def test_update_routines_writes_locations(db):
     changes = tick.update_routines(datetime(2026, 11, 16, 20, 30), db)
-    assert len(changes) == 8
+    assert len(changes) == len(CHARACTERS)
     with connect(db) as c:
         assert c.execute("SELECT activity FROM agents WHERE name='Dez Whitworth'").fetchone()[0] == "behind the bar"
     assert tick.update_routines(datetime(2026, 11, 16, 20, 31), db) == []   # idempotent
