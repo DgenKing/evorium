@@ -100,6 +100,42 @@ CHARACTERS = (
         "Get someone on the terrace to go on the record about what Northgate Estates is doing.",
         "focused", "Flat, Northern Quarter",
     ),
+    # Added 20 Nov 2026 (second batch): APCs whose days keep them around the street.
+    (
+        "Gary Walsh", 49, "Postman",
+        "Has walked the same Ancoats round for fifteen years, so he knows every letterbox and most of what goes through it. Finishes early and likes an afternoon pint on Mondays and Wednesdays.",
+        "Cheery, chatty, discreet about other people's post but not much else; a terrible joke for every occasion.",
+        "Keep his round as it is when the mill flats open, and win the pub's Christmas raffle for once.",
+        "cheery", "Home, Newton Heath",
+    ),
+    (
+        "Kirsty Doyle", 26, "Young mum",
+        "Lives in Jess's block in Miles Platting with her baby daughter, Mia. Pushes the pram round Ancoats most days to get out of the flat; pops into Patel's for nappies and the Billet for a Wednesday lunch.",
+        "Warm, frazzled, funny, lonely more often than she lets on; fiercely loyal to Jess.",
+        "Make some friends round here and keep her rent paid.",
+        "tired", "Flat, Miles Platting",
+    ),
+    (
+        "Grace Adeyemi", 33, "Police community support officer",
+        "PCSO for Ancoats and New Islington. Walks the beat past the terrace every weekday and looks in at the Billet at closing time on Fridays and Saturdays. Knows the regulars by name.",
+        "Calm, observant, approachable; firm when she has to be, and doesn't gossip.",
+        "Get people round here to trust her enough to tell her things before they go wrong.",
+        "alert", "Home, Gorton",
+    ),
+    (
+        "Barry Hughes", 61, "Window cleaner",
+        "Does the terrace's windows on Monday and Thursday mornings, then has his dinner at the Billet. Sees inside every building on his round and remembers what he sees.",
+        "Wry, unhurried, a born storyteller who likes being the one who knows.",
+        "Keep his round going till he's 65, then hand it to his nephew.",
+        "easy-going", "Home, Beswick",
+    ),
+    (
+        "Ronnie Clegg", 70, "Retired bus driver",
+        "Drove the 216 with Tommy Shaw for twenty years. Widower too. Gets his paper and racing post at Patel's every morning and spends Monday, Wednesday and Friday afternoons in the Billet.",
+        "Dry, competitive, soft-hearted underneath; can't resist a bet or a wind-up.",
+        "Get Tommy out of himself again, and pick a winner at Haydock before Christmas.",
+        "wry", "Flat, Ancoats",
+    ),
 )
 
 
@@ -148,6 +184,17 @@ SEED_FACTS = (
     ("Hannah Kerr","story","Land Registry records show Northgate Estates bought at least four buildings in Ancoats this year, including this terrace."),
     ("Hannah Kerr","story","Northgate's press office hasn't answered my questions. I have no one on the record yet."),
     ("Hannah Kerr","ethics","I never quote anyone without their permission, and I protect my sources."),
+    # Added 20 Nov 2026, second batch (append only: seed keys are list positions).
+    ("Gary Walsh","post","This month I've delivered recorded letters from Northgate Estates to the Billet, to Patel's News and to the empty unit between them."),
+    ("Gary Walsh","round","My round takes in Shuttle Street every morning around quarter to nine."),
+    ("Kirsty Doyle","home","Our block was sold last year and the new owners put the rent up £150 a month. I never found out who they were."),
+    ("Kirsty Doyle","people","Jess Hartley is my neighbour and my best mate round here. She babysits Mia when she can."),
+    ("Grace Adeyemi","beat","Nobody has reported anything to me about the Billet or Patel's News this week."),
+    ("Grace Adeyemi","beat","I walk past the terrace three times every weekday and look in at the Billet at closing on Fridays and Saturdays."),
+    ("Barry Hughes","windows","Last month, cleaning the terrace windows, I saw two men in suits with a tape measure inside the empty unit between the pub and the shop."),
+    ("Barry Hughes","round","I do the terrace on Monday and Thursday mornings and have my dinner at the Billet after."),
+    ("Ronnie Clegg","people","Tommy Shaw and I drove the 216 together for twenty years. He's not been the same since Maureen died."),
+    ("Ronnie Clegg","quiz","I'd join a quiz team if Tommy captained it. We'd beat anyone on buses and horses."),
 )
 
 

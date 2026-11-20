@@ -29,6 +29,7 @@ def test_restart_preserves_characters_and_changed_state(tmp_path):
         assert [row["name"] for row in original] == [
             "Dez Whitworth", "Chloe Barlow", "Tommy Shaw", "Jess Hartley", 'Raj Patel', 'Simon Ferris', 'Brenda Ashworth', 'Mohammed "Mo" Iqbal',
             'Peggy Coyle', 'Liam Byrne', 'Anjali Patel', 'Pete Lomax', 'Hannah Kerr',
+            'Gary Walsh', 'Kirsty Doyle', 'Grace Adeyemi', 'Barry Hughes', 'Ronnie Clegg',
         ]
         connection.execute("UPDATE agents SET mood = 'relieved' WHERE id = ?", (original[0]["id"],))
     init_db(path)

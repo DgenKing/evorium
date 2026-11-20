@@ -14,7 +14,7 @@ const clips=data('clips');assert.equal(new Set(Object.values(clips)).size,10);as
 let loaded=[],fallbacks=[];const cache=createCastCache(cast,async model=>{loaded.push(model);if(model.includes('jess'))throw Error('test missing model');return{model};},async()=>({gltf:{fallback:true},animations:{}}),item=>fallbacks.push(item));
 assert.equal(loaded.length,0);const rob=await cache.get('player');assert.equal(rob.fallback,false);await cache.get('unknown');assert.equal(loaded.length,1);const jess=await cache.get('Jess Hartley');assert.equal(jess.fallback,true);assert.equal(fallbacks.length,1);await cache.get('Jess Hartley');assert.equal(fallbacks.length,1);assert.equal(loaded.length,2);console.log('MPFB cast: all models, dimensions, ten clips, lazy caching and fallback passed.');
 
-const {schedule,allowed,limits,separation,streetGraph,visibleStep,intervals}=await import('../evorium/static/world3d/js/ambient.js');
+const {schedule,allowed,limits,separation,streetGraph,visibleStep,intervals,facing}=await import('../evorium/static/world3d/js/ambient.js');
 for(const [kind,[min,max]] of Object.entries(intervals)){assert.equal(schedule(kind,20,()=>0),20+min);assert.equal(schedule(kind,20,()=>1),20+max);assert.equal(schedule(kind,20,()=>.5),20+(min+max)/2);}
 for(const kind of ['dog','pigeons']){assert.equal(allowed(kind,.299),false);assert.equal(allowed(kind,.3),true);}
 assert.equal(allowed('fox',.299),true);assert.equal(allowed('fox',.3),false);assert.equal(allowed('fox',1),false);
@@ -25,3 +25,8 @@ assert.equal(visibleStep(20,true),0);assert.equal(visibleStep(20,false),.05);ass
 const street=streetGraph(graph);for(const p of Object.values(street.nodes))assert.ok(p[2]>=.45&&p[2]<=2.75);for(const [a,b] of street.edges)assert.ok(street.nodes[a]&&street.nodes[b]);assert.ok(pathfind(street,'STREET_LEFT','STREET_RIGHT').length);
 for(const quality of ['low','high']){const budget=data('budgets')[quality];assert.ok(budget.ambient.bytes<=budget.ambient.limitBytes);assert.ok(budget.bytes<=(quality==='low'?12:30)*1e6);for(const kind of ['cat','dog','fox']){assert.deepEqual(budget.ambient.models[kind].clips.sort(),['Idle','Walking']);assert.ok(fs.existsSync(new URL(`../evorium/static/world3d/assets/${quality}/ambient/${kind}.glb`,import.meta.url)));}}
 console.log('Street life: scheduling bounds, day/night boundary, quality caps, separation, hidden pause, street graph and asset budgets passed.');
+
+assert.equal(facing([0,0,0],[1,0,0]),Math.PI/2);assert.equal(facing([0,0,0],[0,0,1]),0);assert.equal(facing([0,0,0],[-1,0,0]),-Math.PI/2);
+function directoryBytes(dir){return fs.readdirSync(dir,{withFileTypes:true}).reduce((sum,entry)=>sum+(entry.isDirectory()?directoryBytes(dir+'/'+entry.name):fs.statSync(dir+'/'+entry.name).size),0);}
+for(const quality of ['low','high']){const dir=new URL('../evorium/static/world3d/assets/'+quality,import.meta.url).pathname;assert.equal(directoryBytes(dir),data('budgets')[quality].bytes);assert.equal(directoryBytes(dir+'/ambient'),data('budgets')[quality].ambient.bytes);}
+console.log('Street life: movement heading and independent on-disk budget accounting passed.');

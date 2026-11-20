@@ -84,7 +84,7 @@ and phone); it runs around the clock on the owner's HP G4 and is reachable over 
 
 | Area | State |
 |---|---|
-| Characters | 13 APCs + 1 player (Rob, shared by everyone for now) + 1 system ("World") row |
+| Characters | 18 APCs + 1 player (Rob, shared by everyone for now) + 1 system ("World") row |
 | Places | The Crooked Billet (pub, 09:00–24:00 every day), Patel's News (shop, Mon–Sat 07:00–19:00) |
 | Clock | Real UK time × speed multiplier (0 = paused, 1 = real, up to 600×+) |
 | Conversations | 4 lines, or 6 for a pair's first meeting or fresh serious news; one at a time worldwide |
@@ -282,8 +282,13 @@ collision-verified A* graph), bubbles, lighting and doors. `ambient.js` adds bro
 | **Anjali Patel**, 19 | Raj's daughter, law student at Manchester Met. Bright, direct, protective; knows her dad's worried. | Lectures weekdays; behind the counter Mon/Wed/Fri 15–19 and Saturday 9–17 |
 | **Pete Lomax**, 58 | Brewery drayman for thirty years. Gruff, kind, a gossip; knows which pubs have shut. | Delivers to the Billet Tue/Fri 10:00–10:45; on his round weekdays; Saturday afternoon pint |
 | **Hannah Kerr**, 31 | Local news reporter digging into firms buying up Ancoats. Friendly, persistent, protects sources. | Papers and coffee at Patel's 08:30 weekdays; Billet Wed/Fri 17:30–19:30 |
+| **Gary Walsh**, 49 | Postman, fifteen years on the round. Chatty, terrible jokes, sees everyone's post. | Post at Patel's 08:30, along the terrace 08:40–09:00; Billet Mon/Wed 15–17 |
+| **Kirsty Doyle**, 26 | Young mum (baby Mia), Jess's neighbour and best mate. Warm, frazzled, a bit lonely. | Pram round the block 10:30 and 14:00 daily; Patel's 11:00; Wednesday lunch at the Billet |
+| **Grace Adeyemi**, 33 | PCSO for Ancoats. Calm, observant, approachable; doesn't gossip. | Patrols past the terrace 10:00, 13:30, 16:00 weekdays; looks in at the Billet at closing Fri/Sat |
+| **Barry Hughes**, 61 | Window cleaner who sees inside every building. Wry storyteller. | Terrace windows Mon/Thu 09–12, then dinner at the Billet |
+| **Ronnie Clegg**, 70 | Retired bus driver, Tommy's old mate from the 216. Dry, competitive, likes a bet. | Paper and racing post at Patel's 09:45; Billet Mon/Wed/Fri 13–16 and Sunday lunchtime |
 
-When the quiz runs (Thursdays 19:30–22:30), Tommy, Brenda, Chloe, Peggy, Hannah and Liam come in if they're free. A closed pub or shop
+When the quiz runs (Thursdays 19:30–22:30), Tommy, Brenda, Chloe, Peggy, Hannah and Liam come in if they're free, with Ronnie and Gary. A closed pub or shop
 sends its people home. House rule: names mostly British, a few others.
 
 ### The story seed
@@ -299,7 +304,10 @@ months ago. Simon's instructions: bring rents to market level, buy out leases wh
 - **New threads (20 Nov):** Liam overheard the mill site foreman say Northgate "will want the corner"; Pete knows
   pubs on his round that shut after new owners doubled the rent; Hannah has Land Registry proof Northgate bought
   four Ancoats buildings this year and wants someone on the record; Anjali (law student) can tell her dad is hiding
-  something and would want to read any lease before he signs.
+  something and would want to read any lease before he signs. Gary delivered recorded letters from Northgate to
+  all three units, including the empty one; Barry saw two men in suits measuring the empty unit last month; Kirsty's
+  block was sold and her rent went up £150; Grace hasn't had anything reported about the Billet (Dez promised Jess
+  he'd ring the police about Rob).
 - Side threads: the Thursday quiz (quizmaster left 18 months ago; Tommy promised forty questions by Sunday),
   a darts team for Mo, Jess's shifts, Chloe's flat hunt, Brenda's petitions.
 
@@ -739,7 +747,7 @@ streets, film grain, matching the game's portraits.
   chance.
 - **M4 simplifications:** fixed two-hour reaction delay (sixteen hours to reconsider); the flat viewing and the
   outside job are small Python templates; pub income is an illustrative model, not accounting.
-- **The five new APCs have no 3D models yet:** in `/world3d` they borrow Rob's body (the cast lookup's default)
+- **The ten new APCs have no 3D models yet:** in `/world3d` they borrow Rob's body (the cast lookup's default)
   until MPFB models are built for them. Dashboard, map and conversations are fine.
 - **Some facts are stored twice** (5 in the 20 Nov copy, e.g. "Dez chose to wait" noted in two conversations).
   Harmless; a de-duplication on insert would tidy it.
@@ -752,7 +760,8 @@ streets, film grain, matching the game's portraits.
 
 ## 10. Next steps
 
-1. **Build MPFB 3D models for the five new APCs** (Peggy, Liam, Anjali, Pete, Hannah) with the existing
+1. **Build MPFB 3D models for the ten new APCs** (Peggy, Liam, Anjali, Pete, Hannah, Gary, Kirsty, Grace, Barry,
+   Ronnie) with the existing
    `build_cast_mpfb.py` pipeline, and give them waypoints and poses. Then watch whether Brenda, Chloe and Mo now
    join conversations (they had 0, 0 and 2 before the routine changes).
 2. **Play and review the MPFB cast** on desktop and a real phone; refine likenesses, seated poses, bubbles at
@@ -1191,6 +1200,11 @@ Unreal from the project.
   (Tue/Thu lunch) and Dez out front for a breather. More drop-ins: Tommy browses the papers at Patel's and has an
   afternoon half on weekdays; Brenda Friday afternoons at the pub; Mo buys lunch at the shop and practises darts on
   Wednesday afternoons; Chloe picks up the property pages on Saturday mornings. Test added; 233 pass.
+- **Five more APCs (second batch):** Gary Walsh (postman), Kirsty Doyle (young mum, Jess's neighbour), Grace
+  Adeyemi (PCSO), Barry Hughes (window cleaner) and Ronnie Clegg (Tommy's old mate from the 216), with routines on
+  the street and in the pub and shop, story facts and relationships. 18 APCs in all. A simulated week now shows
+  2–6 APCs about on most weekday half-hours besides Dez and Raj (Sunday stays quiet). Seeding a copy of the live
+  world added exactly these APCs with no duplicates. 234 tests pass.
 - **Owner's rule: APCs only.** No fake or background people (passers-by, crowds, non-AI extras) anywhere, on the
   map or in 3D. A cosmetic passers-by feature was written for the map and removed the same day at the owner's
   request. Busier streets come from more APCs and denser routines. Animals and blowing rubbish are fine; they

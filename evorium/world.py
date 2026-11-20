@@ -110,7 +110,7 @@ def _routine_location(name: str, dt: datetime, stats=None) -> tuple[str, str]:
         return home_location(name), 'at home after the pub closed'
     if stats.get('shop.open', 1) == 0 and first == 'Raj':
         return home_location(name), 'at home after the shop closed'
-    if stats.get('pub.quiz') == 2 and not stats.get('pub.closed') and dt.weekday() == 3 and _between(dt, 19.5, 22.5) and first in ('Tommy', 'Mohammed', 'Brenda', 'Chloe', 'Peggy', 'Hannah', 'Liam'):
+    if stats.get('pub.quiz') == 2 and not stats.get('pub.closed') and dt.weekday() == 3 and _between(dt, 19.5, 22.5) and first in ('Tommy', 'Mohammed', 'Brenda', 'Chloe', 'Peggy', 'Hannah', 'Liam', 'Ronnie', 'Gary'):
         # Work still takes priority; Mo is driving after 19:30 on Thursdays.
         base_loc, base_act = _routine_location(name, dt)
         if base_act not in ('driving', 'at work', 'asleep'):
@@ -215,13 +215,42 @@ def _routine_location(name: str, dt: datetime, stats=None) -> tuple[str, str]:
         if wd in (1,3) and _between(dt,12.5,13.5):return STREET,'asking passers-by about the terrace'
         if wd<5 and _between(dt,9,17.5):return 'Newsroom, Northern Quarter','working on her story'
         return 'Flat, Northern Quarter','at home' if _between(dt,7,24) else 'asleep'
+    if first == 'Gary':
+        if wd<6 and _between(dt,8.5,8.67):return "Patel's News, Ancoats",'dropping off the post'
+        if wd<6 and _between(dt,8.67,9):return STREET,'doing his round along the terrace'
+        if wd<6 and _between(dt,7,12.5):return 'Post round, Ancoats','on his post round'
+        if wd in (0,2) and _between(dt,15,17) and pub_open(dt, stats):return PUB,'having an afternoon pint'
+        return 'Home, Newton Heath','at home' if _between(dt,6,22.5) else 'asleep'
+    if first == 'Kirsty':
+        if _between(dt,10.5,11) or _between(dt,14,14.5):return STREET,'pushing the pram round the block'
+        if wd<6 and _between(dt,11,11.33):return "Patel's News, Ancoats",'buying nappies and milk'
+        if wd==2 and _between(dt,12,13.5) and pub_open(dt, stats):return PUB,'having lunch with Mia in the pram'
+        return 'Flat, Miles Platting','at home with Mia' if _between(dt,6.5,23) else 'asleep'
+    if first == 'Grace':
+        if wd<5 and (_between(dt,10,10.33) or _between(dt,13.5,13.83) or _between(dt,16,16.33)):return STREET,'on patrol'
+        if wd<5 and _between(dt,13.83,14):return "Patel's News, Ancoats",'checking in with the shop'
+        if wd in (4,5) and _between(dt,22.75,23.25) and pub_open(dt, stats):return PUB,'looking in at closing time'
+        if wd<5 and _between(dt,8,17):return 'Ancoats beat','on patrol'
+        if wd in (4,5) and _between(dt,17,24):return 'Ancoats beat','on patrol'
+        return 'Home, Gorton','at home' if _between(dt,7,23.5) else 'asleep'
+    if first == 'Barry':
+        if wd in (0,3) and _between(dt,9,12):return STREET,'cleaning the windows along the terrace'
+        if wd in (0,3) and _between(dt,12,13) and pub_open(dt, stats):return PUB,'having his dinner'
+        if wd<5 and _between(dt,8,16):return 'Window round, East Manchester','cleaning windows'
+        return 'Home, Beswick','at home' if _between(dt,6.5,22) else 'asleep'
+    if first == 'Ronnie':
+        if wd<6 and _between(dt,9.75,10.1):return "Patel's News, Ancoats",'getting his paper and the racing post'
+        if wd in (0,2,4) and _between(dt,13,16) and pub_open(dt, stats):return PUB,'studying the form with a pint'
+        if wd in (0,2,4) and _between(dt,16,16.17):return STREET,'heading home from the Billet'
+        if wd==6 and _between(dt,13,15) and pub_open(dt, stats):return PUB,'Sunday pint with the lads'
+        return 'Flat, Ancoats','at home' if _between(dt,7,22.5) else 'asleep'
     return "Ancoats", "about"
 
 
 
 def _routine(name,dt,stats=None):
     location,activity=_routine_location(name,dt,stats)
-    free=activity not in ('asleep','behind the bar',"doing the pub's shopping",'working the bar','cleaning shift','behind the counter','at work','at the office','driving','on the scaffold','helping on the counter','at lectures','delivering the barrels','on his delivery round','working on her story')
+    free=activity not in ('asleep','behind the bar',"doing the pub's shopping",'working the bar','cleaning shift','behind the counter','at work','at the office','driving','on the scaffold','helping on the counter','at lectures','delivering the barrels','on his delivery round','working on her story','on his post round','on patrol','cleaning windows','doing his round along the terrace','cleaning the windows along the terrace')
     return location,activity,free
 
 
@@ -236,7 +265,8 @@ def is_free(name,dt,stats=None):
 def home_location(name):
     return {'Dez':'Flat above The Crooked Billet','Jess':'Flat, Miles Platting','Tommy':'Flat, Blossom Street',
             'Raj':'Home, Cheetham Hill','Chloe':'Rented room, Stockport','Simon':'Home, Hale','Brenda':'Home, Blossom Street','Mohammed':'Home, Manchester','Peggy':'Sheltered flat, Ancoats','Liam':'Flat, Clayton',
-            'Anjali':'Home, Cheetham Hill','Pete':'Home, Failsworth','Hannah':'Flat, Northern Quarter'}.get(name.split()[0],'Home, Ancoats')
+            'Anjali':'Home, Cheetham Hill','Pete':'Home, Failsworth','Hannah':'Flat, Northern Quarter',
+            'Gary':'Home, Newton Heath','Kirsty':'Flat, Miles Platting','Grace':'Home, Gorton','Barry':'Home, Beswick','Ronnie':'Flat, Ancoats'}.get(name.split()[0],'Home, Ancoats')
 
 
 def whereabouts(agent,now,db_path=DEFAULT_DB_PATH):

@@ -63,7 +63,8 @@ def test_new_apcs_join_an_existing_world_without_duplicating_facts(tmp_path, mon
     seedmod.seed_agents(path)
     with connect(path) as c:
         names=[a['name'] for a in npc_agents(c)]
-        assert names[8:]==['Peggy Coyle','Liam Byrne','Anjali Patel','Pete Lomax','Hannah Kerr']
+        assert names[8:]==['Peggy Coyle','Liam Byrne','Anjali Patel','Pete Lomax','Hannah Kerr',
+                           'Gary Walsh','Kirsty Doyle','Grace Adeyemi','Barry Hughes','Ronnie Clegg']
         assert c.execute('select count(*) from facts').fetchone()[0]==len(seedmod.SEED_FACTS)
         assert c.execute('select count(*) from (select content from facts group by agent_id,content having count(*)>1)').fetchone()[0]==0
         ids={a['name']:a['id'] for a in npc_agents(c)}
@@ -111,3 +112,14 @@ def test_apcs_on_shuttle_street_show_up_in_the_scene(tmp_path):
     data=scene.snapshot(path)
     on_street={p['first'] for p in data['characters'] if p['place']=='street' and p['visible']}
     assert {'Liam','Peggy'} <= on_street
+
+
+def test_second_batch_routines():
+    mon=datetime(2026,11,16)
+    assert world.routine('Gary Walsh',mon.replace(hour=8,minute=50))==(world.STREET,'doing his round along the terrace')
+    assert world.routine('Barry Hughes',mon.replace(hour=10))==(world.STREET,'cleaning the windows along the terrace')
+    assert world.routine('Ronnie Clegg',mon.replace(hour=14))[0]==world.PUB
+    assert world.routine('Kirsty Doyle',mon.replace(hour=10,minute=40))[0]==world.STREET
+    assert world.routine('Grace Adeyemi',mon.replace(hour=13,minute=40))==(world.STREET,'on patrol')
+    assert not world.is_free('Grace Adeyemi',mon.replace(hour=13,minute=40))
+    assert world.routine('Grace Adeyemi',datetime(2026,11,20,22,50))==(world.PUB,'looking in at closing time')
