@@ -553,9 +553,15 @@ python3 -m http.server 8080 --bind 127.0.0.1 --directory website
 
 Images are generated, labelled concept art; full-size masters stay in the git-ignored `website/images/src/`.
 Some image filenames keep their original names (`unreal-hero`). The waitlist still uses the placeholder
-`hello@example.com`. Editing these files doesn't publish the site. The build brief is
-`CODEX_PROMPT_WEBSITE.md` (kept separate while Codex is still working on the site; fold it into this file and
-delete it once that's done).
+`hello@example.com`. Editing these files doesn't publish the site. Personal contact details remain deferred.
+
+**Briefing website changes** (the old `CODEX_PROMPT_WEBSITE.md`, merged here and deleted 20 Nov): describe it as
+a Three.js browser game for desktop and phone; plain HTML/CSS with at most ~30 lines of JS; no frameworks or
+build step; no "Home" link; no forms collecting data; fictional characters only; images as optimised WebP/JPG
+with `<picture>`, lazy loading and alt text; accessible and responsive at 375, 768 and 1440 px. Colours:
+`--ink #0D0E11`, `--ink-2 #16181D`, `--brick #8E3B2C`, `--billet #1E3A32`, `--amber #E8A548`, `--cream #EFE7D6`,
+`--mist #9AA0A8`. Image style: cinematic 35mm film still of Manchester at dusk, warm pub light against cool
+streets, film grain, matching the game's portraits.
 
 ---
 
@@ -731,7 +737,7 @@ Suggested order: invite-only with friends, accounts + player view, then the key 
   A friend has since made **all eight** in one style; install them (§10).
 - **Place renders** from the friend: the Crooked Billet and Patel's News exterior, both interiors, a brick
   texture. Candidates for the map backdrop.
-- **The art kit, `Ancoats_Blender_Unreal_Kit.zip`** (148 MB, 102 files, second version, 19 Nov; git-ignored and
+- **The art kit, `Ancoats_Blender_Unreal_Kit.zip`** (moved out of the project to `/run/media/user/Data Storage/Evorium/`; 148 MB, 102 files, second version, 19 Nov;
   over GitHub's file limit). Unpacked at `/run/media/user/Data Storage/Evorium/AncoatsKit/`:
   - **Set:** "Shuttle Street", with The Crooked Billet (dark green, oak bar, hand pumps, oxblood booths) and
     Patel's News (blue and cream, aisle, parcel counter, chillers), in front of a mill backdrop. The 3D game is
@@ -747,6 +753,21 @@ Suggested order: invite-only with friends, accounts + player view, then the key 
 ---
 
 ## 14. History
+
+### Session of 20 November 2026 — Website brief corrected
+
+- Checked `CODEX_PROMPT_WEBSITE.md`: the previous edit had updated the website, but
+  left the brief's Unreal Engine 5 copy and image-style prompt unchanged. Corrected
+  it to match the Three.js browser client, including the hero, §2.9 copy and caption.
+- Clarified that this is maintenance of the existing static marketing page, with
+  existing imagery reused and still labelled concept art. Historical `unreal-hero`
+  asset names/provenance stay intact. No public game launch or embed is implied.
+- Updated obsolete section references and instructions to create extra README files
+  to follow the consolidated-document rules. Explicitly kept personal addresses
+  deferred and the placeholder waitlist email unchanged.
+- Verified the brief no longer prescribes Unreal rendering, new README files or
+  regeneration of all images. No website code, game state, commits or deployment changed.
+
 
 ### Milestone 1 — smallest working slice (15 Nov 2026)
 
@@ -770,7 +791,7 @@ checks; "Let them live" auto mode.
 
 Built in eight phases from one brief: agent kinds and sim timestamps; the permanent timeline and daily digests;
 the player; directed relationships; places, free time and daily plans; the director; Simon, Brenda and Mo;
-old world's 16 conversations are kept in `evorium-backup-20261116.sqlite3`.
+old world's 16 conversations are kept in `backups/evorium-backup-20261116.sqlite3`.
 
 ### 19 November 2026
 
@@ -826,6 +847,9 @@ Unreal from the project.
 - **All docs merged into this file.** The old README, the home server guide, the Web3D pipeline, controls and
   verification notes, the portrait prompts, the old LAN service notes and the finished M4 and Web3D briefs were
   folded in and deleted (they're in git history). `README.md` now just points here.
+- **Clean-up:** the website brief merged into §8 and deleted; the old `server.log` and `__pycache__` deleted; the
+  two old world backups moved into `backups/`; the art kit zip moved to the Data Storage drive next to the
+  unpacked kit. The project folder now holds only code, config, the dev world copy and this document.
 
 ---
 
