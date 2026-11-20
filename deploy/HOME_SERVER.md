@@ -59,7 +59,7 @@ cd ~/evorium
 bash deploy/install_home_server.sh
 ```
 
-**evorium** service, starts it, turns on **auto-update from GitHub** every 2 minutes, and sets up a **nightly backup** at 03:15 (keeping 14 days, in
+**evorium** service, starts it, turns on **auto-update from GitHub** every 2 minutes, and sets up a **nightly backup** (a systemd timer) at 03:15 (keeping 14 days, in
 `~/evorium/backups/`).
 
 Check it with:

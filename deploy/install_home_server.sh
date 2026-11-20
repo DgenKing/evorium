@@ -124,8 +124,34 @@ sudo systemctl enable --now evorium-update.timer
 echo "Auto-update is on. Watch it with: tail -f $DIR/updates.log"
 
 say "Nightly backup at 03:15 (keeps 14)"
-LINE="15 3 * * * cd $DIR && .venv/bin/python deploy/backup_world.py >> $DIR/backups.log 2>&1"
-( crontab -l 2>/dev/null | grep -v 'deploy/backup_world.py' ; echo "$LINE" ) | crontab -
+# A systemd timer (not cron, which newer Ubuntu releases don't install by default).
+crontab -l 2>/dev/null | grep -q 'deploy/backup_world.py' && { crontab -l 2>/dev/null | grep -v 'deploy/backup_world.py' | crontab - || true; }
+sudo tee /etc/systemd/system/evorium-backup.service >/dev/null <<EOF
+[Unit]
+Description=Back up the Evorium world
+
+[Service]
+Type=oneshot
+User=$ME
+Group=$(id -gn)
+WorkingDirectory=$DIR
+ExecStart=$DIR/.venv/bin/python $DIR/deploy/backup_world.py
+StandardOutput=append:$DIR/backups.log
+StandardError=append:$DIR/backups.log
+EOF
+sudo tee /etc/systemd/system/evorium-backup.timer >/dev/null <<EOF
+[Unit]
+Description=Nightly Evorium world backup
+
+[Timer]
+OnCalendar=*-*-* 03:15:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+EOF
+sudo systemctl daemon-reload
+sudo systemctl enable --now evorium-backup.timer
 .venv/bin/python deploy/backup_world.py || true
 
 say "Done"
