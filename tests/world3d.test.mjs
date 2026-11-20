@@ -1,0 +1,10 @@
+import assert from 'node:assert/strict';import fs from 'node:fs';import {pathfind,slotPosition} from '../evorium/static/world3d/js/graph.js';import {selectAnimation} from '../evorium/static/world3d/js/anim.js';import {detectQuality,Watchdog} from '../evorium/static/world3d/js/quality.js';import {lookupCast} from '../evorium/static/world3d/js/cast.js';
+const data=n=>JSON.parse(fs.readFileSync(new URL('../evorium/static/world3d/data/'+n+'.json',import.meta.url)));
+const graph=data('routes'),waypoints=data('waypoints');const small={nodes:{a:[0,0,0],b:[1,0,0],c:[2,0,0],d:[1,0,2]},edges:[['a','b'],['b','c'],['a','d'],['d','c']]};assert.deepEqual(pathfind(small,'a','c'),['a','b','c']);assert.deepEqual(pathfind(small,'a','missing'),[]);
+for(const end of ['STREET_LEFT','STREET_RIGHT'])for(const waypoint of [...Object.keys(waypoints),'UPSTAIRS'])assert.ok(pathfind(graph,end,waypoint).length,`${end} cannot reach ${waypoint}`);
+for(const [values,expected] of [[{},'idle'],[{speed:1.6},'walk'],[{speed:4},'run'],[{grounded:false,verticalSpeed:2},'jump_start'],[{grounded:false,verticalSpeed:-1},'fall'],[{wasGrounded:false},'land'],[{sitting:true},'sit'],[{talking:true},'talk']])assert.equal(selectAnimation(values),expected);
+assert.equal(detectQuality({touch:true}),'low');assert.equal(detectQuality({width:390}),'low');assert.equal(detectQuality({maxTextureSize:16384,pixelRatio:2}),'high');assert.equal(detectQuality({maxTextureSize:8192}),'medium');
+assert.deepEqual(slotPosition({position:[1,2,3],yaw:0},2),[2.4,2,3]);assert.ok(Math.abs(slotPosition({position:[0,0,0],yaw:Math.PI/2},1)[2]+.7)<1e-8);
+const cast=data('cast');assert.equal(Object.keys(cast).length,9);assert.equal(lookupCast(cast,'Jess Hartley').body,'female');assert.equal(lookupCast(cast,'unknown'),cast.player);
+const watchdog=new Watchdog();let preset='high';for(let i=0;i<110;i++)preset=watchdog.update(.1,preset);assert.equal(preset,'low');assert.equal(watchdog.drops,2);
+console.log('Web3D: graph, all waypoint routes, animation, quality, watchdog, slots and cast passed.');

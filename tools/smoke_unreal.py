@@ -11,7 +11,7 @@ from types import SimpleNamespace
 
 REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO))
-DEST = Path('/run/media/user/Data Storage/Evorium/EvoriumUnreal/Saved/smoke.sqlite3')
+DEST = Path(os.environ.get('EVORIUM_SMOKE_DB', '/tmp/evorium-smoke/smoke.sqlite3'))
 LIVE = REPO / 'evorium.sqlite3'
 assert DEST.resolve() != LIVE.resolve()
 with socket.socket() as probe:
@@ -51,6 +51,16 @@ with sqlite3.connect(DEST) as c:
 @main.app.get('/smoke/status')
 def smoke_status():
     return {'fake_models': True, 'database_copy': str(DEST)}
+
+@main.app.post('/smoke/at')
+def smoke_at(payload: dict):
+    from evorium import tick
+    at = datetime.strptime(payload['at'], world.FMT)
+    with sqlite3.connect(DEST) as c:
+        for key, value in {'anchor_sim': at.strftime(world.FMT), 'anchor_real': world._real_now().strftime(world.FMT)}.items():
+            c.execute('INSERT INTO world(key,value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value', (key,value))
+    tick.update_routines(at, DEST)
+    return {'sim_at': at.strftime(world.FMT), 'fake_models': True}
 
 if __name__ == '__main__':
     import uvicorn

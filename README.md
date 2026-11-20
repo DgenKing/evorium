@@ -115,7 +115,9 @@ action is unavailable. Timeline query filters: `since`, `until`, `agent_id`,
 A non-empty value requires HTTP Basic auth for every route, with any username.
 Restart after changing it. `EVORIUM_DB_PATH` optionally selects a separate world
 file; use that for smoke tests. Existing saves migrate in place, never reset.
-See [deploy/README.md](deploy/README.md) for the optional Linux home-LAN service.
+See [deploy/HOME_SERVER.md](deploy/HOME_SERVER.md) to run Evorium always-on on a spare Linux PC (the HP G4),
+shared through ngrok, with `deploy/install_home_server.sh` and nightly `deploy/backup_world.py` backups.
+The older LAN-only notes are in [deploy/README.md](deploy/README.md).
 No voice, group chat or new hosting service is included.
 
 New model call limits: reactions 350 tokens (temperature 0.6, at most 12 calls per sim day);
@@ -247,7 +249,47 @@ It preserves the live database and all history. This build was tested only with 
 clients; no live API smoke test or live-save migration was performed.
 
 
-## Unreal client build preflight
+## 3D browser world
+
+Open http://127.0.0.1:8000/world3d or choose **3D** in the dashboard after restarting
+on this code. No game build step or npm runtime is required: Three.js 0.187.0,
+high/low assets, ten animation clips and baked lighting are served locally.
+Desktop controls: WASD/arrows, Shift run, Space jump, drag look, wheel zoom, E talk,
+N names, C collision, F1 debug, Escape close. Phones use the left joystick, right
+look/pinch, Jump and contextual Talk. Gear settings select low/medium/high quality.
+The server still has one shared player; this is an owner prototype.
+
+first, then start:
+
+```bash
+.venv/bin/python -m uvicorn evorium.main:app --host 0.0.0.0 --port 8000
+```
+
+This exposes the server and its controls to the network. Browse to
+Real iOS memory, keyboard and touch feel need physical-device review.
+
+Assets rebuild with Blender 4.3+, the unlocked kit and both CC0 Quaternius Standard
+archives. Preflight passes with Blender 5.3.0; Snap/network operations may require
+sandbox approval. See [tools/web3d/README.md](tools/web3d/README.md) for exact npm,
+export, bake and optimization commands, licences, limits and current simplifications.
+Generated assets total 3.40 MB low / 5.15 MB high; vendor modules add about 2.4 MB
+uncompressed. The game adds no model calls except existing player/catch-up actions.
+
+Offline verification:
+
+```bash
+node tests/world3d.test.mjs
+bash tools/web3d/run_checks.sh
+```
+
+The runner starts the fake smoke server on 8011 using a read-only SQLite backup
+into `/tmp/evorium-smoke/smoke.sqlite3` (`EVORIUM_SMOKE_DB` overrides the copy).
+It keeps the live database and Unreal project unchanged. Twenty desktop/phone
+screenshots and JSON reports go to ignored `tools/web3d/raw/screens/`.
+Controls and test URLs: [world3d README](evorium/static/world3d/README.md).
+Never point automated player writes at port 8000.
+
+## Older Unreal client
 
 The five-stage build instructions are in [CODEX_PROMPT_UNREAL.md](CODEX_PROMPT_UNREAL.md).
 On 19 November, the engine, Third Person template and kit were found, but writing to

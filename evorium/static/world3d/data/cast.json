@@ -1,0 +1,83 @@
+{
+  "Dez Whitworth": {
+    "body": "male",
+    "scale": 1,
+    "width": 1.12,
+    "tint": "#303e40",
+    "skin": "#c99b79",
+    "trousers": "#323239",
+    "hair": "#9b9990"
+  },
+  "Jess Hartley": {
+    "body": "female",
+    "scale": 0.98,
+    "width": 1,
+    "tint": "#34373d",
+    "skin": "#d1a184",
+    "trousers": "#343039",
+    "hair": "#49362d"
+  },
+  "Tommy Shaw": {
+    "body": "male",
+    "scale": 0.96,
+    "width": 1,
+    "tint": "#354761",
+    "skin": "#d2aa8c",
+    "trousers": "#4c4e52",
+    "hair": "#c9c9bf"
+  },
+  "Raj Patel": {
+    "body": "male",
+    "scale": 0.98,
+    "width": 1,
+    "tint": "#c7c8ad",
+    "skin": "#af7e58",
+    "trousers": "#55585e",
+    "hair": "#26282a"
+  },
+  "Chloe Barlow": {
+    "body": "female",
+    "scale": 0.97,
+    "width": 1,
+    "tint": "#668367",
+    "skin": "#dbb79a",
+    "trousers": "#414c59",
+    "hair": "#98744d"
+  },
+  "Simon Ferris": {
+    "body": "male",
+    "scale": 1.01,
+    "width": 1,
+    "tint": "#7c7f80",
+    "skin": "#cfad90",
+    "trousers": "#515960",
+    "hair": "#38302c"
+  },
+  "Brenda Ashworth": {
+    "body": "female",
+    "scale": 0.92,
+    "width": 1,
+    "tint": "#a18bab",
+    "skin": "#d1a78f",
+    "trousers": "#565269",
+    "hair": "#b7b5aa"
+  },
+  "Mohammed \"Mo\" Iqbal": {
+    "body": "male",
+    "scale": 1.02,
+    "width": 1,
+    "tint": "#333d50",
+    "skin": "#ab7753",
+    "trousers": "#34363b",
+    "hair": "#24252a"
+  },
+  "player": {
+    "body": "male",
+    "scale": 1,
+    "width": 1,
+    "tint": "#e9dfc9",
+    "skin": "#c79d7a",
+    "trousers": "#536c7d",
+    "hair": "#483b33"
+  }
+}

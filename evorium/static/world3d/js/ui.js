@@ -1,0 +1,16 @@
+import {request} from './net.js';
+export const $=id=>document.getElementById(id);
+export class UI{
+ constructor(input,actors){this.input=input;this.actors=actors;this.target=null;this.busy=false;this.openPanel=null;
+ $('close-chat').onclick=()=>this.closeChat();$('chat-form').onsubmit=e=>{e.preventDefault();this.send();};$('close-card').onclick=()=>$('card').hidden=true;
+ const viewport=()=>{if(window.visualViewport)$('chat').style.bottom=Math.max(12,innerHeight-visualViewport.height-visualViewport.offsetTop+12)+'px';};window.visualViewport?.addEventListener('resize',viewport);viewport();
+ }
+ banner(text){$('connection').textContent=text;$('connection').hidden=!text;}
+ toast(text){$('toast').textContent=text;$('toast').hidden=false;clearTimeout(this.toastTimer);this.toastTimer=setTimeout(()=>$('toast').hidden=true,5500);}
+ card(p){$('card').hidden=false;$('card-name').textContent=p.first;$('card-detail').textContent=[p.activity,p.mood].filter(Boolean).join(' · ');$('portrait').hidden=!p.portrait;if(p.portrait)$('portrait').src=p.portrait;}
+ async chat(actor){if(!actor||this.busy)return;this.target=actor;actor.chatting=true;this.input.blocked=true;this.input.reset();$('chat').hidden=false;$('chat-name').textContent=actor.person.first;$('chat-log').replaceChildren();try{const state=await request('/player');for(const m of state.conversation?.messages||[])this.line(m.speaker_name,m.text);}catch(e){this.toast(e.message);}$('message').focus();}
+ line(name,text){const line=document.createElement('p'),label=document.createElement('strong');label.textContent=name+': ';line.append(label,document.createTextNode(text));$('chat-log').append(line);line.scrollIntoView({block:'nearest'});}
+ async send(){const text=$('message').value.trim();if(!text||this.busy||!this.target)return;this.busy=true;$('send').disabled=true;try{const r=await request('/player/say',{to_agent_id:this.target.person.id,text});this.line('You',text);this.line(this.target.person.first,r.reply.text);this.actors.say(this.target,r.reply.text);$('message').value='';}catch(e){this.toast(e.message);}finally{this.busy=false;$('send').disabled=false;}}
+ async closeChat(){if(this.busy)return;try{if(this.target)await request('/player/end',{});}catch(e){this.toast(e.message);return;}if(this.target)this.target.chatting=false;this.target=null;$('chat').hidden=true;this.input.blocked=false;$('message').blur();}
+ async initial(){try{const state=await request('/player');if(!state.name){$('profile').hidden=false;this.input.blocked=true;$('profile-form').onsubmit=async e=>{e.preventDefault();try{await request('/player/profile',{name:$('name').value,about:''});$('profile').hidden=true;this.input.blocked=false;}catch(e){this.toast(e.message);}};}const c=await request('/catchup');if(c.items?.length){$('catchup').hidden=false;$('catchup-text').textContent=c.paragraph||c.text||c.narration||'';$('catchup-items').replaceChildren(...c.items.map(item=>{const li=document.createElement('li');li.textContent=typeof item==='string'?item:item.text;return li;}));$('dismiss-catchup').onclick=async()=>{try{await request('/catchup/seen',{});$('catchup').hidden=true;}catch(e){this.toast(e.message);}};}}catch(e){this.toast(e.message);}}
+}

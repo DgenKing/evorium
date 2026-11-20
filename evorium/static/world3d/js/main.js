@@ -1,0 +1,71 @@
+import * as THREE from 'three';
+import {CSS2DRenderer} from 'three/addons/renderers/CSS2DRenderer.js';
+import {loadAssets,loadData} from './assets.js';
+import {presets,detectQuality,Watchdog} from './quality.js';
+import {World} from './world.js';import {Input} from './input.js';import {FollowCamera} from './camera.js';import {Player} from './player.js';import {Actors} from './npcs.js';import {Network,request} from './net.js';import {UI,$} from './ui.js';import {pathfind,nearest,distance} from './graph.js';
+const params=new URLSearchParams(location.search),test=params.get('test')==='1';
+window.__evoriumReady=false;window.__evoriumReport={errors:[]};
+addEventListener('error',e=>window.__evoriumReport.errors.push(e.message||String(e.error||'Browser resource error')));addEventListener('unhandledrejection',e=>window.__evoriumReport.errors.push(String(e.reason)));
+function stored(key,fallback){try{return localStorage.getItem('evorium3d.'+key)||fallback;}catch{return fallback;}}
+function save(key,value){try{localStorage.setItem('evorium3d.'+key,value);}catch{}}
+async function boot(){
+ if(matchMedia('(pointer:coarse)').matches)$('controls').textContent='Left thumb move · Right drag look · Pinch zoom';
+ const canvas=$('world'),scene=new THREE.Scene(),camera=new THREE.PerspectiveCamera(55,innerWidth/innerHeight,.08,150);
+ const selected=params.get('quality')||stored('quality','auto');let preset=presets[selected]?selected:detectQuality({touch:matchMedia('(pointer:coarse)').matches,width:innerWidth});
+ const renderer=new THREE.WebGLRenderer({canvas,antialias:preset==='high',powerPreference:'high-performance'});renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1;
+ if(selected==='auto')preset=detectQuality({touch:matchMedia('(pointer:coarse)').matches,width:innerWidth,maxTextureSize:renderer.capabilities.maxTextureSize,pixelRatio:devicePixelRatio});
+ function applyPreset(){const p=presets[preset];renderer.setPixelRatio(Math.min(devicePixelRatio,p.pixelRatio));renderer.shadowMap.enabled=!!p.shadows;renderer.shadowMap.type=THREE.PCFSoftShadowMap;renderer.setSize(innerWidth,innerHeight);}
+ applyPreset();const labels=new CSS2DRenderer({element:$('labels')});labels.setSize(innerWidth,innerHeight);
+ const data=await loadData(),assets=await loadAssets(presets[preset].assets,p=>{$('progress').value=p;});
+ const world=new World(scene,assets,presets[preset]),actors=new Actors(scene,assets,data,world),player=new Player(actors.create('player'),world),follow=new FollowCamera(camera,world);actors.player=player;
+ const input=new Input(canvas,async(action,event)=>{if(action==='KeyE'&&!input.blocked)await ui.chat(actors.nearestTalk(player));if(action==='KeyN'){actors.tags=!actors.tags;$('tags').checked=actors.tags;save('tags',actors.tags);}if(action==='KeyC')world.debug.visible=!world.debug.visible;if(action==='F1')$('debug').hidden=!$('debug').hidden;if(action==='Escape'){await ui.closeChat();$('settings').hidden=true;input.blocked=false;}$('card').hidden=action==='Escape'||$('card').hidden;if(action==='pick'&&!input.blocked){const ray=new THREE.Raycaster();ray.setFromCamera(new THREE.Vector2(event.clientX/innerWidth*2-1,1-event.clientY/innerHeight*2),camera);const candidates=[...actors.people.values()];for(const hit of ray.intersectObjects(candidates.map(a=>a.body),true)){const a=candidates.find(a=>{let n=hit.object;while(n){if(n===a.root)return true;n=n.parent;}return false;});if(a){ui.card(a.person);break;}}}});
+ const ui=new UI(input,actors);actors.onSelect=p=>ui.card(p);actors.tags=stored('tags','true')!=='false';follow.invert=stored('invert','false')==='true';follow.sensitivity=Number(stored('sensitivity','1'));
+ $('tags').checked=actors.tags;$('invert').checked=follow.invert;$('sensitivity').value=follow.sensitivity;$('quality').value=preset;
+ $('settings-button').onclick=()=>{$('settings').hidden=!$('settings').hidden;input.blocked=!$('settings').hidden;input.reset();};$('close-settings').onclick=()=>{$('settings').hidden=true;input.blocked=false;};
+ $('tags').onchange=e=>{actors.tags=e.target.checked;save('tags',actors.tags);};$('invert').onchange=e=>{follow.invert=e.target.checked;save('invert',follow.invert);};$('sensitivity').oninput=e=>{follow.sensitivity=Number(e.target.value);save('sensitivity',follow.sensitivity);};$('quality').onchange=e=>{save('quality',e.target.value);const url=new URL(location);url.searchParams.set('quality',e.target.value);location.assign(url);};
+ let snapshot=await request('/world/scene');world.updateSnapshot(snapshot);if(test)world.daylight=snapshot.daylight;actors.sync(snapshot,test);const net=new Network(s=>{snapshot=s;world.updateSnapshot(s);actors.sync(s,false);},text=>ui.banner(text));if(!test)net.poll();
+ let joined=snapshot.player?.place==='street'?'':snapshot.player?.place||'',doorBusy=false;
+ async function doors(){const target=player.place==='street'?'':player.place;if(target===joined||doorBusy)return;doorBusy=true;try{if(target)await request('/player/enter',{place:target});else await request('/player/leave',{});joined=target;}catch(e){ui.toast(e.message);player.position.set(target==='pub'?-4.62:5.92,.06,.9);player.velocity.set(0,0,0);}finally{doorBusy=false;}}
+ // Test cameras keep world state deterministic and use the public smoke snapshot.
+ const cameras={street:[[-1,4.3,15],[-.5,1,-1]],pub:[[-4.5,2.2,-1.3],[-4.3,1.1,-6]],shop:[[6.4,2.2,-3.2],[2.5,1.2,-5.5]],cast:[[-6,2.3,-1],[-4,1.2,-5]],player:[[-4.62,2.5,5],[-4.62,1,0]]};
+ if(test){const c=cameras[params.get('cam')]||cameras.street;camera.position.fromArray(c[0]);camera.lookAt(new THREE.Vector3().fromArray(c[1]));}else await ui.initial();
+ let visibleTriangles=0,visibleDrawCalls=0;
+ let last=performance.now(),fps=60,elapsed=0,frames=0;const watchdog=new Watchdog();
+ function report(){return {errors:window.__evoriumReport.errors,loadedAssets:Object.keys(assets),quality:preset,drawCalls:renderer.info.render.calls,triangles:renderer.info.render.triangles,visibleTriangles,visibleDrawCalls,textures:renderer.info.memory.textures,geometries:renderer.info.memory.geometries,fps,characters:[...actors.people.values()].map(a=>({id:a.person.id,name:a.person.name,waypoint:a.person.waypoint,position:a.root.position.toArray()})),expectedCharacters:snapshot.characters.filter(p=>p.visible).map(p=>p.id),collisionOK:!!world.octree,player:{position:player.position.toArray(),actorPosition:player.actor.root.position.toArray(),place:player.place},sim_at:snapshot.sim_at,speed:snapshot.speed};}
+ function frame(now){requestAnimationFrame(frame);const wallDt=(now-last)/1000,dt=Math.min(wallDt,.05);last=now;elapsed+=wallDt;frames++;if(elapsed>1){fps=frames/elapsed;elapsed=0;frames=0;}
+ const controls=input.sample();if(!test){player.update(dt,controls,follow.yaw);follow.update(dt,player.position,controls);doors();}else player.actor.animate('idle',dt);
+ world.update(test?1/60:dt);actors.update(test?1/60:dt,camera);if(test){player.actor.mixer.setTime(.5);player.actor.root.position.copy(player.position);for(const a of actors.people.values())a.mixer.setTime(.5);}visibleTriangles=0;visibleDrawCalls=0;scene.traverse(o=>{if(o.isMesh&&!o.userData.counted){o.userData.counted=true;o.onBeforeRender=(_renderer,_scene,_camera,geometry,_material,group)=>{visibleDrawCalls++;visibleTriangles+=(group?.count??geometry.index?.count??geometry.attributes.position.count)/3;};}});renderer.render(scene,camera);labels.render(scene,camera);
+ const nearby=actors.nearestTalk(player);$('talk').hidden=!nearby||input.blocked;$('talk-hint').hidden=!nearby||input.blocked;if(nearby)$('talk-hint').textContent='Press E to talk to '+nearby.person.first;
+ if(!test){const next=watchdog.update(dt,preset);if(next!==preset){preset=next;world.preset=presets[preset];world.sun.castShadow=!!presets[preset].shadows;applyPreset();ui.toast('Quality adjusted for smoother walking.');}}
+ if(!$('debug').hidden)$('debug').textContent=JSON.stringify({...report(),lastPoll:net.lastPoll},null,2);
+ window.__evoriumReport=report();
+ }
+ requestAnimationFrame(frame);addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);labels.setSize(innerWidth,innerHeight);});
+ $('loading').hidden=true;await new Promise(r=>setTimeout(r,1500));window.__evoriumReady=true;
+ if(test){
+ window.__evoriumTest={physics(){
+ const saved=player.position.clone(),open={...world.open};let maximum=0;
+ player.position.set(1.08,.1,1.2);player.velocity.set(0,0,0);for(let i=0;i<30;i++)player.update(1/60,{x:0,y:0},0);
+ const floor=player.position.y;player.update(1/60,{x:0,y:0,jump:true},0);for(let i=0;i<90;i++){player.update(1/60,{x:0,y:0},0);maximum=Math.max(maximum,player.position.y-floor);}if(maximum<.7||!player.grounded)throw Error('Jump/landing check failed');
+ player.position.set(-8,.06,-3);player.velocity.set(0,0,0);for(let i=0;i<120;i++)player.update(1/60,{x:-1,y:0},0);const wallX=player.position.x;if(wallX<-8.8)throw Error('Player crossed masonry');
+ const cameraDistance=world.cameraDistance(new THREE.Vector3(-8,1.5,-3),new THREE.Vector3(-1,0,0),3.5);if(cameraDistance>1.2)throw Error('Camera crossed wall');
+ world.open.pub=false;player.position.set(-4.62,.06,.9);player.velocity.set(0,0,0);for(let i=0;i<100;i++)player.update(1/60,{x:0,y:-1},0);if(player.position.z<.25)throw Error('Closed door crossed');
+ const closedDoorZ=player.position.z;world.open=open;player.position.copy(saved);player.velocity.set(0,0,0);return{jumpHeight:maximum,wallX,cameraDistance,closedDoorZ};
+ },refresh:async()=>{snapshot=await request('/world/scene');world.updateSnapshot(snapshot);actors.sync(snapshot,true);return report();},
+ async movement(){
+ const status=await request('/smoke/status');if(!status.fake_models)throw Error('Movement test requires verified offline smoke server');
+ const events=[],results=[];player.position.set(-4.62,.06,1.5);player.place='street';joined='';await request('/player/leave',{});
+ for(const destination of ['PUB_BAR','STREET_LINK','NEWS_TILL','STREET_LINK']){
+ const route=pathfind(data.routes,nearest(data.routes,player.position.toArray()),destination);if(!route.length)throw Error('No route to '+destination);
+ for(const node of route){const target=new THREE.Vector3().fromArray(data.routes.nodes[node]);let steps=0;
+ while(Math.hypot(player.position.x-target.x,player.position.z-target.z)>.12&&steps++<900){const delta=target.clone().sub(player.position);player.update(1/60,{x:delta.x/Math.max(.1,Math.hypot(delta.x,delta.z)),y:delta.z/Math.max(.1,Math.hypot(delta.x,delta.z)),run:false,jump:false},0);const before=joined;await doors();if(joined!==before)events.push(joined||'leave');}
+ if(steps>=900)throw Error('Player stuck on '+node+' '+player.position.toArray());
+ }
+ const remaining=distance(player.position.toArray(),data.routes.nodes[destination]);player.setCollider();const collision=world.octree.capsuleIntersect(player.collider);if(remaining>2||collision&&collision.depth>.025)throw Error('Movement failed '+destination);
+ results.push({destination,distance:remaining,collisionDepth:collision?.depth||0});
+ }
+ const npc=actors.nearestTalk(player);return{results,events,report:report()};
+ },async chat(){const status=await request('/smoke/status');if(!status.fake_models)throw Error('Fake server required');const a=[...actors.people.values()].find(a=>a.person.place==='pub');await request('/player/enter',{place:'pub'});await ui.chat(a);$('message').value='Hello from the offline browser test';await ui.send();const text=$('chat-log').textContent;if(!text.includes('FAKE REPLY')||text.includes('rationale'))throw Error('Chat check failed');await ui.closeChat();await request('/player/leave',{});return{text};},world,player,actors};
+ }
+}
+boot().catch(error=>{window.__evoriumReport.errors.push(error.stack||error.message);$('load-status').textContent='Could not open the street: '+error.message;});

@@ -183,6 +183,11 @@ class AutoRequest(BaseModel):
     gap_minutes: int = Field(default=tick.DEFAULT_CONVERSATION_GAP_MIN, ge=1, le=24 * 60)
 
 
+@app.get("/world3d")
+async def world3d():
+    return FileResponse(STATIC / "world3d" / "index.html")
+
+
 @app.get("/")
 async def index():
     return FileResponse(STATIC / "index.html")

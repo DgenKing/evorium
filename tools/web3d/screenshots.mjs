@@ -1,0 +1,30 @@
+// Chrome DevTools Protocol, Node built-ins only. Always targets fake server 8011.
+import {spawn} from 'node:child_process';import fs from 'node:fs/promises';
+const base='http://127.0.0.1:8011';const smoke=await(await fetch(base+'/smoke/status')).json();if(!smoke.fake_models)throw Error('Fake smoke server required');
+const output='tools/web3d/raw/screens';await fs.mkdir(output,{recursive:true});
+const chrome=spawn('/usr/bin/google-chrome',['--headless=new','--no-sandbox','--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader','--remote-debugging-port=9333','--user-data-dir=/tmp/evorium-chrome','--no-first-run','--disable-dev-shm-usage','about:blank'],{stdio:'ignore'});
+const pause=ms=>new Promise(r=>setTimeout(r,ms));
+try{
+ let page;for(let i=0;i<100;i++){try{page=(await(await fetch('http://127.0.0.1:9333/json')).json()).find(p=>p.type==='page');if(page)break;}catch{}await pause(200);}
+ if(!page)throw Error('Chrome CDP unavailable');
+ const socket=new WebSocket(page.webSocketDebuggerUrl);await new Promise(r=>socket.addEventListener('open',r,{once:true}));let id=0;const pending=new Map();socket.onmessage=e=>{const m=JSON.parse(e.data);if(m.id){const p=pending.get(m.id);pending.delete(m.id);if(m.error)p.reject(Error(JSON.stringify(m.error)));else p.resolve(m.result);}};
+ function cdp(method,params={}){return new Promise((resolve,reject)=>{const n=++id;pending.set(n,{resolve,reject});socket.send(JSON.stringify({id:n,method,params}));});}
+ async function evaluate(expression){const r=await cdp('Runtime.evaluate',{expression,returnByValue:true,awaitPromise:true});if(r.exceptionDetails)throw Error(r.exceptionDetails.text+JSON.stringify(r.exceptionDetails.exception));return r.result.value;}
+ await cdp('Page.enable');await cdp('Network.enable');await cdp('Network.setCacheDisabled',{cacheDisabled:true});await cdp('Runtime.enable');let all=[];
+ for(const [device,width,height] of (process.argv.includes('--movement-only')?[['desktop',1280,720]]:[['desktop',1280,720],['phone',390,844]]))for(const quality of (process.argv.includes('--movement-only')?['low']:['low','high']))for(const cam of (process.argv.find(a=>a.startsWith('--cam='))?[process.argv.find(a=>a.startsWith('--cam=')).split('=')[1]]:process.argv.includes('--movement-only')?['pub']:['street','pub','shop','cast','player'])){
+ await cdp('Emulation.setDeviceMetricsOverride',{width,height,deviceScaleFactor:1,mobile:device==='phone'});await cdp('Emulation.setTouchEmulationEnabled',{enabled:device==='phone'});
+ await cdp('Page.navigate',{url:`${base}/world3d?test=1&quality=${quality}&cam=${cam}`});
+ let ready=false;for(let i=0;i<240;i++){await pause(250);if(await evaluate('window.__evoriumReady===true')){ready=true;break;}const errors=await evaluate('window.__evoriumReport?.errors');if(errors?.length)throw Error(JSON.stringify(errors));}
+ if(!ready)throw Error('Page never became ready');
+ const report=await evaluate('window.__evoriumReport');if(Math.hypot(...report.player.position.map((v,i)=>v-report.player.actorPosition[i]))>.01)throw Error('Avatar and capsule positions differ');const actual=report.characters.map(c=>c.id).sort();if(JSON.stringify(actual)!==JSON.stringify(report.expectedCharacters.sort()))throw Error('Spawned characters differ from scene');if(report.errors.length)throw Error(report.errors.join('\n'));if(report.visibleTriangles>(quality==='low'?150000:400000))throw Error('In-view triangle budget exceeded '+report.visibleTriangles);
+ const stem=`${device}-${quality}-${cam}`;const shot=await cdp('Page.captureScreenshot',{format:'png'});await fs.writeFile(output+'/'+stem+'.png',Buffer.from(shot.data,'base64'));await fs.writeFile(output+'/'+stem+'.json',JSON.stringify(report,null,2));console.log(stem,report.drawCalls,report.triangles,'visible',report.visibleTriangles,report.fps.toFixed(1));all.push({stem,...report});
+ }
+ if(!process.argv.includes('--screens-only')){
+ const physics=await evaluate('window.__evoriumTest.physics()');await fs.writeFile(output+'/physics.json',JSON.stringify(physics,null,2));console.log('PHYSICS',JSON.stringify(physics));
+ const movement=await evaluate('window.__evoriumTest.movement()');await fs.writeFile(output+'/movement.json',JSON.stringify(movement,null,2));console.log('MOVEMENT',JSON.stringify(movement.results));
+ const chat=await evaluate('window.__evoriumTest.chat()');await fs.writeFile(output+'/chat.json',JSON.stringify(chat,null,2));console.log('CHAT',chat.text);
+ await fetch(base+'/smoke/at',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({at:'2026-11-19 18:59:00'})});const beforeFast=await evaluate('window.__evoriumTest.refresh()');
+ await fetch(base+'/speed',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({speed:60})});await pause(6000);const fast=await evaluate('window.__evoriumTest.refresh()');if(fast.speed!==60||fast.sim_at===beforeFast.sim_at||JSON.stringify(fast.characters)===JSON.stringify(beforeFast.characters))throw Error('60x routine changes not reflected');await fs.writeFile(output+'/speed60.json',JSON.stringify(fast,null,2));await fetch(base+'/speed',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({speed:0})});
+ }
+ await fs.writeFile(output+'/reports.json',JSON.stringify(all,null,2));socket.close();
+}finally{chrome.kill();}

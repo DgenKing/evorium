@@ -1,0 +1,12 @@
+{
+  "idle": "Idle_Loop",
+  "walk": "Walk_Loop",
+  "run": "Jog_Fwd_Loop",
+  "jump_start": "Jump_Start",
+  "fall": "Jump_Loop",
+  "land": "Jump_Land",
+  "sit": "Sitting_Idle_Loop",
+  "sit_down": "Sitting_Enter",
+  "stand_up": "Sitting_Exit",
+  "talk": "Idle_Talking_Loop"
+}

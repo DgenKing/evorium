@@ -1,0 +1,14 @@
+{
+  "high": {
+    "bytes": 5149538,
+    "megabytes": 5.149538,
+    "triangles": 173338,
+    "estimatedTextureMB": 271.93070933333337
+  },
+  "low": {
+    "bytes": 3404006,
+    "megabytes": 3.404006,
+    "triangles": 124232,
+    "estimatedTextureMB": 45.43829333333333
+  }
+}

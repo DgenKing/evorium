@@ -89,12 +89,29 @@ sudo systemctl status evorium
    ```
 4. Test it: `ngrok start evorium`. Open `https://evorium-rob.ngrok-free.app` on your phone (free ngrok shows
    a one-time "You are about to visit…" page; click through). Stop it with Ctrl+C.
-5. **Make ngrok always-on too:**
+5. **Make ngrok always-on too.** The snap version of ngrok can't install its own service (`ngrok service install`
+   fails with "permission denied"), so run it as a normal systemd service instead. Use your account name and
+   your domain:
    ```bash
-   sudo ngrok service install --config ~/.config/ngrok/ngrok.yml
-   sudo ngrok service start
+   sudo tee /etc/systemd/system/evorium-ngrok.service >/dev/null <<'EOF'
+   [Unit]
+   Description=ngrok tunnel for Evorium
+   After=network-online.target evorium.service
+   Wants=network-online.target
+
+   [Service]
+   User=<server-user>
+   ExecStart=/snap/bin/ngrok http 8000 --url=YOUR-DOMAIN.ngrok-free.dev --log=stdout
+   Restart=always
+   RestartSec=10
+
+   [Install]
+   WantedBy=multi-user.target
+   EOF
+   sudo systemctl daemon-reload && sudo systemctl enable --now evorium-ngrok
    ```
-   It now starts by itself after reboots, like the game.
+   It now starts by itself after reboots, like the game. On the free plan, `ngrok http 8000` alone also uses
+   your account's free fixed domain.
 
 Your link is `https://evorium-rob.ngrok-free.app` (the dashboard), and the 3D world will be `/world3d` once
 
@@ -134,7 +151,7 @@ Codex and others: push only finished work to `main`, because it goes live within
 | Why did an update fail? | `cat ~/evorium/last_update_tests.txt` |
 | Back up now | `cd ~/evorium && .venv/bin/python deploy/backup_world.py` |
 | Restore a backup | `sudo systemctl stop evorium`, copy a file from `backups/` over `evorium.sqlite3`, `sudo systemctl start evorium` |
-| ngrok status | `sudo ngrok service status`, or the ngrok dashboard |
+| ngrok status | `systemctl status evorium-ngrok`, or the ngrok dashboard |
 
 ## Good to know
 

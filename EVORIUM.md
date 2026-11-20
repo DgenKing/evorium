@@ -7,7 +7,7 @@
 > (`git show 6fec17c:EVORIUM_BUILD_BRIEF_M3.md`, etc.).
 > `README.md` stays the how-to-run guide. Keep this file up to date at the end of each piece of work.
 >
-> **Last updated:** 19 November 2026
+> **Last updated:** 20 November 2026
 
 ## Contents
 
@@ -67,7 +67,7 @@ the player's view. It started as a single-player experiment; the owner now wants
 
 **One sentence:** eight AI characters live real-time daily routines around a pub and a newsagent in Ancoats,
 Manchester; they talk, gossip, remember, make plans and take validated decisions with financial and social consequences; you
-can walk in and talk to them; a dashboard and a 2D map show it all live.
+can walk in and talk to them; a dashboard, a 2D map and a desktop/phone 3D browser view show it live.
 
 | Area | State |
 |---|---|
@@ -90,12 +90,13 @@ can walk in and talk to them; a dashboard and a 2D map show it all live.
 | Map tab | 2D canvas: pub, shop, empty unit, street; pixel sprites walk, idle, show speech bubbles; click for portrait + stats |
 | Model | DeepSeek `deepseek-flash`, JSON mode, temperature 0.8 (0.2 for structured calls) |
 | Cost | ~$0.03 for the first 70 calls; roughly 0.3–0.5 US cents per conversation including notes |
-| Tests | 225 Python tests + 7 Node map tests, all offline |
+| Web 3D | `/world3d`: Shuttle Street, animated CC0 stand-ins, third-person walking/jumping, touch controls, player chat |
+| Tests | 226 Python tests + 7 Node map tests + Web3D Node checks and offline Chrome integration, all fake/offline |
 
 ### Tech stack and dependencies
 
 Python 3.11+, FastAPI + uvicorn, `sqlite3` (no ORM), `httpx` (no OpenAI SDK), pydantic, plain HTML/CSS/JS
-(no framework, no build step), pytest. Node is only used to run the map test. No Docker, no Redis, no `.env`
+(no framework, no build step), pytest. Node runs frontend tests and the optional Web3D asset pipeline; the game needs no Node runtime. Three.js 0.187.0 is vendored locally (MIT); glTF Transform is a build-only dependency authorized by the Web3D brief. No Docker, no Redis, no `.env`
 files — the API key is hardcoded in the git-ignored `config.py` (dotenv loads the wrong file on this machine).
 
 ---
@@ -197,6 +198,14 @@ The model only ever sees words ("you are wary of… and like them"), never numbe
 | `evorium/static/map.js` | Map tab |
 | `evorium/static/timeline.html` | Timeline page |
 
+The browser client at `/world3d` vendors Three.js 0.187.0, loads high/low glTF and
+baked lighting, builds an octree from separate simple collision hulls, and animates a
+third-person capsule/player plus NPC actors. `tools/web3d/` rebuilds assets without a
+runtime build step. It polls `/world/scene` every 1.5 seconds (5 seconds after errors),
+uses a collision-verified A* graph for cosmetic movement, and uses `/player/*`,
+`/catchup` and `/catchup/seen` for actual player interactions. It renders no rationale
+or private NPC facts. `?test=1` fixes poses/camera/time and exposes offline QA reports.
+
 The Unreal client polls `GET /world/scene`, which reads a consistent SQLite snapshot through a read-only
 connection. It exposes public presence/dialogue only and adds no model calls. Spot assignments live in Python;
 Unreal handles cosmetic walking, bubbles, lighting and doors.
@@ -251,6 +260,71 @@ months ago. Simon's instructions: bring rents to market level, buy out leases wh
 ---
 
 ## 5. History: milestones and what each taught us
+
+### Session of 20 November 2026 — Web3D browser implementation
+
+- Re-ran `CODEX_PROMPT_WEB3D.md` §0.2: Blender 5.3.0, official npm registry,
+  unlocked kit and both Standard archives pass. Snap Blender and networking need
+  approved access outside this session's sandbox. Both supplied licences confirm CC0.
+- Built `/world3d` and a dashboard **3D** link, using plain ES modules and locally
+  vendored Three.js 0.187.0. The official release has no minified build; the requested
+  module filename contains the unmodified module and its required core sibling.
+- Added a reproducible, ignored-intermediate asset pipeline in `tools/web3d/`.
+  Only the active Street scene exports; source scenes, kit cast and live state remain
+  untouched. Fifteen marker coordinates match exactly; floor and doorway ray checks
+  pass. The graph has 746 nodes and 4,697 verified three-ray waist-clear edges; every
+  waypoint and upstairs is reachable from both street ends. Converted font signage
+  to low-tessellation meshes after visual review caught missing lettering.
+- The Standard pack contains Superhero bodies rather than Regular bodies. Used its
+  male/female universal-rig stand-ins with clothing colour masks and per-cast scale;
+  repaired one missing texture filename alias using the included PNG. Bone names
+  match the library. Ten clips ship, without the library's unused mannequin mesh.
+- Cycles CPU baked indirect lighting at 128 samples, secondary UVs, 2048/1024 atlases;
+  the atlas is shared, with limited detail on small props. No separate night atlas;
+  night dims the bake and uses emissive glass/runtime lights. Named pub/shop interior,
+  window and sign groups survive optimization. Low geometry is simplified; textures
+  use WebP and assets use Meshopt. Generated asset budgets: low **3.40 MB / 124,232
+  triangles**, high **5.15 MB / 173,338 triangles**, counting one male and female body.
+  Low texture allocation estimate is **45.44 MB**, including mipmaps and lightmap;
+  this excludes renderer/JS/octree memory. Vendor modules add about 2.4 MB before HTTP
+  compression. In-view geometry/shadow statistics come from browser reports.
+- Implemented capsule/octree walking, running, step-up, jump and wall blocking,
+  follow-camera wall collision, closed doors, desktop/touch controls, remembered
+  settings, quality presets and FPS downgrade. NPCs use the verified graph, slot
+  offsets, sitting/talking clips, public name cards, bubbles and server polling.
+  Chat/catch-up use existing APIs and render spoken text with DOM text nodes.
+- The smoke server now defaults to a `/tmp` database copy (override with
+  `EVORIUM_SMOKE_DB`) and exposes a fake-only clock fixture. Browser automation refuses
+  player writes without its fake status. Targeted physical tests reach both interiors
+  and return, with pub/leave/shop/leave calls, ≤0.13 m final error and no penetration;
+  jump 1.03 m, wall stop x −8.60 m, camera stop 0.77 m, shut-door stop z 0.60 m.
+  Fake chat and a 60× routine refresh pass. Python: **226 passed**, map: **7 passed**;
+  Web3D graph/animation/quality/slot/cast checks pass. All 20 desktop/phone low/high
+  captures pass error, visible-triangle, blank-image, NPC-ID and avatar alignment
+  checks. Visible geometry ranges from 76,750–139,238 triangles on low and
+  145,715–216,268 on high; total draw calls range 43–90 low and 134–181 high,
+  including shadows. SwiftShader measures about 4–11 fps low and 2 fps high, not
+  hardware performance. Reviewed exteriors/signs, pub seating/bar, shop stock/till,
+  cast gestures/bubbles and Rob at the door. Corrected the blocked shop test camera
+  and test avatar/capsule alignment. See `tools/web3d/VERIFICATION.md`.
+- No commits, real model calls, live-server restart, live-database writes, config,
+  website, Unreal-project or source-kit changes. The older blocked preflight below
+  records the earlier attempt, not the current state.
+
+### Session of 20 November 2026 — Web3D prerequisite check
+
+- Read `CODEX_PROMPT_WEB3D.md` in full and checked §0.2 before implementation.
+  Stage 1 has not started: `blender --version` returns command not found, and
+  `~/Downloads/evorium-characters/` does not exist, so the required Quaternius packs
+  could not be inspected or their CC0 licences confirmed.
+- The read-only kit path exists at `/run/media/user/Data Storage/Evorium/AncoatsKit/Ancoats_Blender_Kit/`.
+  npm 11.4.2 is available, but connectivity checks against both the configured
+  `registry.npmmirror.com` and official `registry.npmjs.org` failed with `EAI_AGAIN`
+  DNS errors in this session. Network access remains unverified outside the sandbox.
+- Stopped as required by §0.2. Next: install Blender 4.3+, supply both Standard
+  character-pack zips, and make npm registry access available, then repeat preflight.
+  No client code, assets, screenshots or budget measurements were produced. The live
+  database, config, website and Unreal project were untouched; no commits were made.
 
 ### Milestone 1 — smallest working slice (15 Nov 2026)
 
@@ -514,6 +588,16 @@ DeepSeek; the owner later ran the live server on the new code.
 ---
 
 ## 6. Known issues and open questions
+- **Web3D device review:** automated desktop/phone-size checks use software SwiftShader;
+  FPS is not representative of phone/GTX hardware. Real iOS memory, multitouch and
+  keyboard feel need physical-device checks. CC0 bodies use clothing masks, without
+  bespoke hair/portraits/facial animation. A shared indirect atlas simplifies small
+  props; no separate night bake or bloom. Automatic quality drops change renderer
+  settings but retain loaded assets; choosing a preset reloads its asset set.
+  Cosmetic NPC catch-up currently snaps rather than fading, and departures disappear
+  at the route end. Speech bubbles near viewport edges can crop. The shared single
+  player remains an owner prototype.
+
 - **Spoken bans are not enforced:** there is no persisted ban/ejection state or admission check. A character
   can describe throwing Rob out, yet the UI still admits him and a later greeting may be friendly. Explicit
   ban/reinstatement actions and relevant-incident prompt priority remain to build.
@@ -563,16 +647,13 @@ Short term (single owner):
    for the five) and register the new three in the `portraits` map in `index.html`.
 3. Use the place renders as the map backdrop or a click-through "street view".
 4. Decide on daytime pub visitors.
-5. **3D client:** Stage 1 automated build/import/geometry/navigation checks pass on the writable data
-   drive. Continue Stages 2–5 and perform the owner visual checks. See [CODEX_PROMPT_UNREAL.md](CODEX_PROMPT_UNREAL.md) to Codex. It's a UE 5.8 **Games →
-   Third Person (C++)** project built in 5 stages:
-   1. the kit import and the street level;
-   2. the cast, with stand-in bodies, tints and name tags;
-   3. a read-only `/world/scene` endpoint, with Unreal walking characters to spots;
-   4. the player as Rob, walking in and talking to characters;
-   5. polish and an owner checklist.
-
-   Unreal never decides anything; Python stays the brain.
+5. **Web3D browser client built:** `/world3d`, with the build/check commands in
+   `tools/web3d/README.md` and controls in `evorium/static/world3d/README.md`.
+   Next: review on the owner's desktop and a real phone (especially iOS memory,
+   keyboard, touch and visual feel); improve stand-in clothing/hair and seated poses;
+   add fades/separation polish and reload low assets on automatic downgrade if needed.
+   Keep the Unreal project frozen; its packaging work is superseded by the browser
+   client. Python remains the source of truth; the brief is `CODEX_PROMPT_WEB3D.md`.
 6. **Website:** give [CODEX_PROMPT_WEBSITE.md](CODEX_PROMPT_WEBSITE.md) to Codex: a one-page, image-heavy, plain
    HTML/CSS site in `website/`. Its theme is "Ancoats after dark": ink, brick, Billet green and amber, with
    Fraunces or Playfair and Inter. The pitch is "The street doesn't stop when you leave": a living 3D world,
@@ -665,6 +746,49 @@ For an online version:
   Every message goes to DeepSeek on the player's key, so extreme input can fail or break the provider's
   rules. Plan a light filter and per-player rate limits.
 
+### Hosting notes (20 Nov)
+
+- **Server:** an OVH VPS-2 (4 vCores, 8 GB) is plenty for the first test (owner plus 5–10 friends). Rendering
+  runs on players' devices (Three.js) and the AI on DeepSeek, so the server is light.
+- **The real limits are in the code, not the hardware. Fix them before scaling:**
+  1. **One conversation at a time worldwide** (`_run_lock` in `main.py`). Conversations need to run in
+     parallel, one per place.
+  2. **SQLite without WAL mode.** Turn on `PRAGMA journal_mode=WAL` (and a busy timeout) before many
+     concurrent writers.
+  3. **One player row.** Real multiplayer needs accounts and per-player relationships and memory; this is the
+     biggest job.
+  4. **A single uvicorn process,** with the tick thread and in-memory state, so it can't simply run multiple
+     workers. That's fine at first.
+  5. **`/world/scene` polled every 1.5 s per player.** Build the snapshot once per tick and serve the cached
+     copy.
+- **Bandwidth:** 12–30 MB of 3D assets per new player. Put a CDN (e.g. Cloudflare free) in front for static
+  files.
+- **Cost driver:** DeepSeek, not the VPS (about $0.40 a day for 8 characters now). That's another reason for
+  player-supplied keys.
+- **Cast size:** grow slowly (12–20 well-written neighbours) rather than aiming for 100 generic NPCs. Depth
+  is what makes Evorium work.
+
+- **Decision (20 Nov): host on the owner's always-on HP ProDesk 405 G4 Mini** (Ryzen 5 PRO 2400GE, 16 GB,
+  128 GB, Ubuntu 26.04, LAN <server-address>) under its own `evorium` account. It's shared on the internet through
+  too hard.
+  - Guide: [deploy/HOME_SERVER.md](deploy/HOME_SERVER.md). The installer `deploy/install_home_server.sh`
+    sets up the venv, checks config, installs a systemd service on 127.0.0.1:8000 and a 03:15 nightly backup
+    cron.
+  - Backups: `deploy/backup_world.py` uses SQLite's backup API, keeps 14, and was tested on a copy.
+  - Once the world is moved, the G4 holds the real world; the main PC only uses copies.
+  - **Deploys come only from GitHub:** develop on the main PC and push to `main`. The G4's
+    `evorium-update.timer` runs `deploy/auto_update.sh` every 2 minutes. It backs up, fast-forwards, runs pytest,
+    and restarts if the tests pass, otherwise it rolls back (a failed commit is tried once). It logs to
+    `updates.log`, and restarts are allowed through a sudoers rule for `systemctl restart evorium` only.
+    Tested on throwaway clones: good push, broken push rolled back, and a fix applied.
+  - **Only push finished work to `main`,** because it goes live within minutes.
+  - **Live on the G4 (20 Nov, 12:17):** account `<server-user>`, project `<project-dir>`, the world moved
+    from the main PC (464 KB), the `evorium` service running, auto-update and the nightly backup timer enabled
+    (the first backup was taken). On Ubuntu 26.04 the backup uses a systemd timer, because cron isn't installed
+    by default. The main PC's server is stopped.
+  - **Public address:** https://<tunnel-domain> (ngrok free plan, EU region), run by
+    `evorium-ngrok.service` (a systemd unit; snap ngrok can't run `ngrok service install`). Protected by
+
 ### What has to be built
 
 | Area | Work |
@@ -703,6 +827,17 @@ pool and settings, then open sign-ups.
 ---
 
 ## 10. Art, 3D and Unreal
+
+**Current delivery is Web3D**, built from `CODEX_PROMPT_WEB3D.md` on 20 November.
+The friend's set is exported read-only through Blender, with font lettering, 44
+collision hulls, 15 converted metre/Y-up waypoints and a verified walking grid.
+Quaternius Standard CC0 male/female Superhero bodies replace the Unreal-only
+mannequin; ten universal-rig clips supply idle/walk/run/jump/land/sit/talk.
+Tinted clothing masks, scales and portrait cards identify Evorium's cast.
+Cycles indirect lightmaps, WebP and Meshopt keep low assets at 3.40 MB and high at
+5.15 MB. Full licences are in `static/world3d/assets/LICENSES.md`; rebuilding and
+verification are in `tools/web3d/README.md`. Source kit and Unreal stay unchanged.
+The Unreal-era casting choices below remain historical context.
 
 Unreal build (19 Nov): Stage 1 is built at `/run/media/user/Data Storage/Evorium/EvoriumUnreal`.
 Editor compilation, headless import, 15 floor traces, entrance rays and five nav paths pass.

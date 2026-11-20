@@ -1,0 +1,3 @@
+export const presets={low:{pixelRatio:1,shadows:0,assets:'low',lights:1},medium:{pixelRatio:1.5,shadows:1024,assets:'high',lights:2},high:{pixelRatio:2,shadows:2048,assets:'high',lights:4}};
+export function detectQuality({touch=false,width=1280,maxTextureSize=0,pixelRatio=1}={}){return touch||width<700?'low':maxTextureSize>=16384&&pixelRatio<=2?'high':'medium';}
+export class Watchdog{constructor(){this.elapsed=0;this.frames=0;this.drops=0;}update(dt,preset){this.elapsed+=dt;this.frames++;if(this.elapsed<5)return preset;const fps=this.frames/this.elapsed;this.elapsed=0;this.frames=0;if(fps<28&&this.drops<2&&preset!=='low'){this.drops++;return preset==='high'?'medium':'low';}return preset;}}

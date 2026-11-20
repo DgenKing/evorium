@@ -1,0 +1,4 @@
+// First run npm pack three@0.187.0 and extract it into tools/web3d/raw/package.
+import fs from 'node:fs/promises';import path from 'node:path';
+const files=['build/three.module.js','build/three.core.js','LICENSE','examples/jsm/loaders/GLTFLoader.js','examples/jsm/utils/BufferGeometryUtils.js','examples/jsm/utils/SkeletonUtils.js','examples/jsm/math/Octree.js','examples/jsm/math/Capsule.js','examples/jsm/renderers/CSS2DRenderer.js','examples/jsm/libs/meshopt_decoder.module.js'];
+for(const file of files){let target=path.join('evorium/static/vendor/three',file.replace('build/',''));if(file==='build/three.module.js')target=target.replace('three.module.js','three.module.min.js');await fs.mkdir(path.dirname(target),{recursive:true});await fs.copyFile(path.join('tools/web3d/raw/package',file),target);}
