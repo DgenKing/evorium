@@ -15,3 +15,4 @@ for attempt in {1..40}; do
 done
 node tools/web3d/screenshots.mjs "$@"
 python3 tools/web3d/check_screens.py
+node tools/web3d/ambient_checks.mjs

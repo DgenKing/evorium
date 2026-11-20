@@ -53,3 +53,24 @@ Quaternius animation clips remain CC0 under the licence above.
 | skins/young_caucasian_female | CC0-1.0 | [Pack asset table](https://static.makehumancommunity.org/assets/assetpacks/makehuman_system_assets.html) |
 | skins/young_caucasian_female2 | CC0-1.0 | [Pack asset table](https://static.makehumancommunity.org/assets/assetpacks/makehuman_system_assets.html) |
 | skins/young_caucasian_male | CC0-1.0 | [Pack asset table](https://static.makehumancommunity.org/assets/assetpacks/makehuman_system_assets.html) |
+
+## Street life (20 November 2026)
+
+- **Cat, Dog and Wolf meshes, rigs, Idle and Walking clips:** Quaternius,
+  *Animal Pack Vol.2 by @Quaternius.zip*. Creator-uploaded source and CC0-1.0 declaration:
+  https://opengameart.org/content/animated-animales-low-poly
+  (the indexed creator page was checked on 20 November 2026; direct automated access returned 403).
+  Creator announcement identifying the archive:
+  https://www.patreon.com/quaternius/posts/animated-animals-13160113 .
+  CC0 terms: https://creativecommons.org/publicdomain/zero/1.0/ .
+  The owner supplied the original archive; it contains no separate licence text.
+  Archive SHA-256: `6d8f6789d65dbdb352ebad98a4209f26b41b384e87d81bc05e9ca76139db1248`.
+  Exported from Blends/Cat.blend, Dog.blend and Wolf.blend by `tools/web3d/build_ambient.py`.
+  Evorium derivatives: metre scale, +Z forward, sampled IK animations, coat vertex colours.
+  The owner authorised using Wolf as the fox substitute: 0.48 m total height, orange coat,
+  white chest/tail tip and dark lower legs. It retains the wolf's silhouette and clips.
+  No Ultimate Animated Animal Pack assets were downloaded or used.
+- **Pigeons and rubbish:** original procedural Evorium meshes and code-driven movement
+  in `ambient.js`; no external models, images, fonts or sounds.
+- Ambient GLBs use Meshopt. The current models have vertex colours and no textures;
+  the pipeline also converts any future textures to WebP (128px low / 256px high).

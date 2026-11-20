@@ -239,7 +239,7 @@ async def usage():
         "auto": _state["auto"], "auto_conversations": _state["conversations"], "gap_minutes": _state["gap_minutes"],
         "sim_at": now.strftime("%Y-%m-%d %H:%M"), "sim_time": world.describe(now), "speed": world.get_speed(DEFAULT_DB_PATH), "pub_open": world.pub_open(now, economy.read(DEFAULT_DB_PATH)),
         "present": [p["name"].split()[0] for p in tick.who_is_in_the_pub(now, DEFAULT_DB_PATH)],
-        "boot_id": BOOT_ID, "model_paused_until": backoff.until(),
+        "boot_id": BOOT_ID, "version": VERSION, "model_paused_until": backoff.until(),
         "tick_alive": _state["last_tick"] is not None and time.time() - _state["last_tick"] < TICK_REAL_SECONDS * 4,
     })
     return data
@@ -247,6 +247,23 @@ async def usage():
 
 RESTART_GRACE_SECONDS = 30
 BOOT_ID = f"{os.getpid()}-{time.time():.0f}"   # changes on every start, so the dashboard can tell a restart finished
+
+
+def code_version(repo=Path(__file__).resolve().parent.parent):
+    """The git commit this server is running, read once at start-up (so it changes on every auto-update)."""
+    import subprocess
+    try:
+        out = subprocess.run(["git", "-C", str(repo), "log", "-1", "--format=%h|%cd|%s", "--date=format:%d %b %H:%M"],
+                             capture_output=True, text=True, timeout=5)
+        commit, date, subject = out.stdout.strip().split("|", 2)
+        dirty = subprocess.run(["git", "-C", str(repo), "status", "--porcelain", "--untracked-files=no"],
+                               capture_output=True, text=True, timeout=5).stdout.strip() != ""
+        return {"commit": commit, "date": date, "subject": subject, "modified": dirty}
+    except (OSError, ValueError, subprocess.SubprocessError):
+        return {"commit": "unknown", "date": "", "subject": "Not a git checkout", "modified": False}
+
+
+VERSION = code_version()
 
 
 def _restart_process():

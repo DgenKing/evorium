@@ -1,3 +1,4 @@
+import {optimiseAmbient} from './optimise_ambient.mjs';
 import {NodeIO} from '@gltf-transform/core';
 import {ALL_EXTENSIONS} from '@gltf-transform/extensions';
 import {dedup,prune,weld,resample,meshopt,textureCompress,join,flatten,simplify} from '@gltf-transform/functions';
@@ -53,7 +54,8 @@ for(const quality of ['high','low']){
  }
  caster[quality]=perCharacter;
  const lightmap=`evorium/static/world3d/assets/${quality}/lightmap.webp`;await sharp(`tools/web3d/raw/lightmaps/day-${quality}.png`).webp({quality:85}).toFile(lightmap);bytes+=(await fs.stat(lightmap)).size;gpu+=(quality==='low'?1024:2048)**2*4*4/3;
- reports[quality]={bytes,megabytes:bytes/1e6,triangles,estimatedTextureMB:gpu/1e6,cast:perCharacter};
+ const ambient=await optimiseAmbient(quality);bytes+=ambient.bytes;triangles+=ambient.triangles;
+ reports[quality]={ambient,bytes,megabytes:bytes/1e6,triangles,estimatedTextureMB:gpu/1e6,cast:perCharacter};
  if(bytes>(quality==='low'?12:30)*1e6)throw Error('Budget exceeded '+JSON.stringify(reports[quality]));
 }
 await fs.writeFile('evorium/static/world3d/data/budgets.json',JSON.stringify(reports,null,2));

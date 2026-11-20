@@ -11,7 +11,8 @@
   header { display:flex; align-items:center; gap:16px; padding:14px 20px; border-bottom:1px solid #2a2a2a; }
   header h1 { margin:0; font-size:20px; color:var(--accent); letter-spacing:.5px; }
   header .loc { color:var(--muted); font-size:13px; }
-  header #restart { margin-left:auto; background:var(--card); color:var(--fg); border:1px solid #333; padding:6px 12px; font-size:13px; }
+  header #version { margin-left:auto; color:var(--muted); font-size:12px; font-family:ui-monospace,monospace; white-space:nowrap; }
+  header #restart { margin-left:12px; background:var(--card); color:var(--fg); border:1px solid #333; padding:6px 12px; font-size:13px; }
   header #restart:hover:not(:disabled) { border-color:var(--accent); color:var(--accent); }
   header #restart:disabled { opacity:.6; cursor:wait; }
   main { display:grid; grid-template-columns: 300px 1fr; gap:16px; padding:16px 20px; max-width:1200px; }
@@ -94,6 +95,7 @@
   <a href="/world3d" style="color:var(--accent)">3D</a>
   <a href="/timeline-page" style="color:var(--accent)">Timeline</a>
   <span class="loc" id="location">—</span>
+  <span id="version" title="">version …</span>
   <button id="restart" type="button" title="Restart the server so code changes take effect">Restart server</button>
 <small id="model-pause"></small></header>
 <nav class="view-tabs" role="tablist" aria-label="Dashboard views">
@@ -244,6 +246,11 @@ async function loadUsage(){
   $('u-cap').textContent = u.max_spend_usd==null ? 'no config' : '$'+u.max_spend_usd.toFixed(2);
   $('u-left').textContent = '$' + u.estimated_remaining_usd.toFixed(4);
   $('location').textContent = `${u.sim_time}${u.speed!=1?' · '+u.speed+'×':''}${u.tick_alive?'':' · ⚠ tick stalled'}`;
+  if (u.version) {
+    const v = u.version;
+    $('version').textContent = 'v ' + v.commit + (v.date ? ' · ' + v.date : '') + (v.modified ? ' (edited)' : '');
+    $('version').title = v.subject + (v.modified ? ' + local edits not yet committed' : '');
+  }
   $('model-pause').textContent = u.model_paused_until ? 'DeepSeek paused until '+new Date(u.model_paused_until).toLocaleTimeString() : '';
   $('whereabouts').innerHTML='<b>Where everyone is</b>'+(u.places||[]).map(p=>`<div class="row"><b>${esc(p.name.split(',')[0])}</b> ${p.open?esc(p.people.map(a=>a.name.split(' ')[0]).join(', ')||'Nobody here'):'Shut'}</div>`).join('');
   if (document.activeElement !== $('speed')) $('speed').value = String(u.speed);

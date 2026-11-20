@@ -1,8 +1,8 @@
 {
   "high": {
-    "bytes": 10725450,
-    "megabytes": 10.72545,
-    "triangles": 276756,
+    "bytes": 10957998,
+    "megabytes": 10.957998,
+    "triangles": 278787,
     "estimatedTextureMB": 504.365056,
     "cast": {
       "dez": {
@@ -59,12 +59,44 @@
         "triangles": 12260,
         "estimatedTextureMB": 25.165823999999997
       }
+    },
+    "ambient": {
+      "bytes": 232548,
+      "megabytes": 0.232548,
+      "limitBytes": 2500000,
+      "triangles": 2031,
+      "models": {
+        "cat": {
+          "bytes": 79560,
+          "triangles": 807,
+          "clips": [
+            "Idle",
+            "Walking"
+          ]
+        },
+        "dog": {
+          "bytes": 75748,
+          "triangles": 602,
+          "clips": [
+            "Idle",
+            "Walking"
+          ]
+        },
+        "fox": {
+          "bytes": 77240,
+          "triangles": 622,
+          "clips": [
+            "Idle",
+            "Walking"
+          ]
+        }
+      }
     }
   },
   "low": {
-    "bytes": 6526526,
-    "megabytes": 6.526526,
-    "triangles": 164723,
+    "bytes": 6759074,
+    "megabytes": 6.759074,
+    "triangles": 166754,
     "estimatedTextureMB": 122.68339199999998,
     "cast": {
       "dez": {
@@ -120,6 +152,38 @@
         "megabytes": 0.277184,
         "triangles": 4706,
         "estimatedTextureMB": 8.388608
+      }
+    },
+    "ambient": {
+      "bytes": 232548,
+      "megabytes": 0.232548,
+      "limitBytes": 1200000,
+      "triangles": 2031,
+      "models": {
+        "cat": {
+          "bytes": 79560,
+          "triangles": 807,
+          "clips": [
+            "Idle",
+            "Walking"
+          ]
+        },
+        "dog": {
+          "bytes": 75748,
+          "triangles": 602,
+          "clips": [
+            "Idle",
+            "Walking"
+          ]
+        },
+        "fox": {
+          "bytes": 77240,
+          "triangles": 622,
+          "clips": [
+            "Idle",
+            "Walking"
+          ]
+        }
       }
     }
   }
