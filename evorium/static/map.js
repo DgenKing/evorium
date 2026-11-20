@@ -257,7 +257,7 @@
       return 'pub';
     }
     if(agent.location===SHOP) return agent.activity==='behind the counter'?'till':'shop';
-    if(agent.location==='Ancoats' && agent.activity==='walking to the shops') return 'street';
+    if(agent.location==='Shuttle Street, Ancoats' || (agent.location==='Ancoats' && agent.activity==='walking to the shops')) return 'street';
     return null;
   }
   function poolFor(target,agent) {

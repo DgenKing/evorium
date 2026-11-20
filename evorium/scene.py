@@ -81,6 +81,8 @@ def snapshot(db_path=DEFAULT_DB_PATH, *, real_at=None):
             # The persisted presence is exactly what the dashboard shows; the heartbeat owns it.
             location, activity = agent['location'], agent['activity'] or ''
             place = next((key for key, name in places.REGISTRY.items() if name == location), 'away')
+            if place == 'away' and location in (world.STREET, 'Ancoats'):
+                place = 'street'
             if location == 'Ancoats' and activity == 'walking to the shops':
                 place = 'street'
             first = first_name(agent['name'])

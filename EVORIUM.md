@@ -98,7 +98,7 @@ and phone); it runs around the clock on the owner's HP G4 and is reachable over 
 | Catch-up | "While you were away": significant events and gossip, cached narration or bullet fallback |
 | Director | Nudges a stalled or looping world with one mundane event a day at most |
 | Timeline | Permanent record + daily digest, at `/timeline-page` |
-| Dashboard | Character cards, live feed, usage/spend, controls, terrace card, **Restart server** button |
+| Dashboard | Character cards, live feed, usage/spend, controls, terrace card, **version** (git commit and date) and the **Restart server** button |
 | Map tab | 2D canvas of the pub, shop, empty unit and street; pixel sprites, bubbles, portrait popups |
 | 3D game | `/world3d`: Shuttle Street in Three.js, nine distinct MPFB models, third person, touch controls, chat and optional cosmetic street life |
 | Hosting | HP G4 home server, auto-updating from GitHub, nightly backups, public via ngrok (§6) |
@@ -253,7 +253,7 @@ collision-verified A* graph), bubbles, lighting and doors. `ambient.js` adds bro
 ### Endpoints
 
 - **Read:** `GET /agents` (adds `today_action`, `considering`), `/usage` (sim time, speed, places, present,
-  ledger, `boot_id`, `model_paused_until`), `/events`, `/conversations/latest`, `/conversations/{id}`,
+  ledger, `boot_id`, `version` {commit, date, subject, modified}, `model_paused_until`), `/events`, `/conversations/latest`, `/conversations/{id}`,
   `/timeline` (filters `since`, `until`, `agent_id`, `min_importance`, `kind` = action/offer/arc; timestamps
   `YYYY-MM-DD HH:MM`), `/player`, `/world/ledger`, `/actions?since=`, `/catchup`, `/world/scene`.
 - **Pages:** `/` (dashboard; `/#map` for the map), `/timeline-page`, `/world3d`.
@@ -506,7 +506,7 @@ the loaded assets); choosing a preset reloads the matching asset set. Override w
   appear. Old Quaternius bodies and original clips load only after a model failure, listed in the debug HUD.
 - Baked indirect lighting (Cycles, 128 samples, 2048 high / 1024 low atlas); night dims the bake and uses
   glowing windows and runtime lights.
-- Assets after the MPFB upgrade: **low 6.76 MB**, **high 10.96 MB**, including all nine models and
+- Assets including the MPFB cast and street life: **low 6.76 MB**, **high 10.96 MB**, including all nine models and
   fallback files; normal play loads a visible subset. Vendor modules add about 2.4 MB uncompressed.
   Per-character budgets are below; licences are in `evorium/static/world3d/assets/LICENSES.md`.
 - Physics: capsule-and-octree walking with step-up, a 1.03 m jump, wall and closed-door blocking, and a camera
@@ -527,7 +527,7 @@ active events. `?ambient=off` overrides that setting and prevents ambient loadin
 | Rubbish | One crisp packet, newspaper page or can every 120–240 s, from the windward street end. Gusts spin/skitter packets and paper; cans roll along the gutter with a quiet synthetic rattle after a user gesture. A doorway/bollard stop lasts 8–25 s, then it moves on; it fades at the route end or after 110 s of activity. |
 | Cat | Every 300–600 s; walks across the street pavement and sometimes idles at the shop doorstep for 20–60 s. It never enters either interior. |
 | Dog | Daylight only, every 600–900 s; trots, stops by the actual cast bollard near x=8.08 to sniff using its idle clip, then leaves. |
-| Fox | Only `daylight < 0.3`, every 600–1200 s; slow walk on the outer street lane, looking around by the quiet street end, then leaves. The owner-approved model is a resized/recoloured wolf (§13). |
+| Fox | Only `daylight < 0.3`, every 600–1200 s; slow walk on the outer pavement lane, looking around by the quiet street end, then leaves. The owner-approved model is a resized/recoloured wolf (§13). |
 
 Animal motion uses the street subset of `data/routes.json`, with ground rays and extra sphere/
 segment checks around props and kerbs. Separation steers or waits around Rob/APCs. Ambient
@@ -714,7 +714,7 @@ streets, film grain, matching the game's portraits.
 ## 9. Known issues and open questions
 
 - **Street life art limits:** the fox is the owner-approved small recoloured wolf, retaining its wolf
-  silhouette and walk/idle clips. Cat doorstep rests, dog sniffing and fox look-arounds use idle clips
+  silhouette and walk/idle clips. The fox uses the quiet street end rather than a separate bin area. Cat doorstep rests, dog sniffing and fox look-arounds use idle clips
   and small root turns; there is no dedicated sit/sniff animation. No windowsill jump or shop-interior
   visit. The can's quiet procedural rattle is subject to browser audio/gesture support and has not
   been checked by listening on physical speakers. Real-phone FPS and memory still need hardware.
@@ -815,6 +815,11 @@ never sent back to the browser; the game enforcing each player's spending limit;
 - **Online:** your character is in the world; you walk into the pub or shop and talk.
 - **Offline:** you're not there. NPCs keep living, and remember and gossip about you.
 - **Coming back:** "While you were away": what happened, and who's been talking about you.
+
+### Only real characters
+
+Everyone you see is an APC with a real life in the simulation: no background crowds, passers-by or non-AI
+extras (owner's rule, 20 Nov). To make the world busier, add APCs and give them richer routines.
 
 ### Behaviour is the game
 
@@ -930,6 +935,78 @@ Suggested order: invite-only with friends, accounts + player view, then the key 
 ---
 
 ## 14. History
+
+### Session of 20 November 2026 — Cosmetic street life
+
+- The owner supplied Animal Pack Vol.2 and approved its wolf as the fox substitute, resolving
+  the previous asset preflight blocker. Inspected the archive and its original Idle/Walking
+  clips; verified the creator's indexed CC0 declaration and recorded the archive SHA-256 and
+  source links in the existing asset licence manifest. No Ultimate Animated Animal Pack file used.
+- Added `ambient.js`: per-browser visible-time scheduling, exact public snapshot daylight rules,
+  pavement/gutter subsets of the existing route graph, ground/prop checks, separation from Rob
+  and APCs, lazy cached animal GLBs, instanced procedural pigeons, three procedural rubbish
+  forms, gusts, stops, can rolling/rattle, day dog/night fox and quality event limits. Ambient
+  objects never enter the player octree. Animals face their actual movement vector, with smooth
+  turns. Idle clips support rests/sniffing/look-arounds. The saved gear toggle and `ambient=off`
+  remove active street life; deterministic test types load only after the first view/visible cast.
+- Added `build_ambient.py`, `optimise_ambient.mjs`, full-pipeline integration, ambient and total
+  download gates, Node policy/heading/accounting tests and `ambient_checks.mjs` in `run_checks.sh`.
+  Exports are vertex-coloured, animated and Meshopt-compressed; no textures or new dependencies.
+  Actual on-disk sums agree with budgets: **0.233 MB ambient per tier**, whole assets **6.759 MB
+  low / 10.958 MB high**, under **1.2/2.5 MB ambient** and **12/30 MB whole-game** limits.
+- Visual review caught raised pigeon feet, a newspaper hovering above the paving and a can
+  rolling about the wrong axis; corrected all three. Separated pavement and gutter graph
+  components so animals/paper remain above the kerb and cans follow its outside line.
+- **Verification passed:** `.venv/bin/python -m pytest -q` (226 tests, existing Starlette warning),
+  Web3D Node checks, seven map tests and `bash tools/web3d/run_checks.sh` (exit 0). Its 20 normal
+  screenshots, blank-image checks, open/closed door walking, 1.03 m jump, wall/camera collision,
+  fake chat and 60× routine updates passed. The final Node run additionally checks actual movement
+  heading and independent asset-directory byte sums. All server/browser checks used the fake
+  smoke world on **8011**, never 8000; owned server and Chrome exited afterward.
+- The additional **16 ambient captures** cover desktop high (1280×720) / phone low (390×844),
+  daylight for pigeons/rubbish/cat/dog and night for fox, plus off baselines. Looked at every
+  ambient image. Reports and images: `tools/web3d/raw/screens/ambient/` (ignored build artifacts).
+  Automated checks verify low event/bird caps, no unwanted animal loads, saved off toggle,
+  hidden-time pause, day/night removal and genuine walk-bone changes. Rob and APCs each scatter
+  pigeons independently; Rob walks **3.875 m** into/through the flock and **4.8 m** past each
+  rubbish/animal fixture without being blocked, on both profiles.
+
+#### Street-life screenshot review
+
+| Type | Desktop high and phone low review |
+|---|---|
+| Pigeons | Five high / two low, grey bodies, darker heads, beaks and paired feet; sensible small-bird scale beside Rob and paving. Feet meet the pavement; heads vary between upright and pecking. No wall/kerb clipping seen. Their short walking turns and wing flaps are code-driven; scatter/passage is verified by the interaction tests. |
+| Cat | Small charcoal cat with light paws and raised tail, about **0.409 m** total height in the captured walking frame. Far below Rob's knee/hip scale, paws at ground level, muzzle points in the +X walking direction. The sampled walk changes its leg pose and retains ground contact; no wall or kerb overlap seen. |
+| Dog | Brown medium-sized dog, about **0.601 m** total height in its walking frame, larger than the cat and below Rob's waist. Forward-facing muzzle, alternating lifted/grounded paws, no floating or wall/kerb clipping. Original walking clip is sampled faster for the trot. |
+| Fox substitute | Orange body, white bib/tail tip, dark legs, about **0.513 m** tall in its walking frame; visibly smaller than the dog. Dark paws touch the outer pavement and the muzzle faces travel. The slow original wolf walk changes bone poses; no visible floating or clipping. Night windows provide context. Wolf silhouette remains an acknowledged art compromise. |
+| Rubbish | Yellow/red crinkled packet, folded printed newspaper and red can with metal ends, at believable small sizes. Paper lies close to paving after correction; can lies horizontally at the gutter below the kerb, fully visible in the phone frame. No wall clipping seen. Gusts now make packets/paper flip as well as spin; the can rotates perpendicular to its travel. |
+
+#### Measured rendering cost
+
+Thirty rendered frames per fixed camera/pose after warm-up; draw calls include high-tier shadows.
+The baseline is the same client/camera with `ambient=off`, before adding a street-life fixture.
+Can uses a gutter camera and fox uses night lighting, so their FPS is not a controlled daytime
+comparison. SwiftShader CPU contention/warm-up causes substantial variance: these samples do
+**not** establish a real-device FPS improvement or a reliable movement-time FPS cost.
+
+| Fixture | Phone low calls | Phone low FPS | Desktop high calls | Desktop high FPS |
+|---|---:|---:|---:|---:|
+| Off baseline | 103 | 6.44 | 270 | 1.39 |
+| Pigeons | 110 | 6.57 | 283 | 1.40 |
+| Crisp packet | 105 | 8.72 | 274 | 1.42 |
+| Newspaper | 107 | 8.17 | 276 | 1.43 |
+| Can | 106 | 7.17 | 276 | 1.69 |
+| Cat | 104 | 6.47 | 272 | 1.69 |
+| Dog | 104 | 6.74 | 272 | 1.72 |
+| Fox | 104 | 7.76 | 272 | 1.72 |
+
+Incremental draw cost is **1–7 calls low / 2–13 high** in these captures (newspaper/can cameras
+have slight visibility differences). No slowdown was resolved against the off baseline in this
+run; physical-phone/GTX FPS and listening to the can rattle remain unverified. Cat doorstep
+rests, dog sniffing and fox pauses use Idle plus small turns; no dedicated sit/sniff clips or
+windowsill leap. The fox pauses at the quiet street end rather than a separately authored bin
+area. No simulation/API/model-call changes, no live database writes, no commits or publication.
+README remains a pointer and needs no change. §2, §3, §7, §9, §10 and §13 updated.
 
 ### Session of 20 November 2026 — Street life asset preflight
 
@@ -1106,6 +1183,22 @@ Unreal from the project.
     world without duplicating facts, the new routines, and fairer pair picking. 229 pass. Seeding a copy of the live
     world added exactly 5 APCs and 15 facts, touching no conversations. On the G4 they appear at the next restart
     (the auto-update restart does it).
+- **APCs on the street, and more drop-ins (Claude).** The owner saw an empty map mid-afternoon (only Dez and
+  Raj). Shuttle Street itself is now a place: `world.STREET = "Shuttle Street, Ancoats"`. `/world/scene` reports it
+  as `place: street` and the 2D map draws people there. New street moments: Tommy walking to the shops, Peggy on
+  the bench outside the Billet after her half, Liam's smoke breaks and walk home, Brenda chatting on the pavement
+  (Mon/Wed/Fri mornings), Pete unloading the dray, Anjali walking up from the tram, Hannah asking about the terrace
+  (Tue/Thu lunch) and Dez out front for a breather. More drop-ins: Tommy browses the papers at Patel's and has an
+  afternoon half on weekdays; Brenda Friday afternoons at the pub; Mo buys lunch at the shop and practises darts on
+  Wednesday afternoons; Chloe picks up the property pages on Saturday mornings. Test added; 233 pass.
+- **Owner's rule: APCs only.** No fake or background people (passers-by, crowds, non-AI extras) anywhere, on the
+  map or in 3D. A cosmetic passers-by feature was written for the map and removed the same day at the owner's
+  request. Busier streets come from more APCs and denser routines. Animals and blowing rubbish are fine; they
+  aren't people.
+- **Version on the dashboard.** The header shows the git commit the server is running and its date (e.g.
+  `v ed9ac18 · 20 Nov 13:54`; hover for the commit message; "(edited)" if there are uncommitted code changes).
+  `main.code_version()` reads it once at start-up, so every G4 auto-update shows its new version by itself; outside
+  a git checkout it says "unknown". `/usage` returns it as `version`. Tests in `tests/test_version.py` (232 pass).
 - **"APCs" (AI Player Characters)** adopted as Evorium's name for its characters: website (people section
   "Meet the APCs", nav, hero line, meta and share descriptions, amber highlight on the term) and README updated.
 - **Clean-up:** the website brief merged into §8 and deleted; the old `server.log` and `__pycache__` deleted; the

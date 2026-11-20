@@ -97,3 +97,17 @@ def test_pick_pair_favours_people_who_have_not_spoken(tmp_path):
     picks=[frozenset(world.pick_pair([ids['Dez'],ids['Jess'],ids['Tommy'],ids['Brenda']],path)) for _ in range(300)]
     with_brenda=sum(ids['Brenda'] in p for p in picks)
     assert with_brenda>200   # Brenda hasn't spoken, so most conversations include her
+
+
+def test_apcs_on_shuttle_street_show_up_in_the_scene(tmp_path):
+    from evorium import scene, tick
+    path=tmp_path/'world.sqlite3';init_db(path);seed_agents(path)
+    tue_1500=datetime(2026,11,17,15,5)   # Liam's afternoon smoke break; Peggy on the bench
+    assert world.routine('Liam Byrne',tue_1500)==(world.STREET,'on a smoke break')
+    assert world.routine('Peggy Coyle',tue_1500)==(world.STREET,'sitting on the bench outside the Billet')
+    tick.update_routines(tue_1500,path)
+    with connect(path) as c:
+        c.execute("UPDATE world SET value=? WHERE key='anchor_sim'",(tue_1500.strftime(world.FMT),))
+    data=scene.snapshot(path)
+    on_street={p['first'] for p in data['characters'] if p['place']=='street' and p['visible']}
+    assert {'Liam','Peggy'} <= on_street
