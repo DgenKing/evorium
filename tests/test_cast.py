@@ -106,9 +106,8 @@ def test_apcs_on_shuttle_street_show_up_in_the_scene(tmp_path):
     tue_1500=datetime(2026,11,17,15,5)   # Liam's afternoon smoke break; Peggy on the bench
     assert world.routine('Liam Byrne',tue_1500)==(world.STREET,'on a smoke break')
     assert world.routine('Peggy Coyle',tue_1500)==(world.STREET,'sitting on the bench outside the Billet')
+    freeze_clock(path,tue_1500)
     tick.update_routines(tue_1500,path)
-    with connect(path) as c:
-        c.execute("UPDATE world SET value=? WHERE key='anchor_sim'",(tue_1500.strftime(world.FMT),))
     data=scene.snapshot(path)
     on_street={p['first'] for p in data['characters'] if p['place']=='street' and p['visible']}
     assert {'Liam','Peggy'} <= on_street
@@ -131,9 +130,7 @@ def test_player_can_talk_to_an_apc_on_the_street(tmp_path):
     from fastapi import HTTPException
     path=tmp_path/'world.sqlite3';init_db(path);seed_agents(path)
     tue_1505=datetime(2026,11,17,15,5)   # Peggy is on the bench outside the Billet
-    with connect(path) as c:
-        c.execute("INSERT OR REPLACE INTO world(key,value) VALUES ('anchor_sim',?)",(tue_1505.strftime(world.FMT),))
-    world.set_speed(0,path)                # freeze the clock at that moment
+    freeze_clock(path,tue_1505)
     tick.update_routines(world.now(path),path)
     with connect(path) as c:
         peggy=c.execute("SELECT id FROM agents WHERE name='Peggy Coyle'").fetchone()[0]
@@ -149,3 +146,11 @@ def test_player_can_talk_to_an_apc_on_the_street(tmp_path):
         assert False, 'should refuse'
     except HTTPException as e:
         assert e.status_code==409
+
+
+def freeze_clock(path, at):
+    """Stop the sim clock at `at`: both anchors and speed 0 (setting one anchor alone resets to real time)."""
+    with connect(path) as c:
+        world._set(c, 'anchor_real', world._real_now().strftime(world.FMT))
+        world._set(c, 'anchor_sim', at.strftime(world.FMT))
+        world._set(c, 'speed', 0)

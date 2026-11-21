@@ -98,6 +98,7 @@ and phone); it runs around the clock on the owner's HP G4 and is reachable over 
 | Catch-up | "While you were away": significant events and gossip, cached narration or bullet fallback |
 | Director | Nudges a stalled or looping world with one mundane event a day at most |
 | Timeline | Permanent record + daily digest, at `/timeline-page` |
+| Navigation | ☰ burger menu top right on every page: Dashboard, Map, 3D, Timeline |
 | Dashboard | Character cards, live feed, usage/spend, controls, terrace card, **version** (git commit and date) and the **Restart server** button |
 | Map tab | 2D canvas of the pub, shop, empty unit and street; pixel sprites, bubbles, portrait popups |
 | 3D game | `/world3d`: Shuttle Street in Three.js, nine distinct MPFB models, third person, touch controls, chat and optional cosmetic street life |
@@ -243,6 +244,7 @@ collision-verified A* graph), bubbles, lighting and doors. `ambient.js` adds bro
 | `evorium/static/index.html` | Dashboard + tab bar |
 | `evorium/static/map.js` | Map tab |
 | `evorium/static/timeline.html` | Timeline page |
+| `evorium/static/nav.js` | Shared burger menu on every page |
 | `evorium/static/world3d/` | The 3D game (ES modules, data, assets) |
 | `evorium/static/vendor/three/` | Vendored Three.js 0.187.0 |
 | `tools/web3d/` | 3D asset pipeline and checks (§7) |
@@ -383,6 +385,7 @@ the file log off, as the tests do), `EVORIUM_SMOKE_DB` (where the smoke server c
 .venv/bin/python -m pytest -q        # 226 tests
 node tests/map_view.test.cjs         # map
 node tests/world3d.test.mjs          # 3D routes, animation states, quality, slots, cast
+node tests/nav.test.cjs              # burger menu
 bash tools/web3d/run_checks.sh       # 3D: smoke server + 20 headless screenshots and movement checks
 ```
 
@@ -1211,6 +1214,14 @@ Unreal from the project.
   as being on the street, set automatically on the first line), APCs can chat to each other on the pavement, and
   the dashboard's "Where everyone is" lists the street. You still can't talk to someone who isn't there. Test
   added; 235 pass.
+- **Burger menu on every page (21 Nov).** `evorium/static/nav.js` is one shared script that adds a ☰ button to the top
+  right of each page's header (beside Restart on the dashboard and beside the ⚙ in 3D) and a panel with
+  **Dashboard, Map, 3D and Timeline**, the current page highlighted. Full width with big targets on phones; closes on
+  Esc, a tap outside or choosing a page; releases the mouse in 3D. Loaded by `index.html`, `timeline.html` and
+  `world3d/index.html`. Tests: `tests/nav.test.cjs` (the four pages, no "Home", highlighting) and
+  `tests/test_nav.py`. Checked with headless-Chrome screenshots, open and closed, desktop and phone. Also fixed the
+  street-talk tests, which had only passed because of the time of day: they now freeze the clock with both anchors.
+  236 pass.
 - **Owner's rule: APCs only.** No fake or background people (passers-by, crowds, non-AI extras) anywhere, on the
   map or in 3D. A cosmetic passers-by feature was written for the map and removed the same day at the owner's
   request. Busier streets come from more APCs and denser routines. Animals and blowing rubbish are fine; they
