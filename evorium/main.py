@@ -391,6 +391,11 @@ async def timeline_page():
     return FileResponse(STATIC / 'timeline.html')
 
 
+@app.get('/guide')
+async def guide_page():
+    return FileResponse(STATIC / 'guide.html')
+
+
 class ProfileRequest(BaseModel):
     name: str
     about: str = ''

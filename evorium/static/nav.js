@@ -1,4 +1,4 @@
-/* Shared burger menu for every Evorium page: Dashboard, Map, 3D and Timeline.
+/* Shared burger menu for every Evorium page: Dashboard, Map, 3D, Timeline and Guide.
    Include with <script src="/static/nav.js" defer></script>. It adds a ☰ button to the page's <header>
    (top right, beside any existing button) and a small panel listing the pages, with the current one highlighted. */
 (() => {
@@ -8,11 +8,13 @@
     {label: 'Map', href: '/#map', id: 'map'},
     {label: '3D', href: '/world3d', id: '3d'},
     {label: 'Timeline', href: '/timeline-page', id: 'timeline'},
+    {label: 'Guide', href: '/guide', id: 'guide'},
   ];
 
   function currentPage(path = location.pathname, hash = location.hash) {
     if (path.startsWith('/world3d')) return '3d';
     if (path.startsWith('/timeline')) return 'timeline';
+    if (path.startsWith('/guide')) return 'guide';
     return hash === '#map' ? 'map' : 'dashboard';
   }
 

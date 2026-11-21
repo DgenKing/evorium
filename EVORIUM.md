@@ -98,7 +98,7 @@ and phone); it runs around the clock on the owner's HP G4 and is reachable over 
 | Catch-up | "While you were away": significant events and gossip, cached narration or bullet fallback |
 | Director | Nudges a stalled or looping world with one mundane event a day at most |
 | Timeline | Permanent record + daily digest, at `/timeline-page` |
-| Navigation | ☰ burger menu top right on every page: Dashboard, Map, 3D, Timeline |
+| Navigation | ☰ burger menu top right on every page: Dashboard, Map, 3D, Timeline, Guide |
 | Dashboard | Character cards, live feed, usage/spend, controls, terrace card, **version** (git commit and date) and the **Restart server** button |
 | Map tab | 2D canvas of the pub, shop, empty unit and street; pixel sprites, bubbles, portrait popups |
 | 3D game | `/world3d`: Shuttle Street in Three.js, nine distinct MPFB models, third person, touch controls, chat and optional cosmetic street life |
@@ -268,6 +268,7 @@ collision-verified A* graph), bubbles, lighting and doors. `ambient.js` adds bro
 | `evorium/static/map.js` | Map tab |
 | `evorium/static/timeline.html` | Timeline page |
 | `evorium/static/nav.js` | Shared burger menu on every page |
+| `evorium/static/guide.html` | Player guide at `/guide` (behind the login) |
 | `evorium/static/world3d/` | The 3D game (ES modules, data, assets) |
 | `evorium/static/vendor/three/` | Vendored Three.js 0.187.0 |
 | `tools/web3d/` | 3D asset pipeline and checks (§7) |
@@ -281,7 +282,7 @@ collision-verified A* graph), bubbles, lighting and doors. `ambient.js` adds bro
   ledger, `boot_id`, `version` {commit, date, subject, modified}, `model_paused_until`), `/events`, `/conversations/latest`, `/conversations/{id}`,
   `/timeline` (filters `since`, `until`, `agent_id`, `min_importance`, `kind` = action/offer/arc; timestamps
   `YYYY-MM-DD HH:MM`), `/me` ({account, name}), `/player`, `/world/ledger`, `/actions?since=`, `/catchup`, `/world/scene`.
-- **Pages:** `/` (dashboard; `/#map` for the map), `/timeline-page`, `/world3d`.
+- **Pages:** `/` (dashboard; `/#map` for the map), `/timeline-page`, `/world3d`, `/guide`.
 - **Write:** `POST /conversations/run`, `/speed`, `/auto/start`, `/auto/stop`, `/director {enabled}`,
   `/player/profile {name, about}`, `/player/enter {place}`, `/player/leave`, `/player/say {to_agent_id, text}`,
   `/player/end`, `/player/promises/{id} {done, note}`, `/catchup/seen`, `/server/restart`.
@@ -1436,6 +1437,15 @@ Unreal from the project.
     becoming actions: Dez's £3,200 counter was said but not recorded; the actions table has only `wait`.
     (3) Barry has never spoken and Pete only once. Speaking counts: Dez 49, Raj 47, Rob 38, Jess 30, Tommy 26,
     Anjali 22; Peggy, Gary, Simon, Brenda, Chloe, Hannah and Mo 3–6; Kirsty and Grace 2; Pete 1.
+- **Player guide for Thomas (21 Nov).** New page `/guide` (`evorium/static/guide.html`), in the ☰ menu as "Guide". It's
+  inside the game, behind the login, rather than on the public website, because it explains the owner's controls
+  and the god view. It covers: what Evorium and APCs are, playing as yourself, what the god view shows (private
+  thinking, secrets, money, controls), the **clock speed warning** (always 1× real time; faster speeds multiply
+  the cost; choosing 1× snaps back to real time), the ☰ menu, a tour of the dashboard (header, controls row,
+  terrace and APC cards, You panel, live feed, catch-up, spend), talking to APCs, the map, the 3D controls (desktop
+  and phone), the timeline, and do's and don'ts (leave auto mode and the director as found, don't press Restart, don't
+  spam Run conversation). No credentials in the page. Tests: nav includes Guide; the page warns about the clock.
+  250 pass.
 - **Owner's rule: APCs only.** No fake or background people (passers-by, crowds, non-AI extras) anywhere, on the
   map or in 3D. A cosmetic passers-by feature was written for the map and removed the same day at the owner's
   request. Busier streets come from more APCs and denser routines. Animals and blowing rubbish are fine; they
