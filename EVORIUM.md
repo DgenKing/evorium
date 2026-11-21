@@ -761,8 +761,8 @@ streets, film grain, matching the game's portraits.
   API key/private key detected or exact local-key match. The approved cleanup has been published and
   GitHub’s only branch was rewritten: 33 of 36 commits changed, with no removed connection values or
   authentication prose remaining in reachable historical documentation. GitHub reports no secret-scanning
-  alerts, forks or pull requests. GitHub may still serve old objects/cached views; eligible purges require
-  GitHub Support. Downloaded copies cannot be erased remotely. No live credentials were rotated.
+  alerts, forks or pull requests. An old unreferenced commit was confirmed retrievable through GitHub’s
+  API after the rewrite; eligible object/cache purges require GitHub Support. Downloaded copies cannot be erased remotely. No live credentials were rotated.
   The G4 was unreachable through existing trusted SSH, so its checkout alignment remains outstanding (§6).
 
 - **Street life art limits:** the fox is the owner-approved small recoloured wolf, retaining its wolf
@@ -1008,8 +1008,9 @@ Suggested order: invite-only with friends, accounts + player view, then the key 
 - Preserved the original Git history in a restricted, ignored backup bundle; aligned the main-PC
   checkout using `reset --keep`. G4 SSH access was unavailable, so §6 contains the required server
   alignment commands. No live world, private config, service or credentials were modified.
-- Reachable history cleanup does not guarantee removal of old GitHub objects/cached views or copies
-  held by others. GitHub Support is the route for eligible server-side purges. First changed commit
+- Verified that GitHub still serves an old, now-unreferenced commit through its API. Offered making
+  the repo private to block public access; this requires an owner choice because server fetches would
+  then require GitHub authentication. Reachable history cleanup cannot erase copies held by others. GitHub Support is the route for eligible server-side purges. First changed commit
   for such a request: `a71cc60f72a8c7957b9724f18e4914cf6a953ee4`; affected pull requests: zero;
   no LFS in use. Source: https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/removing-sensitive-data-from-a-repository .
 
