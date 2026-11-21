@@ -18,3 +18,4 @@ def no_dashboard_password(monkeypatch):
     # Auth tests set their own password with monkeypatch, which overrides this.
     from evorium import main
     monkeypatch.setattr(main, "DASHBOARD_PASSWORD", "")
+    monkeypatch.setattr(main, "ACCOUNTS", {})

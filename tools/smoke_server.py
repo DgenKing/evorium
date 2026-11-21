@@ -42,12 +42,14 @@ class FakeClient:
 
 llm.DeepSeekClient = FakeClient
 from evorium import main
+from evorium.db import init_db
+init_db(DEST)  # upgrade only the isolated copy before reading account ownership
 main.DeepSeekClient = FakeClient
 with sqlite3.connect(DEST) as c:
     for key,value in {'auto':'0','speed':'0','anchor_real':world._real_now().strftime(world.FMT),'anchor_sim':'2026-11-19 18:00:00','player_place':''}.items():
         c.execute('INSERT INTO world(key,value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value',(key,value))
     c.execute("UPDATE conversations SET status='completed',ended_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE status='running'")
-    c.execute("UPDATE agents SET name='Rob' WHERE kind='player'")
+    c.execute("UPDATE agents SET name='Rob' WHERE account='owner'")
 @main.app.get('/smoke/status')
 def smoke_status():
     return {'fake_models': True, 'database_copy': str(DEST)}

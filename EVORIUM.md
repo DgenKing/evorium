@@ -84,7 +84,7 @@ and phone); it runs around the clock on the owner's HP G4 and is reachable over 
 
 | Area | State |
 |---|---|
-| Characters | 18 APCs + 1 player (Rob, shared by everyone for now) + 1 system ("World") row |
+| Characters | 18 APCs + one player per account (existing owner Rob retained; friends created at first login) + 1 system ("World") row |
 | Places | The Crooked Billet (pub, 09:00–24:00 every day), Patel's News (shop, Mon–Sat 07:00–19:00), Shuttle Street (always) |
 | Clock | Real UK time × speed multiplier (0 = paused, 1 = real, up to 600×+) |
 | Conversations | 4 lines, or 6 for a pair's first meeting or fresh serious news; one at a time worldwide |
@@ -105,7 +105,7 @@ and phone); it runs around the clock on the owner's HP G4 and is reachable over 
 | Hosting | HP G4 home server, auto-updating from GitHub, nightly backups, public via ngrok; connection details kept private (§6) |
 | Model | DeepSeek `deepseek-flash`, JSON mode, temperature 0.8 (0.6 decisions, 0.2 structured calls) |
 | Cost | About $0.00015 per call; about $0.40 a day for the whole world at real speed with auto mode on |
-| Tests | 226 Python tests + 7 Node map tests + Web3D Node checks and offline Chrome checks, all fake/offline |
+| Tests | 249 Python tests + 8 Node map tests + 2 navigation tests + Web3D Node checks and offline Chrome checks, all fake/offline |
 
 ### Tech stack and dependencies
 
@@ -118,6 +118,28 @@ loads the wrong file on this machine).
 ---
 
 ## 3. How it works
+
+### Named accounts (v1)
+
+HTTP Basic authentication accepts named logins from private `config.py`’s `ACCOUNTS` mapping.
+Names are matched case-insensitively; matching named credentials select that account. The existing owner
+credential still works with **any username**, including a friend’s name, and selects the original player.
+With neither owner nor named credentials configured, local development remains the owner without a login.
+The canonical account ID is case-folded; `owner` is reserved for the existing owner.
+
+Middleware sets a request `ContextVar` and resets it after the request; synchronous endpoints inherit it
+through FastAPI’s threadpool. The first authenticated named request creates that account’s player once,
+without model calls. Migration 14 marks the lowest-ID existing player as `owner` without replacing any
+history. Player profiles avoid duplicate names/first names across APCs and players so memory attribution
+stays unambiguous; a conflicting account display name receives a distinct player name automatically.
+
+Conversations, learned facts, directed relationships, promises, location and catch-up checkpoints belong
+to each player ID/account. The owner retains `player_place` and the existing checkpoint keys; other
+accounts use suffixed settings. Catch-up cache keys and narration budgets include the account (still
+250 tokens maximum per narration). A live APC conversation with another player reserves that APC for
+three real minutes after its latest message. Idle conversations close after five minutes, and maintenance
+and startup process every player. All accounts currently retain the full owner’s dashboard/map/timeline
+view and controls; this is for trusted friends, not public registration or separate admin permissions.
 
 ### The heartbeat (every 5 real seconds, `main._tick_loop`)
 
@@ -236,9 +258,10 @@ collision-verified A* graph), bubbles, lighting and doors. `ambient.js` adds bro
 | `evorium/scene.py` | Read-only `/world/scene` snapshot for the 3D game |
 | `evorium/director.py` | Stall/loop detection and validated nudges |
 | `evorium/timeline.py` | Permanent record and daily digest |
-| `evorium/player.py` | The human player |
+| `evorium/accounts.py` | Request identity, account-owned players and per-account settings |
+| `evorium/player.py` | Each human player’s profile, presence, chats and promises |
 | `evorium/llm.py` | DeepSeek client, budget cap, usage and cost records |
-| `evorium/db.py` | Schema migrations (13 so far), connection helper |
+| `evorium/db.py` | Schema migrations (14 so far), connection helper |
 | `evorium/seed.py` | Cast, seed facts, scheduled events, starting relationships |
 | `evorium/rescore.py` | One-off importance scoring of old facts |
 | `evorium/static/index.html` | Dashboard + tab bar |
@@ -257,7 +280,7 @@ collision-verified A* graph), bubbles, lighting and doors. `ambient.js` adds bro
 - **Read:** `GET /agents` (adds `today_action`, `considering`), `/usage` (sim time, speed, places, present,
   ledger, `boot_id`, `version` {commit, date, subject, modified}, `model_paused_until`), `/events`, `/conversations/latest`, `/conversations/{id}`,
   `/timeline` (filters `since`, `until`, `agent_id`, `min_importance`, `kind` = action/offer/arc; timestamps
-  `YYYY-MM-DD HH:MM`), `/player`, `/world/ledger`, `/actions?since=`, `/catchup`, `/world/scene`.
+  `YYYY-MM-DD HH:MM`), `/me` ({account, name}), `/player`, `/world/ledger`, `/actions?since=`, `/catchup`, `/world/scene`.
 - **Pages:** `/` (dashboard; `/#map` for the map), `/timeline-page`, `/world3d`.
 - **Write:** `POST /conversations/run`, `/speed`, `/auto/start`, `/auto/stop`, `/director {enabled}`,
   `/player/profile {name, about}`, `/player/enter {place}`, `/player/leave`, `/player/say {to_agent_id, text}`,
@@ -356,6 +379,7 @@ uvicorn evorium.main:app --host 127.0.0.1 --port 8000
 |---|---|---|
 | `DEEPSEEK_API_KEY` | `"sk-..."` | Your key. Hardcoded here only; never in frontend code, logs or git |
 | `DEEPSEEK_MODEL` | `deepseek-flash` | Model name |
+| `ACCOUNTS` | `{}` | Optional display-name → credential mapping, set privately in `config.py`; restart after changes. Example structure only in `config.example.py` |
 | `MAX_SPEND_USD` | 4.00 | Local cap: new calls are refused once estimated spend reaches it (not a provider cap; "remaining" assumes the original $5) |
 | `INPUT_USD_PER_MILLION` / `CACHED_INPUT_USD_PER_MILLION` / `OUTPUT_USD_PER_MILLION` | 0.30 / 0.006 / 1.20 | Peak prices; off-peak is half |
 | `REACTION_CALLS_PER_DAY` | 12 (max 12) | World-wide reaction budget |
@@ -363,6 +387,12 @@ uvicorn evorium.main:app --host 127.0.0.1 --port 8000
 
 Environment variables: `EVORIUM_DB_PATH` (another world file), `EVORIUM_LOG_FILE` (another log file; empty turns
 the file log off, as the tests do), `EVORIUM_SMOKE_DB` (where the smoke server copies the world).
+
+Named accounts are optional. Keep real passwords only in the server’s ignored `config.py`; never put
+values in docs, tests, logs or Git. The owner’s existing authentication setting stays valid with any
+username. Use distinct privately chosen credentials for each friend. The example config leaves
+`ACCOUNTS` empty and shows only a placeholder. Basic authentication uses the existing HTTPS tunnel
+when accessing the game remotely. `GET /me` reports the current canonical account and character name.
 
 ### Model calls and cost
 
@@ -383,7 +413,7 @@ the file log off, as the tests do), `EVORIUM_SMOKE_DB` (where the smoke server c
 ### Tests
 
 ```bash
-.venv/bin/python -m pytest -q        # 226 tests
+.venv/bin/python -m pytest -q        # 249 tests
 node tests/map_view.test.cjs         # map
 node tests/world3d.test.mjs          # 3D routes, animation states, quality, slots, cast
 node tests/nav.test.cjs              # burger menu
@@ -439,6 +469,16 @@ Every 2 minutes `evorium-update.timer` runs `deploy/auto_update.sh`. When `main`
 It logs to `~/evorium/updates.log` and writes failed test output to `last_update_tests.txt`. It refuses to
 update if code was edited on the G4 itself, so never edit code there. Only push finished work to `main`: it goes
 live within minutes.
+
+### Add a trusted friend (accounts v1)
+
+After deploying this version and backing up normally, edit only the G4’s ignored `config.py` to add
+the friend’s display-name entry to `ACCOUNTS` with their privately chosen credential. Preserve the owner’s
+existing authentication setting. Do not paste real credentials into chat or tracked files. Then run
+`sudo systemctl restart evorium`. The friend logs in using their configured name (case-insensitive) and
+their own credential; their new character appears on first authenticated request. Using the owner’s
+credential still plays as the original owner regardless of username. Removing an entry disables that
+login without deleting the player’s history. No server configuration was changed by the accounts build.
 
 ### One-time alignment after the security history cleanup (21 Nov)
 
@@ -505,8 +545,8 @@ A sudoers rule lets the configured service account run `systemctl restart evoriu
 
 ### Good to know
 
-- Everyone who logs in shares the one player (Rob) and sees the owner's god view, including characters' private
-  thoughts, until accounts are built (§11).
+- Each account now plays its own character; the original owner keeps Rob and his history. Everyone still
+  sees the owner’s god view and controls, including private thoughts, until the separate player view (§11).
 - Home upload speed limits how fast the 3D files reach each visitor; fine for a handful of people.
 - Later, with real players, the same setup moves to a VPS: it's a copy-the-world-file job.
 
@@ -537,6 +577,9 @@ the loaded assets); choosing a preset reloads the matching asset set. Override w
 
 - The kit's Shuttle Street, Crooked Billet and Patel's News, exported from `Ancoats.blend`, with 44 collision
   hulls and 15 waypoints converted to three.js space (x, z, −y).
+- Other logged-in players with a place set appear with their own names, using Rob’s player body and
+  the existing waypoint walking. They have no portrait or E/touch talk prompt; player-to-player chat is
+  not part of accounts v1. The 2D map likewise shows other named players, including on the street.
 - Characters: nine individually built MakeHuman/MPFB models, with age/build morphs, textured faces,
   hair, beards where appropriate, and actual clothing meshes. MPFB 2.0.18 is a build-only Blender extension;
   all selected graphics are CC0. `build_cast_mpfb.py` defines the cast and exports metre/Y-up models.
@@ -770,7 +813,11 @@ streets, film grain, matching the game's portraits.
   and small root turns; there is no dedicated sit/sniff animation. No windowsill jump or shop-interior
   visit. The can's quiet procedural rattle is subject to browser audio/gesture support and has not
   been checked by listening on physical speakers. Real-phone FPS and memory still need hardware.
-- **One shared player.** Everyone who logs in is Rob and sees the owner's god view. Accounts are the next big job (§11).
+- **Accounts v1 limits:** each named login has its own player, but every account still sees the full god
+  view and can use owner controls. There is no self-service sign-up, role separation, logout/session UI
+  or player-to-player chat. Passwords remain only in private config; separate player permissions and
+  stronger account management are future work (§11). Presence persists until Leave or a place change;
+  browser disconnects do not automatically remove a player.
 - **Barring isn't enforced.** A character can say the player is barred, but nothing stops them walking back in,
   and a later greeting may be friendly. Needs an action (e.g. `bar_customer` for Dez and Jess) that the player
   endpoints respect. **On hold (owner, 19 Nov)** while the owner tests by provoking characters; when built,
@@ -795,6 +842,9 @@ streets, film grain, matching the game's portraits.
   until MPFB models are built for them. Dashboard, map and conversations are fine.
 - **Some facts are stored twice** (5 in the 20 Nov copy, e.g. "Dez chose to wait" noted in two conversations).
   Harmless; a de-duplication on insert would tidy it.
+- **Same-pair loops:** two APCs alone in a place (Raj and Anjali at the shop) talk over and over; consider a limit of 2–3 conversations per pair per sim day unless something new has happened.
+- **Promises that can't be kept:** there's no action for things like research ("I'll look up Companies House"), so such promises repeat forever. Consider a research action that returns a real Python-held fact.
+- **Spoken decisions not recorded:** the note-taker's `decision` path produced nothing in 130 conversations (Dez said he'd counter at £3,200). Investigate the prompt and validation, which may be the example-JSON trap again.
 - **Old trivia still visible** until `python -m evorium.rescore --apply` is run once.
 - **Restart button** requires authentication when access control is enabled (as configured on the G4).
 - **Spend recorded before 19 Nov is overstated** by about $0.09 (old pricing).
@@ -818,8 +868,9 @@ streets, film grain, matching the game's portraits.
    the screen edge, NPC overlap and fades; review street life and its quiet can rattle on real hardware.
 2. **Watch the story run** on the G4 for a few days: decisions, promises now being recorded, and Northgate coming
    to a head on 17–18 Dec. Review the pacing and the settlement constants.
-3. **Multiplayer accounts** (§11): each player their own character, login, reputation, catch-up and spending
-   limit; players' page separate from the owner's god view; NPC reasoning hidden.
+3. **Build on accounts v1** (§11): separate player/admin views and permissions, hide APC reasoning from
+   players, add sign-up/session management and per-player spending controls. Named players, separate
+   memories, relationships, promises and catch-up are implemented locally; deploy only after review.
 4. **Fix the scaling limits** before many players (§11 hosting notes): parallel conversations, SQLite WAL, a
    cached scene snapshot.
 5. **Barring and bigger relationship swings** once the owner has finished provoking-tests.
@@ -833,7 +884,9 @@ streets, film grain, matching the game's portraits.
 
 ## 11. Plan: Evorium online (multiplayer)
 
-> Status: **hosting done (§6); accounts not started.** Decisions recorded here are the owner's.
+> Status: **hosting done (§6); accounts v1 implemented locally, awaiting owner review/deployment.**
+> Named trusted logins each have a player; separate player permissions, self-service sign-up and the key
+> pool are not built. Decisions recorded here are the owner’s.
 
 ### The vision
 
@@ -898,7 +951,7 @@ opposite. This is "surviving in Manchester", and it ties into levelling (§12).
 - **The real limits are in the code. Fix before scaling:**
   1. **One conversation at a time worldwide** (`_run_lock` in `main.py`): run them in parallel, one per place.
   2. **SQLite without WAL mode:** turn on `PRAGMA journal_mode=WAL` and a busy timeout.
-  3. **One player row:** accounts and per-player memory are the biggest job.
+  3. **Accounts v1 now has one player per login.** Public-player permissions and account management remain.
   4. **A single uvicorn process** with the tick thread and in-memory state; fine at first.
   5. **`/world/scene` polled every 1.5 s per player:** build it once per tick and serve the cached copy.
 - **Bandwidth:** 3–8 MB of 3D assets per new player; put a CDN (e.g. Cloudflare) in front of static files later.
@@ -909,7 +962,7 @@ opposite. This is "surviving in Manchester", and it ties into levelling (§12).
 
 | Area | Work |
 |---|---|
-| Accounts | Sign-up, login, secure authentication, sessions, one player row per account |
+| Accounts | v1 done: named Basic logins, original owner compatibility, one player per account, separate history/checkpoints; next: self-service sign-up, sessions and roles |
 | Profiles | Name, picture (preset avatars first; uploads need moderation) |
 | Player view vs admin view | Players see the world, their own chats, what they've learned, their standing. Owner keeps the god view; restart, speed, director and auto become admin-only |
 | Multi-player conversations | Several players talking to different NPCs at once |
@@ -917,7 +970,8 @@ opposite. This is "surviving in Manchester", and it ties into levelling (§12).
 | Moderation | Rate limits, report button, account bans, upload filtering |
 | Legal | Privacy policy and terms (UK GDPR: emails, keys, chat logs), age limit |
 
-Suggested order: invite-only with friends, accounts + player view, then the key pool, then open sign-ups.
+Suggested order: review and deploy accounts v1 for trusted friends, build the separate player view, then
+the key pool and open sign-ups.
 
 ---
 
@@ -995,6 +1049,34 @@ Suggested order: invite-only with friends, accounts + player view, then the key 
 ---
 
 ## 14. History
+
+### 21 November 2026 — Named accounts v1 (local implementation)
+
+- Added optional private-config `ACCOUNTS` named Basic logins and request-scoped `ContextVar` identity,
+  including `/me`. Kept the existing owner credential valid with any username and no-config local mode.
+  Account names are case-insensitive; actual credentials are never written to tracked files.
+- Appended migration 14: account column, original-player owner marker, unique non-null account index.
+  Named players are created once at first authenticated request. Existing owner IDs, names, history,
+  place settings and catch-up checkpoints remain intact; no live world was migrated during this work.
+- Made profile edits, places/street auto-entry, open chats, learned facts, promises, relationships,
+  catch-up checkpoints/cache/budgets and maintenance account-aware. Active APC chats refuse a second
+  player for three real minutes; startup/idle maintenance handles all players and restores its context.
+- Scene snapshots remain read-only and identify the caller plus other present players. The dashboard
+  shows the player’s name; the map and 3D render other humans by name, using the player body, without
+  treating them as APC talk targets. The fake smoke server migrates only its database copy.
+- Added offline regression coverage for concurrent identities/provisioning, owner compatibility, name
+  clashes, player isolation and APC attribution, busy refusals, maintenance, scene visibility, catch-up
+  and preservation of every row in a copied version-13 world. Retained existing legacy migration tests.
+- Verification: 249 Python tests pass (one existing Starlette test-client deprecation warning), plus
+  eight map tests, two navigation tests and the Web3D Node checks. `run_checks.sh` passed on the fake
+  server at 8011: 20 desktop/phone low/high world captures, collision/movement/doors, fake chat, 60×
+  routines and 16 ambient captures/checks. An additional fake two-account browser run verified each
+  dashboard name and the other player’s 3D model/name tag, with no browser errors or model fallback;
+  four captures and `accounts-browser.json` are in ignored `tools/web3d/raw/screens/`.
+- Browser review also corrected the dashboard’s street entry label (previously duplicated the shop
+  wording) and ensured name-card clicks use the latest profile. All accounts deliberately retain
+  god-view access for trusted friends. No runtime dependencies, commits, pushes, live-server settings
+  or private credentials changed. Physical-phone checks and the separate public-player view remain future work.
 
 ### 21 November 2026 — GitHub history sanitised and published
 
@@ -1342,6 +1424,18 @@ Unreal from the project.
   `tests/test_nav.py`. Checked with headless-Chrome screenshots, open and closed, desktop and phone. Also fixed the
   street-talk tests, which had only passed because of the time of day: they now freeze the clock with both anchors.
   236 pass.
+- **Conversation review, 21 Nov (G4 world copy: 130 conversations, 814 lines since 17 Nov).** Full readable
+  export of both worlds (145 conversations) in the git-ignored `backups/evorium-conversations-2026-11-21.txt`.
+  - *Working:* new APCs moved the story: Raj told Anjali (#84); Gary's recorded letters to the empty unit led Raj
+    and Dez to compare notes by phone and spot coordinated pressure (#133, #135); Hannah got Dez on the record
+    anonymously (#106); Dez countered Simon face to face at £3,200 (#149); Peggy is rallying Brenda (#151).
+    Brenda, Chloe and Mo now talk. Rob's threats, theft and slurs spread to Anjali (police, camera), Liam, Jess,
+    Dez, Raj and Grace.
+  - *Problems:* (1) Anjali and Raj loop: about 12 shop conversations where she promises to check Companies House
+    "tonight", because there is no research action and they are often alone together. (2) Spoken decisions aren't
+    becoming actions: Dez's £3,200 counter was said but not recorded; the actions table has only `wait`.
+    (3) Barry has never spoken and Pete only once. Speaking counts: Dez 49, Raj 47, Rob 38, Jess 30, Tommy 26,
+    Anjali 22; Peggy, Gary, Simon, Brenda, Chloe, Hannah and Mo 3–6; Kirsty and Grace 2; Pete 1.
 - **Owner's rule: APCs only.** No fake or background people (passers-by, crowds, non-AI extras) anywhere, on the
   map or in 3D. A cosmetic passers-by feature was written for the map and removed the same day at the owner's
   request. Busier streets come from more APCs and denser routines. Animals and blowing rubbish are fine; they

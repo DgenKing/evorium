@@ -393,7 +393,7 @@ def test_migrations_from_v9_keep_all_history(tmp_path):
     with connect(path) as c:
         for table, count in old.items():
             assert c.execute('SELECT count(*) FROM ' + table).fetchone()[0] >= count
-        assert c.execute('PRAGMA user_version').fetchone()[0] == 13
+        assert c.execute('PRAGMA user_version').fetchone()[0] == len(MIGRATIONS)
         assert c.execute('PRAGMA integrity_check').fetchone()[0] == 'ok'
         assert c.execute('SELECT count(*) FROM offers').fetchone()[0] == 2
 

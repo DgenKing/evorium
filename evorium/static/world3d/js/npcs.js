@@ -17,14 +17,14 @@ export class Actors{
  let active;const actor={root,body,mixer,actions,bindY,ground(state=this.state){if(model.fallback)return;body.position.y=bindY;if(!['idle','talk','walk','run','sit','sit_down','stand_up','land'].includes(state))return;root.updateMatrixWorld(true);for(const skeleton of new Set(soles.map(s=>s.mesh.skeleton)))skeleton.update();let lowest=Infinity;const v=new THREE.Vector3();for(const {mesh,indices} of soles)for(const index of indices){mesh.getVertexPosition(index,v);v.applyMatrix4(mesh.matrixWorld);lowest=Math.min(lowest,v.y-root.position.y);}if(Number.isFinite(lowest)&&Math.abs(lowest)<.25)body.position.y=bindY-lowest;},height:config.height,fallback:model.fallback,animate(state,dt){this.state=state;const next=actions[state]||actions.idle;if(next!==active){active?.fadeOut(.2);next?.reset().fadeIn(.2).play();active=next;}mixer.update(dt);this.ground(state);}};
  return actor;
  }
- label(actor,person){const wrap=document.createElement('div');wrap.className='actor-label';const bubble=document.createElement('div');bubble.className='bubble';bubble.hidden=true;const tag=document.createElement('button');tag.className='name-tag';tag.textContent=person.first;tag.onclick=()=>this.onSelect?.(person);wrap.append(bubble,tag);const object=new CSS2DObject(wrap);object.position.y=actor.height+configLabelOffset(this.data.cast,person.name);actor.root.add(object);Object.assign(actor,{label:object,tag,bubble,expires:0});}
+ label(actor,person){const wrap=document.createElement('div');wrap.className='actor-label';const bubble=document.createElement('div');bubble.className='bubble';bubble.hidden=true;const tag=document.createElement('button');tag.className='name-tag';tag.textContent=person.first;tag.onclick=()=>this.onSelect?.(actor.person||person);wrap.append(bubble,tag);const object=new CSS2DObject(wrap);object.position.y=actor.height+configLabelOffset(this.data.cast,person.name);actor.root.add(object);Object.assign(actor,{label:object,tag,bubble,expires:0});}
  say(actor,text){actor.bubble.textContent=text.slice(0,220);actor.bubble.hidden=false;actor.expires=performance.now()+6000;}
  async sync(snapshot,test=false){
  this.snapshot=snapshot;const ids=new Set(snapshot.characters.map(p=>p.id));
  for(const p of snapshot.characters){let a=this.people.get(p.id);
- if(!a&&p.visible){a=await this.create(p.name);this.label(a,p);a.root.position.fromArray(this.data.routes.nodes.STREET_LEFT);a.person=p;a.route=[];this.people.set(p.id,a);}
+ if(!a&&p.visible){a=await this.create(p.kind==='player'?'player':p.name);this.label(a,p);a.root.position.fromArray(this.data.routes.nodes.STREET_LEFT);a.person=p;a.route=[];this.people.set(p.id,a);}
  if(!a)continue;
- const changed=!a.person||a.person.waypoint!==p.waypoint||a.person.slot!==p.slot||a.person.visible!==p.visible;a.person=p;
+ const changed=!a.person||a.person.waypoint!==p.waypoint||a.person.slot!==p.slot||a.person.visible!==p.visible;a.person=p;a.tag.textContent=p.first;
  if(p.line_at&&p.line_at!==a.lineAt){this.say(a,p.line||'');a.lineAt=p.line_at;}
  if(p.visible){const target=slotPosition(this.data.waypoints[p.waypoint],p.slot);target[1]=p.place==='pub'?0:p.place==='shop'?.055:this.world.ground(target[0],target[2]);if(test||snapshot.speed>10||distance(a.root.position.toArray(),target)>35){a.root.position.fromArray(target);a.route=[];}else if(changed||!a.target){a.route=pathfind(this.data.routes,nearest(this.data.routes,a.root.position.toArray()),p.waypoint).map(n=>this.data.routes.nodes[n]);a.route.push(target);}a.target=target;a.leaving=false;}
  else if(!a.leaving){const end=p.first==='Dez'?'UPSTAIRS':a.root.position.x<0?'STREET_LEFT':'STREET_RIGHT';a.route=pathfind(this.data.routes,nearest(this.data.routes,a.root.position.toArray()),end).map(n=>this.data.routes.nodes[n]);a.leaving=true;}
@@ -42,7 +42,7 @@ export class Actors{
  const head=a.root.position.clone().add(new THREE.Vector3(0,a.height+.1,0)),d=eye.distanceTo(head);const ray=this.world.octree.rayIntersect(new THREE.Ray(eye,head.clone().sub(eye).normalize()));a.label.visible=d<12&&(!ray||ray.distance>d-.3);a.tag.hidden=!this.tags;
  }
  }
- nearestTalk(player){return [...this.people.values()].filter(a=>a.person.visible&&a.person.place===player.place&&a.root.position.distanceTo(player.position)<2).sort((a,b)=>a.root.position.distanceTo(player.position)-b.root.position.distanceTo(player.position))[0];}
+ nearestTalk(player){return [...this.people.values()].filter(a=>a.person.kind!=='player'&&a.person.visible&&a.person.place===player.place&&a.root.position.distanceTo(player.position)<2).sort((a,b)=>a.root.position.distanceTo(player.position)-b.root.position.distanceTo(player.position))[0];}
 }
 
 function configLabelOffset(cast,name){return lookupCast(cast,name).labelOffset??.22;}

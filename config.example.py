@@ -20,3 +20,7 @@ REACTION_CALLS_PER_DAY = 12
 # Catch-up narration is at most once per sim day and once per real ten minutes.
 # Increase this to wait longer between calls; values below 600 are capped at 600.
 CATCHUP_COOLDOWN_SECONDS = 600
+
+# Optional named logins, each with a separate player. Set real credentials only in config.py.
+# ACCOUNTS = {"Thomas": "<set-privately>"}
+ACCOUNTS = {}

@@ -42,7 +42,7 @@
   let usage = {}, conversation = null, player = null, initialised = false;
   let speakers = new Set();
 
-  function firstName(agent) { return agent.isPlayer ? 'You' : agent.name.split(/\s+/)[0]; }
+  function firstName(agent) { return agent.isPlayer ? (agent.isSelf?'You':agent.name) : agent.name.split(/\s+/)[0]; }
   function spriteDefinition(agent) { return SPRITES[agent.isPlayer?'Player':firstName(agent)] || SPRITES.Default; }
   function labelName(agent) { return firstName(agent)==='Mohammed' ? 'Mo' : firstName(agent); }
   function randomFor(id) {
@@ -341,7 +341,10 @@
     if(latestAgents===null) return;
     usage=latestUsage||{};conversation=latestConv;player=latestPlayer;
     const agents=[...latestAgents];
-    if(player?.place && ['pub','shop'].includes(player.place)) agents.push({...player,id:`player-${player.id}`,isPlayer:true,location:player.place==='pub'?PUB:SHOP,activity:'visiting'});
+    for(const human of [...(player?.other_players||[]),...(player?.place?[{...player,isSelf:true}]:[])]) {
+      if(!['pub','shop','street'].includes(human.place)) continue;
+      agents.push({...human,id:`player-${human.id}`,isPlayer:true,location:human.place==='pub'?PUB:human.place==='shop'?SHOP:'Shuttle Street, Ancoats',activity:'visiting'});
+    }
     const ids=new Set(agents.map(a=>String(a.id)));
     for(const [id] of people) if(!ids.has(id)) people.delete(id);
     // Release changed reservations first; unchanged assignments never reshuffle.
@@ -371,8 +374,8 @@
     for(const conv of live) {
       const participants=[];
       for(const message of conv.messages||[]) {
-        const isPlayer=player && String(message.speaker_id)===String(player.id);
-        const id=isPlayer?`player-${player.id}`:String(message.speaker_id);
+        const humanId=`player-${message.speaker_id}`;
+        const id=people.has(humanId)?humanId:String(message.speaker_id);
         const person=people.get(id);
         if(!person?.visible || person.agent.location!==conv.location) continue;
         speakers.add(id);if(!participants.includes(person)) participants.push(person);

@@ -247,11 +247,16 @@ def seed_agents(db_path: str | Path = DEFAULT_DB_PATH) -> None:
             VALUES ('World', 0, 'World bookkeeping', 'System', 'Neutral', 'Record events', 'neutral', 'World', 'system')
             ON CONFLICT(name) DO NOTHING""")
 
-        if not connection.execute("SELECT 1 FROM agents WHERE kind='player'").fetchone():
-            connection.execute("""INSERT INTO agents
-                (name,age,occupation,background,personality,current_goal,mood,location,kind)
+        # Legacy-schema seeding is used by migration-preservation fixtures.
+        has_accounts = any(r['name'] == 'account' for r in connection.execute('PRAGMA table_info(agents)'))
+        owner_query = "SELECT 1 FROM agents WHERE account='owner'" if has_accounts else "SELECT 1 FROM agents WHERE kind='player'"
+        if not connection.execute(owner_query).fetchone():
+            account_column = ',account' if has_accounts else ''
+            account_value = ",'owner'" if has_accounts else ''
+            connection.execute(f"""INSERT INTO agents
+                (name,age,occupation,background,personality,current_goal,mood,location,kind{account_column})
                 VALUES ('Stranger',0,'New face in Ancoats','Known only through conversation','Human player',
-                'Meet the neighbours','curious','Not in the world','player')""")
+                'Meet the neighbours','curious','Not in the world','player'{account_value})""")
 
         from evorium.relationships import seed
         seed(connection)

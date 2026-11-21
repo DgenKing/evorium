@@ -192,6 +192,12 @@ MIGRATIONS = (
         "ALTER TABLE agents ADD COLUMN last_seen_at TEXT",
         "CREATE TABLE catchup_cache(cache_key TEXT PRIMARY KEY,text TEXT NOT NULL,created_at REAL NOT NULL)",
     ),
+    # Migration 14: preserve the original player and add stable account ownership.
+    (
+        "ALTER TABLE agents ADD COLUMN account TEXT",
+        "UPDATE agents SET account='owner' WHERE id=(SELECT min(id) FROM agents WHERE kind='player')",
+        "CREATE UNIQUE INDEX agents_account ON agents(account) WHERE account IS NOT NULL",
+    ),
 )
 
 VISIBLE_IMPORTANCE = 3  # facts scored below this are kept in the database but never shown to characters

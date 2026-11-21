@@ -30,3 +30,22 @@ assert.equal(facing([0,0,0],[1,0,0]),Math.PI/2);assert.equal(facing([0,0,0],[0,0
 function directoryBytes(dir){return fs.readdirSync(dir,{withFileTypes:true}).reduce((sum,entry)=>sum+(entry.isDirectory()?directoryBytes(dir+'/'+entry.name):fs.statSync(dir+'/'+entry.name).size),0);}
 for(const quality of ['low','high']){const dir=new URL('../evorium/static/world3d/assets/'+quality,import.meta.url).pathname;assert.equal(directoryBytes(dir),data('budgets')[quality].bytes);assert.equal(directoryBytes(dir+'/ambient'),data('budgets')[quality].ambient.bytes);}
 console.log('Street life: movement heading and independent on-disk budget accounting passed.');
+
+
+// Exercise actor selection/sync without a renderer; importing Three.js is unnecessary here.
+const {runInNewContext}=await import('node:vm');
+const actorSource=fs.readFileSync(new URL('../evorium/static/world3d/js/npcs.js',import.meta.url),'utf8').replace(/^import .*;$/gm,'').replace('export class Actors','class Actors');
+const Actors=runInNewContext(actorSource+'\nActors;', {slotPosition});
+const nearbyHuman={person:{kind:'player',visible:true,place:'pub'},root:{position:{distanceTo:()=>.2}}};
+const nearbyAPC={person:{kind:'npc',visible:true,place:'pub'},root:{position:{distanceTo:()=>1}}};
+const selection={people:new Map([[21,nearbyHuman],[1,nearbyAPC]])};
+assert.equal(Actors.prototype.nearestTalk.call(selection,{place:'pub',position:{}}),nearbyAPC);
+selection.people.delete(1);
+assert.equal(Actors.prototype.nearestTalk.call(selection,{place:'pub',position:{}}),undefined);
+const requestedModels=[];
+const actors=new Actors({}, {}, {routes:{nodes:{STREET_LEFT:[0,0,0]}},waypoints:{STREET_WAIT:{position:[1,0,0],yaw:0}}}, {ground:()=>0});
+actors.create=async name=>{requestedModels.push(name);return{root:{position:{fromArray(){}}},tag:{}};};
+actors.label=()=>{};
+await actors.sync({speed:1,characters:[{id:21,name:'Thomas',first:'Thomas',kind:'player',visible:true,place:'street',waypoint:'STREET_WAIT',slot:0}]},true);
+assert.equal(requestedModels[0],'player');assert.equal(actors.people.get(21).tag.textContent,'Thomas');
+console.log('Accounts: other humans use the player body and cannot receive an E-talk prompt.');

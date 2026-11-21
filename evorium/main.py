@@ -2,7 +2,6 @@
 
 import base64
 import binascii
-import hmac
 import logging
 import os
 import sys
@@ -19,7 +18,7 @@ from fastapi.responses import FileResponse, Response
 from evorium.configuration import load
 from pydantic import BaseModel, Field
 
-from evorium import scene, economy, actions, decide, backoff, tick, world, timeline, player, relationships, places, plans, director
+from evorium import accounts, scene, economy, actions, decide, backoff, tick, world, timeline, player, relationships, places, plans, director
 from evorium.db import DEFAULT_DB_PATH, VISIBLE_IMPORTANCE, connect, init_db, npc_agents
 from evorium.events import emit, since
 from evorium.llm import DeepSeekClient, DeferredClient, LLMError, get_usage
@@ -148,22 +147,32 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Evorium", lifespan=lifespan)
 DASHBOARD_PASSWORD = getattr(load(), 'DASHBOARD_PASSWORD', '')
+ACCOUNTS = getattr(load(), 'ACCOUNTS', {})
 
 
 @app.middleware('http')
 async def dashboard_auth(request, call_next):
-    if DASHBOARD_PASSWORD:
-        supplied = None
-        try:
-            scheme,encoded=request.headers.get('authorization','').split(' ',1)
-            if scheme.lower()=='basic':
-                decoded=base64.b64decode(encoded,validate=True).decode('utf-8')
-                if ':' in decoded:supplied=decoded.split(':',1)[1]
-        except (ValueError,UnicodeDecodeError,binascii.Error):
-            pass
-        if supplied is None or not hmac.compare_digest(supplied.encode('utf-8'),str(DASHBOARD_PASSWORD).encode('utf-8')):
-            return Response('Authentication required.',status_code=401,headers={'WWW-Authenticate':'Basic realm="Evorium", charset="UTF-8"'})
-    return await call_next(request)
+    username, supplied = '', None
+    try:
+        scheme, encoded = request.headers.get('authorization', '').split(' ', 1)
+        if scheme.lower() == 'basic':
+            decoded = base64.b64decode(encoded, validate=True).decode('utf-8')
+            if ':' in decoded:
+                username, supplied = decoded.split(':', 1)
+    except (ValueError, UnicodeDecodeError, binascii.Error):
+        pass
+    identity = accounts.authenticate(username, supplied, DASHBOARD_PASSWORD, ACCOUNTS)
+    if identity is None:
+        return Response('Authentication required.', status_code=401,
+                        headers={'WWW-Authenticate': 'Basic realm="Evorium", charset="UTF-8"'})
+    account, display = identity
+    token = accounts.current.set(account)
+    try:
+        if account != 'owner':
+            await run_in_threadpool(accounts.ensure_player, account, display, DEFAULT_DB_PATH)
+        return await call_next(request)
+    finally:
+        accounts.current.reset(token)
 
 
 app.mount("/static", StaticFiles(directory=STATIC), name="static")
@@ -396,6 +405,13 @@ class SayRequest(BaseModel):
 class PromiseRequest(BaseModel):
     done: bool
     note: str = Field(default='',max_length=300)
+
+@app.get('/me')
+def me():
+    with connect(DEFAULT_DB_PATH) as c:
+        who = accounts.player_row(c)
+    return {'account': accounts.current.get(), 'name': who['name']}
+
 
 @app.get('/player')
 def player_state():

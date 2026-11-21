@@ -28,7 +28,7 @@ function mapHarness(agents) {
   // Inspect the closure in the test VM without exposing implementation state in the app.
   const source=readFileSync('evorium/static/map.js','utf8').replace(
     'window.evoriumMap={update};',
-    'window.evoriumMap={update,people,targetFor,advance,walkSpeed,getSpeakers:()=>speakers};'
+    'window.evoriumMap={update,people,targetFor,advance,walkSpeed,labelName,getSpeakers:()=>speakers};'
   );
   vm.runInContext(source,context);
   return {context,map:context.window.evoriumMap};
@@ -116,4 +116,17 @@ test('only running conversations mark speakers; player has a separate unoccupied
   assert.equal(new Set([...h.map.people.values()].map(p=>p.spot.key)).size,3);
   assert.equal(h.map.people.get('player-9').agent.isPlayer,true);
   h.context.latestConv.status='completed';h.map.update();assert.equal(h.map.getSpeakers().size,0);
+});
+
+
+test('map shows the local player and other named players independently, including the street',()=>{
+  const h=mapHarness([agent(1,'Dez')]);
+  h.context.latestPlayer={id:20,name:'Rob',place:'street',other_players:[{id:21,name:'Thomas',place:'pub'}]};
+  h.map.update();
+  const self=h.map.people.get('player-20'),friend=h.map.people.get('player-21');
+  assert.ok(self.visible&&friend.visible);
+  assert.equal(self.target,'street');assert.equal(friend.target,'pub');
+  assert.equal(h.map.labelName(self.agent),'You');assert.equal(h.map.labelName(friend.agent),'Thomas');
+  h.context.latestPlayer.other_players=[];h.map.update();
+  assert.equal(h.map.people.has('player-21'),false);assert.equal(h.map.people.has('player-20'),true);
 });
