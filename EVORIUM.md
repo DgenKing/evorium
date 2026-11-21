@@ -10,7 +10,7 @@
 > (`git show 6fec17c:EVORIUM_BUILD_BRIEF_M3.md`, etc.), the old README, the home server guide, the Web3D
 > pipeline, controls and verification notes, the portrait prompts, and the M4, Web3D and Unreal Codex briefs.
 >
-> **Last updated:** 20 November 2026
+> **Last updated:** 21 November 2026
 
 ## Contents
 
@@ -102,7 +102,7 @@ and phone); it runs around the clock on the owner's HP G4 and is reachable over 
 | Dashboard | Character cards, live feed, usage/spend, controls, terrace card, **version** (git commit and date) and the **Restart server** button |
 | Map tab | 2D canvas of the pub, shop, empty unit and street; pixel sprites, bubbles, portrait popups |
 | 3D game | `/world3d`: Shuttle Street in Three.js, nine distinct MPFB models, third person, touch controls, chat and optional cosmetic street life |
-| Hosting | HP G4 home server, auto-updating from GitHub, nightly backups, public via ngrok (§6) |
+| Hosting | HP G4 home server, auto-updating from GitHub, nightly backups, public via ngrok; connection details kept private (§6) |
 | Model | DeepSeek `deepseek-flash`, JSON mode, temperature 0.8 (0.6 decisions, 0.2 structured calls) |
 | Cost | About $0.00015 per call; about $0.40 a day for the whole world at real speed with auto mode on |
 | Tests | 226 Python tests + 7 Node map tests + Web3D Node checks and offline Chrome checks, all fake/offline |
@@ -347,6 +347,7 @@ uvicorn evorium.main:app --host 127.0.0.1 --port 8000
   server" button, top right of the dashboard (it re-runs the same command and the page reloads itself).
 - **The real world lives on the G4 now (§6).** On the main PC, only run copies: `EVORIUM_DB_PATH=/path/to/copy.sqlite3`
   and never switch on auto mode against a second copy of the real world.
+- **Phone on the same Wi-Fi:** enable access control in the local config first, then start with `--host 0.0.0.0` and browse to
   `http://<PC's LAN address>:8000`. This exposes the server and its controls to your network.
 
 ### Settings (`config.py`, git-ignored)
@@ -390,6 +391,7 @@ bash tools/web3d/run_checks.sh       # 3D: smoke server + 20 headless screenshot
 ```
 
 Tests use temporary SQLite files and never call the real API. `tests/conftest.py` turns off the file log and the
+machine’s local authentication settings. Schema changes are appended to `MIGRATIONS` in `evorium/db.py` (version in
 SQLite's `user_version`). Each connection enforces foreign keys, commits on success, rolls back on failure and
 closes when finished.
 
@@ -415,10 +417,14 @@ Commit `config.example.py`, never `config.py`. Before committing, check `git sta
 ## 6. The home server (HP G4)
 
 The real Evorium runs on the owner's always-on **HP ProDesk 405 G4 Mini** (Ryzen 5 PRO 2400GE, 16 GB RAM,
-128 GB, Ubuntu 26.04, LAN address <server-address>), under the account **`<server-user>`**, in `<project-dir>`.
+128 GB, Ubuntu 26.04). Deployment-specific addresses, account names and absolute server paths are kept
+private. In commands below, `<server-user>`, `<server-address>`, `<project-dir>` and `<tunnel-domain>`
+are placeholders to fill in privately.
 
-- **Public address:** **https://<tunnel-domain>** (3D game at `/world3d`). Visitors click
+- **Public access:** use the privately shared tunnel address (3D game at `/world3d`). Visitors click
+  through ngrok’s one-time warning page, then authenticate.
 - **Everything comes from GitHub.** Work on the main PC and push to `main`; the G4 updates itself.
+- **Never on GitHub:** `config.py` (private configuration), `evorium.sqlite3` (the world) and `backups/` exist only
   on the G4.
 
 ### How updates work (automatic)
@@ -443,7 +449,7 @@ live within minutes.
 | `evorium-backup.timer` | Nightly backup at 03:15 to `backups/`, keeping 14 (`deploy/backup_world.py`, SQLite backup API). A systemd timer because Ubuntu 26.04 has no cron by default |
 | `evorium-ngrok` | The public tunnel: `ngrok http 8000 --url=<tunnel-domain>`. A plain systemd unit, because snap ngrok can't run `ngrok service install` |
 
-A sudoers rule lets `<server-user>` run `systemctl restart evorium` only, for the updater.
+A sudoers rule lets the configured service account run `systemctl restart evorium` only, for the updater.
 
 ### Everyday commands (on the G4)
 
@@ -467,6 +473,8 @@ A sudoers rule lets `<server-user>` run `systemctl restart evorium` only, for th
 3. **Code:** `cd ~ && git clone https://github.com/DgenKing/evorium.git && cd evorium` (the repo is public).
 4. **World and config, from the main PC:** stop its server, then
    `scp ~/projects/evorium/config.py ~/projects/evorium/evorium.sqlite3 <name>@<address>:~/evorium/`.
+   Enable access control in the server’s private configuration.
+5. **Install:** `bash deploy/install_home_server.sh`. It builds the venv, checks the private configuration, installs
    the `evorium` service, auto-update, the sudoers rule and the nightly backup, and takes a first backup. Safe to
    re-run.
 6. **ngrok:** `sudo snap install ngrok`, `ngrok config add-authtoken <token>`, test with `ngrok http 8000` (the
@@ -724,6 +732,19 @@ streets, film grain, matching the game's portraits.
 
 ## 9. Known issues and open questions
 
+- **Web3D rebuild preflight (21 Nov):** Blender 5.3, npm registry access and both intact CC0 Standard
+  character zips pass. The documented kit path is absent in this session and `/media/user` is empty;
+  exporting/rebaking is blocked until the kit is mounted and visible here. Existing shipped assets remain available.
+- **Repository credential audit (21 Nov):** downloaded GitHub branch/tag history (35 commits, only `main`,
+  tip `e7404e6`) and scanned tracked text blobs for provider tokens, private keys, credential assignments and
+  credential-bearing URLs; compared the local API key against historical blobs without displaying it. No real
+  API key/private key detected or exact local-key match. Sensitive authentication prose has been removed
+  from current documentation, together with the specific tunnel address, LAN address, service account
+  and absolute server path. Earlier revisions still retain these details. No credentials rotated, commits
+  created or changes pushed. This audit
+  does not cover unreachable/deleted remote objects, private
+  GitHub security alerts, or credentials exposed outside Git.
+
 - **Street life art limits:** the fox is the owner-approved small recoloured wolf, retaining its wolf
   silhouette and walk/idle clips. The fox uses the quiet street end rather than a separate bin area. Cat doorstep rests, dog sniffing and fox look-arounds use idle clips
   and small root turns; there is no dedicated sit/sniff animation. No windowsill jump or shop-interior
@@ -755,13 +776,19 @@ streets, film grain, matching the game's portraits.
 - **Some facts are stored twice** (5 in the 20 Nov copy, e.g. "Dez chose to wait" noted in two conversations).
   Harmless; a de-duplication on insert would tidy it.
 - **Old trivia still visible** until `python -m evorium.rescore --apply` is run once.
+- **Restart button** requires authentication when access control is enabled (as configured on the G4).
 - **Spend recorded before 19 Nov is overstated** by about $0.09 (old pricing).
-- **Security to-dos:** reset the ngrok authtoken (exposed in chat on 20 Nov) and replace the placeholder
+- **Security to-dos:** rotate the previously chat-exposed ngrok token and review the G4 access controls.
 - **Starlette test-client deprecation warning** (harmless).
 
 ---
 
 ## 10. Next steps
+
+- Review the G4 access controls and rotate the previously chat-exposed ngrok token. Sensitive prose
+  and server connection details have been removed from current docs; earlier Git revisions retain them. Publishing a reviewed cleanup and
+  deciding whether to rewrite history remain outstanding. Make the kit visible to this session before
+  restarting Web3D rebuild stages.
 
 1. **Build MPFB 3D models for the ten new APCs** (Peggy, Liam, Anjali, Pete, Hannah, Gary, Kirsty, Grace, Barry,
    Ronnie) with the existing
@@ -862,6 +889,7 @@ opposite. This is "surviving in Manchester", and it ties into levelling (§12).
 
 | Area | Work |
 |---|---|
+| Accounts | Sign-up, login, secure authentication, sessions, one player row per account |
 | Profiles | Name, picture (preset avatars first; uploads need moderation) |
 | Player view vs admin view | Players see the world, their own chats, what they've learned, their standing. Owner keeps the god view; restart, speed, director and auto become admin-only |
 | Multi-player conversations | Several players talking to different NPCs at once |
@@ -947,6 +975,59 @@ Suggested order: invite-only with friends, accounts + player view, then the key 
 ---
 
 ## 14. History
+
+### 21 November 2026 — Publish approved security cleanup
+
+- The owner explicitly authorized publishing the cleanup and removing exposed deployment details
+  from GitHub history. Current changes only affect documentation, installer wording and an example
+  comment; authentication and world data are unchanged.
+- History removal is being prepared in an isolated mirror with a private backup. A rewritten `main`
+  cannot fast-forward from old clones: the G4 updater safely refuses that transition while the running
+  game continues. The server checkout will need alignment before automatic updates resume.
+- Rewriting published refs cannot erase copies already downloaded or guarantee deletion of cached
+  commit views. GitHub Support handles eligible cache/pull-reference purges. Actual access secrets
+  must be rotated through the service/server separately.
+
+### 21 November 2026 — Remove deployment connection details
+
+- Removed the specific tunnel domain, LAN address, service account name and absolute server checkout
+  path from current documentation, including old session entries. §6 uses generic placeholders; the
+  hosting summary and audit status now reflect that connection details are kept private.
+- These values are unnecessary for public setup instructions. No runtime configuration, authentication,
+  tunnel, server service or world data changed. The owner shares connection details privately.
+- Checked every tracked working-tree file for the removed values and checked diff formatting.
+  No commit or push was made. Older Git revisions still retain the details; erasing that history would
+  require a coordinated rewrite and forced update, accounting for the G4 auto-updater and other clones.
+
+### 21 November 2026 — Remove sensitive authentication prose
+
+- At the owner’s request, removed all references to access secrets from project documentation,
+  including the previously published weak literal, configuration-name mentions and historical narrative.
+  Initially retained the connection details the owner asked to identify; these were subsequently
+  removed at the owner’s request (see the later cleanup entry).
+- Reworded installer messages/comments and the example-config comment to describe access control.
+  Required authentication identifiers and offline test fixtures remain in code so existing G4 settings
+  continue to protect the service. Private configuration and live-world data were untouched.
+- Earlier commits still contain the old prose; these local edits have not been committed or pushed.
+  Verified documentation search, shell syntax and diff formatting; no authentication logic changed.
+
+### 21 November 2026 — GitHub credential audit and Web3D preflight
+
+- Audited a fresh mirror of `DgenKing/evorium`, matching local tip `e7404e6`: 35 commits,
+  220 tracked files at HEAD, one published branch and no tags. No detected real API key or private key;
+  the local DeepSeek key does not occur in fetched historical blobs. `config.py`, database and key files
+  were not found as tracked historical paths. API-key examples and installer checks are placeholders.
+- Reported sensitive authentication prose and published server connection details without reproducing
+  credential values. The owner subsequently approved removing the prose from current documentation;
+  no history rewrite, credential rotation, commit, push or live-server change.
+- Recovered the deleted Web3D brief from `d0a5535` for §0.2. Blender 5.3 runs outside the sandbox,
+  npm responds, and both Standard zips pass integrity/glTF/CC0 checks. The kit path is missing in this
+  session, so the brief’s prerequisite gate blocks new exports and bakes. Prior stages are already shipped;
+  do not rebuild over the later MPFB cast merely to repeat the original Quaternius implementation.
+- Verification: 236 Python tests pass (one existing Starlette deprecation warning), alongside the
+  existing Web3D Node checks, seven map checks and two navigation checks. Python tests complete outside
+  the sandbox; sandboxed attempts produced no result. No new browser review or asset rebuild was performed.
+
 
 ### Session of 20 November 2026 — Cosmetic street life
 
@@ -1123,6 +1204,7 @@ checks; "Let them live" auto mode.
 
 Built in eight phases from one brief: agent kinds and sim timestamps; the permanent timeline and daily digests;
 the player; directed relationships; places, free time and daily plans; the director; Simon, Brenda and Mo;
+optional dashboard authentication, portraits and a home-LAN service. The world database was restarted on 16 Nov; the
 old world's 16 conversations are kept in `backups/evorium-backup-20261116.sqlite3`.
 
 ### 19 November 2026
@@ -1169,9 +1251,9 @@ Unreal from the project.
   characters, baked lighting, desktop and touch controls, NPCs following the server, and player chat. 226 Python
   tests, map and Web3D checks, and 20 headless screenshots passed.
 - **Home server on the HP G4:** installer, auto-update from GitHub with tests and rollback, nightly backups,
-  ngrok as a systemd unit. The world moved from the main PC (464 KB). Public at
-  https://<tunnel-domain>.
-- **First auto-update rolled back, as designed:** a new 3D test failed because the G4's `config.py` sets a
+  ngrok as a systemd unit. The world moved from the main PC (464 KB); the tunnel address is shared privately.
+- **First auto-update rolled back, as designed:** a new 3D test failed because the G4's `config.py` sets an
+  authentication setting. Tests now ignore the machine’s local authentication configuration (`tests/conftest.py`).
 - **The 3D game is live:** the G4 auto-updated and the owner played `/world3d` over the internet. Owner's
   verdict: "this is more than good enough for what we need".
 - **Unreal removed**; `tools/smoke_unreal.py` renamed `tools/smoke_server.py`.

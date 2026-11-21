@@ -2,7 +2,7 @@
 # Install Evorium as an always-on service on a home Linux machine (e.g. the HP G4).
 # Run it as the account that will own the game, from inside the cloned project folder:
 #     cd ~/evorium && bash deploy/install_home_server.sh
-# It asks for your password once (sudo) to install the system service.
+# It requests sudo authentication to install the system service.
 # Safe to run again after `git pull`.
 set -euo pipefail
 
@@ -34,7 +34,7 @@ say "Checking config.py"
 if [ ! -f config.py ]; then
   cp config.example.py config.py
   chmod 600 config.py
-  echo "Created config.py from the example. Open it, put in your DeepSeek key and a DASHBOARD_PASSWORD,"
+  echo "Created config.py from the example. Open it, configure your DeepSeek key and access control,"
   echo "or copy your existing config.py over it, then run this script again."
   exit 1
 fi
@@ -43,7 +43,7 @@ if grep -q 'DEEPSEEK_API_KEY = "sk-\.\.\."' config.py; then
   echo "config.py still has the placeholder key. Put your real DeepSeek key in it, then run this again."; exit 1
 fi
 if grep -qE '^DASHBOARD_PASSWORD *= *""' config.py || ! grep -q '^DASHBOARD_PASSWORD' config.py; then
-  echo "Set DASHBOARD_PASSWORD in config.py first: this server will be reachable from the internet."; exit 1
+  echo "Enable access control in config.py first: this server will be reachable from the internet."; exit 1
 fi
 
 say "Checking the world file"
@@ -54,7 +54,7 @@ else
   echo "(To move your existing world, stop the server on the main PC and copy its evorium.sqlite3 here first.)"
 fi
 
-say "Installing the system service (asks for your password)"
+say "Installing the system service (requires sudo authentication)"
 UNIT=/etc/systemd/system/evorium.service
 sudo tee "$UNIT" >/dev/null <<EOF
 [Unit]
