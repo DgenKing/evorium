@@ -1136,8 +1136,10 @@ the key pool and open sign-ups.
   `source_conversation_id` move to the restating conversation, so evidence counts only from then. A restatement with
   the same type and target (e.g. a new deadline) keeps its progress. Two regression tests in
   `tests/test_promise_evidence.py`; 333 Python tests pass.
-- Known limit: Raj's darts promise row on the G4 was already updated before the fix, so it may close as kept on
-  25 Nov from that conversation. A `talk` promise is satisfied by any later conversation with that person, not
+- Peggy's promise had the same bug: the write-up matched it to her legacy promise to Dez ("bend Brenda's ear") and
+  kept its 21 Nov `made_at`, so a 21 Nov Peggy–Brenda chat counted as evidence. One-off repair on the G4 (after a
+  backup): open typed promises whose latest `promise_updated` timeline entry is later than `made_at` took that
+  entry's time and conversation. Fixed Peggy (→ 23 Nov 12:02) and Raj (→ 23 Nov 14:45). A `talk` promise is satisfied by any later conversation with that person, not
   necessarily about the promised subject.
 - The owner found APCs reluctant to promise a stranger anything. That is in character: they promise what serves
   their own goals (Peggy agreed because it helps keep the Billet open).
