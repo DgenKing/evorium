@@ -491,3 +491,36 @@ def test_deadline_bookkeeping_still_bounded(db):
             promise(c, 'vague')
     assert tick.check_due_promises(NoModel(), DUE, db) == tick.MAX_PROMISE_CHECKS_PER_TICK
     assert tick.check_due_promises(NoModel(), DUE, db) == 1
+
+
+def test_restated_promise_with_new_target_cannot_count_its_own_restating_conversation(db):
+    # Live bug, 23 Nov: Raj restated a legacy promise to Mo as a typed 'talk' promise while talking to Mo, and that
+    # same conversation immediately counted as evidence because made_at and the source conversation stayed old.
+    later = START + timedelta(hours=2)
+    with connect(db) as c:
+        old = c.execute("""INSERT INTO commitments(agent_id,to_agent_id,content,made_at,due_at)
+            VALUES (3,1,'Have a word with Dez',?,?)""", (START.strftime(FMT), (START + timedelta(days=3)).strftime(FMT))).lastrowid
+        cid, people = conversation(c, later)
+        ext = Extraction(summary='Restated', per_agent={'Tommy Shaw': {'commitments': [
+            {'content': 'Have a word with Dez', 'to': 'Dez Whitworth', 'due_hours': 24, 'replaces': old,
+             'kind': 'talk', 'target': {'person': 'Dez Whitworth'}}]}})
+        memory.store_extraction(c, cid, people, ext, later)
+        p = dict(c.execute('SELECT * FROM commitments WHERE id=?', (old,)).fetchone())
+        assert p['kind'] == 'talk' and p['made_at'] == later.strftime(FMT) and p['source_conversation_id'] == cid
+        assert evidence_for(c, p) is None
+        conversation(c, later + timedelta(hours=1))   # a real later conversation still counts
+        assert evidence_for(c, p)
+
+
+def test_restated_promise_with_same_target_keeps_its_progress(db):
+    with connect(db) as c:
+        p = promise(c, 'make')
+        support(c, p, at=START + timedelta(minutes=30))
+        later = START + timedelta(hours=1)
+        cid, people = conversation(c, later)
+        ext = Extraction(summary='Restated', per_agent={'Tommy Shaw': {'commitments': [
+            {'content': 'Write forty quiz questions by tonight', 'due_hours': 6, 'replaces': p['id'],
+             'kind': 'make', 'target': {'item': 'quiz_questions', 'count': 40}}]}})
+        memory.store_extraction(c, cid, people, ext, later)
+        q = dict(c.execute('SELECT * FROM commitments WHERE id=?', (p['id'],)).fetchone())
+        assert q['made_at'] == START.strftime(FMT) and '40 of 40' in progress(c, q)

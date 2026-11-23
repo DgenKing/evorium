@@ -852,6 +852,10 @@ streets, film grain, matching the game's portraits.
 
 ## 9. Known issues and open questions
 
+- **`talk` promises are loose (23 Nov):** any later conversation between the two people counts as keeping a `talk`
+  promise, whether or not they discussed the promised subject. Matching the subject would need the conversation
+  summary or facts to be checked.
+
 - **Web3D rebuild preflight (21 Nov):** Blender 5.3, npm registry access and both intact CC0 Standard
   character zips pass. The documented kit path is absent in this session and `/media/user` is empty;
   exporting/rebaking is blocked until the kit is mounted and visible here. Existing shipped assets remain available.
@@ -1120,6 +1124,23 @@ the key pool and open sign-ups.
 ---
 
 ## 14. History
+
+### 23 November 2026 — Live test of promise evidence; restated-promise fix
+
+- Live test on the G4 (version bc50ff9): the owner got Peggy to promise to "bend Brenda's ear" this afternoon. It
+  was saved as a typed `talk` promise to Rob, due 16:02, so new promises are recorded with types.
+- Found a bug in the live data: Raj restated an old legacy promise to Mo ("read out the darts notice names") as a
+  typed `talk` promise *while talking to Mo*. A restated promise kept its old `made_at` and source conversation, so
+  the restating conversation itself counted as evidence and showed "Database evidence recorded" straight away.
+- Fix (`memory.store_extraction`): when a restated promise changes its type or target, `made_at` and
+  `source_conversation_id` move to the restating conversation, so evidence counts only from then. A restatement with
+  the same type and target (e.g. a new deadline) keeps its progress. Two regression tests in
+  `tests/test_promise_evidence.py`; 333 Python tests pass.
+- Known limit: Raj's darts promise row on the G4 was already updated before the fix, so it may close as kept on
+  25 Nov from that conversation. A `talk` promise is satisfied by any later conversation with that person, not
+  necessarily about the promised subject.
+- The owner found APCs reluctant to promise a stranger anything. That is in character: they promise what serves
+  their own goals (Peggy agreed because it helps keep the Billet open).
 
 ### 23 November 2026 — Evidence-backed APC promises (local implementation)
 

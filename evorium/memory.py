@@ -175,10 +175,18 @@ def store_extraction(connection: sqlite3.Connection, conversation_id: int, parti
             due_at = (now + timedelta(hours=c.due_hours or DEFAULT_DUE_HOURS)).strftime(DUE_FMT)
             if c.replaces is not None:
                 # Same promise restated with more detail or a new deadline: update it rather than add a duplicate.
+                # If what it promises changed (a legacy promise gaining a type, or a new target), it is a new promise
+                # from this conversation: evidence counts only from now, and this conversation can't fulfil it.
+                # SQLite evaluates every SET expression against the old row, so the CASE sees the old kind/target.
+                target_json = json.dumps(target)
+                changed = "(coalesce(kind,'')!=? OR coalesce(target_json,'')!=?)"
                 cur = connection.execute(
-                    "UPDATE commitments SET content=?, due_at=?, to_agent_id=COALESCE(?, to_agent_id), kind=?, target_json=?, retry_at=NULL "
+                    "UPDATE commitments SET content=?, due_at=?, to_agent_id=COALESCE(?, to_agent_id), kind=?, target_json=?, retry_at=NULL, "
+                    f"made_at=CASE WHEN {changed} THEN ? ELSE made_at END, "
+                    f"source_conversation_id=CASE WHEN {changed} THEN ? ELSE source_conversation_id END "
                     "WHERE id=? AND agent_id=? AND status='open' AND lapsed_at IS NULL",
-                    (c.content, due_at, agent_id_for(c.to), kind, json.dumps(target), c.replaces, me))
+                    (c.content, due_at, agent_id_for(c.to), kind, target_json,
+                     kind, target_json, now.strftime(DUE_FMT), kind, target_json, conversation_id, c.replaces, me))
                 if cur.rowcount:
                     restated.add(c.replaces)
                     timeline.record(connection, now, 'promise_updated', f"{name}: {c.content}", 2, me, agent_id_for(c.to), conversation_id)
