@@ -95,6 +95,7 @@ and phone); it runs around the clock on the owner's HP G4 and is reachable over 
 | Decisions | Fixed menu; one action plus one tell per NPC per day; big decisions need evidence and twelve hours |
 | Economy | Visible/private ledger, offers and deadlines, weekly pub settlement, notices, changing routines |
 | Story arcs | Python resolves Northgate; darts and flat-hunt templates can follow |
+| Police follow-ups | Grace opens serious reported cases, seeks subjects on her beat, approaches the correct player and records advice/warnings (local, 23 Nov) |
 | Catch-up | "While you were away": significant events and gossip, cached narration or bullet fallback |
 | Director | Nudges a stalled or looping world with one mundane event a day at most |
 | Timeline | Permanent record + daily digest, at `/timeline-page` |
@@ -105,7 +106,7 @@ and phone); it runs around the clock on the owner's HP G4 and is reachable over 
 | Hosting | HP G4 home server, auto-updating from GitHub, nightly backups, public via ngrok; connection details kept private (§6) |
 | Model | DeepSeek `deepseek-flash`, JSON mode, temperature 0.8 (0.6 decisions, 0.2 structured calls) |
 | Cost | About $0.00015 per call; about $0.40 a day for the whole world at real speed with auto mode on |
-| Tests | 331 Python tests + 8 Node map tests + 2 navigation tests + Web3D Node checks and offline Chrome checks, all fake/offline |
+| Tests | 357 Python tests + 8 Node map tests + 2 navigation tests + Web3D Node checks and offline Chrome checks, all fake/offline |
 
 ### Tech stack and dependencies
 
@@ -148,10 +149,11 @@ view and controls; this is for trusted friends, not public registration or separ
 3. Deliver scheduled world events (letters, phone calls), create offers, notice posted signs, expire deadlines,
    check due APC promises against database evidence (at most two per tick), settle overdue Sundays and evaluate
    Python-owned story outcomes. These continue during model outages and with auto mode off.
-4. Close idle player chats.
+4. Close idle player chats; scan Grace’s serious reports and expire unresolved spoken-to cases.
 5. In auto mode ("Let them live"): daily digest → daily plans → budgeted reactions →
    optional ending narration → director check → at most one conversation, at whichever public place has 2+
-   people and has waited longest.
+   people and has waited longest. Grace approaches a co-located player with a case before automatic APC
+   chats; an available APC case pairing takes priority at its place.
 
 DeepSeek failures pause all model calls for 1, 2, 4, 8, then 15 real minutes until a call succeeds. Routines,
 letters, settlement and deadlines carry on. Invalid model replies don't trigger the pause; only network, HTTP and
@@ -246,11 +248,47 @@ scheduler, model call or dependency. The extraction JSON example includes a fill
 preserves its kind/target. The previous example-specific content suppression was removed so the forty-question
 promise itself is never silently discarded.
 
+### Grace follows up reports (local implementation, 23 Nov)
+
+Migration **16** appends `cases` and a partial unique index: one unresolved case per subject agent ID.
+Cases retain reporter, source fact/timeline reference, summary, opening time, open/spoken_to/closed status,
+outcome and closing time, incident/spoken times and daily attempt markers. Nothing reseeds or rewrites history.
+`cases.py` scans Grace's importance-5 `told` (with an identified teller) or `observed` facts. It requires a named
+world person acting in an explicit threat/harm statement; claims, importance-4 and vague fears do not qualify.
+The first scan back-fills existing reports, using source-conversation game time when available, then a durable
+fact-ID checkpoint processes new reports without reopening old closed ones. New reports refresh incident time.
+
+During her existing weekday 08–17 and Friday/Saturday 17–24 beat hours, Grace prioritises a free, co-located
+APC subject in automatic pairing, at most once per case per day. Patrol is available for her police work;
+other APCs must be free of work and chats. Her dialogue gets the attributed report gist and asks her to hear
+the subject's account. No model call chooses cases or pairs. For players, `cases.approach` uses their own
+account's `player_place`, reserves an ordinary player-first conversation under the shared player lock, and
+makes one normal **300-token** opening dialogue call. No ongoing player chat is interrupted, including another
+account's chat with Grace. Daily attempt markers survive restarts. Replies and notes use ordinary player chat.
+When the subject is elsewhere, a daily missed-visit fact feeds their catch-up and a persistent **PCSO Grace
+Adeyemi wants a word** notice. Case opening/timeout work with auto off; approaches and automatic chats need auto.
+
+Only Grace, talking to that unresolved case's subject, can `give_advice(person)` or
+`give_formal_warning(person)`. They use the existing conversation decision path, her own six verbatim words,
+strict arguments, savepoint and daily action guard; planning/reaction calls cannot issue outcomes.
+The extraction example now includes a filled spoken decision (Part 1 prerequisite); examples remain
+illustrations, and copied or misattributed words fail validation. Grace chooses in character: an apology and
+owning it may merit advice; denial or repetition may merit a warning. No arrests, courts or other punishments.
+An unresolved conversation marks `spoken_to`; after three game days since speaking or a newer incident,
+Python closes it as `no_further_action`. Each outcome records serious history, an observed subject fact,
+Grace's own record and an attributed reporter fact. Dez decides for himself whether to serve someone again.
+
+The dashboard APC cards (including Grace's case list) and case/serious timeline filters are god view.
+Only the subject's own panel gets their notice and outcomes. The 3D panel polls ordinary player state and
+opens incoming dialogue without replacing another chat; street walking now explicitly sets street presence.
+Private rationale is omitted from player dialogue. No extra officers, dependencies, enforcement or scheduling
+model calls were added.
+
 ### Decisions, money and consequences (M4)
 
 - **The ledger** (`economy.py`) owns integer stats, changes, offers, asks and notices. Each stat says who can see
   it; characters only get the figures they'd know.
-- **The action menu** (`actions.py`): 28 fixed actions with typed arguments, Python checks, atomic effects,
+- **The action menu** (`actions.py`): 30 fixed actions with typed arguments, Python checks, atomic effects,
   witnesses and relationship changes. Examples:
   - Dez: change the pint price, set Jess's shifts, announce or start the quiz, ring Northgate, counter the rent,
     accept or refuse the renewal, ask for a loan;
@@ -258,6 +296,7 @@ promise itself is never silently discarded.
   - Simon: raise an offer, offer a rent deal, set a deadline (his hidden limits, £60,000 and £3,300, are
     enforced in Python and appear only in his own prompts);
   - Jess: ask for more hours, look for another job, accept or refuse a job offer;
+  - Grace: words of advice or a formal warning in a case conversation;
   - others: write quiz questions, start or sign a petition, start or join the darts team, answer asks, tell
     someone a fact, or wait.
 - **Three moments to decide:** the morning plan, a conversation (verbatim quote required) and reaction calls
@@ -296,6 +335,7 @@ collision-verified A* graph), bubbles, lighting and doors. `ambient.js` adds bro
 | `evorium/tick.py` | Routine updates, event delivery, due-promise checks |
 | `evorium/sim.py` | Conversation runner, note-taking, `turns_for` |
 | `evorium/memory.py` | What a character knows (`knowledge_for_prompt`), storing notes, promise claims and guarded resolution |
+| `evorium/cases.py` | Grace’s report scanning, follow-up scheduling, account-specific approaches and validated case outcomes |
 | `evorium/promise_evidence.py` | Typed target validation, owner-attributed game evidence, progress and opportunity checks |
 | `evorium/prompts.py` | Dialogue, note-taking and promise-check prompts |
 | `evorium/models.py` | Pydantic schemas and lenient clean-up of model output |
@@ -342,6 +382,8 @@ collision-verified A* graph), bubbles, lighting and doors. `ambient.js` adds bro
 ---
 
 ## 4. The world: cast, places, routines, story
+
+Grace follows serious reports up through cases (§3), using her existing patrol and Friday/Saturday closing-time visits. No other police characters are added.
 
 ### The cast
 
@@ -467,7 +509,7 @@ when accessing the game remotely. `GET /me` reports the current canonical accoun
 ### Tests
 
 ```bash
-.venv/bin/python -m pytest -q        # 331 tests
+.venv/bin/python -m pytest -q        # 357 tests
 node tests/map_view.test.cjs         # map
 node tests/world3d.test.mjs          # 3D routes, animation states, quality, slots, cast
 node tests/nav.test.cjs              # burger menu
@@ -611,6 +653,10 @@ A sudoers rule lets the configured service account run `systemctl restart evoriu
 ---
 
 ## 7. The 3D web game
+
+Grace can now walk up for a report follow-up: the ordinary chat panel opens with her spoken line, and a
+notice/outcome appears above the street. Incoming chat never replaces an already-open chat. Walking on the
+street sets `player_place=street`; entering/leaving buildings updates that presence as normal (§3).
 
 Open `/world3d`, or **3D** in the dashboard header. No build step or runtime Node: Three.js, the high/low assets,
 ten animation clips and baked lighting are served by FastAPI. The EVORIUM wordmark returns to `/`.
@@ -854,6 +900,12 @@ streets, film grain, matching the game's portraits.
 
 ## 9. Known issues and open questions
 
+- **Police report wording (23 Nov):** Python uses conservative named-actor threat/harm patterns, so unusual
+  paraphrases or pronoun-only reports can be missed. It does not decide truth or impose barring. Follow-up
+  requires the normal auto mode and public routine overlap; disconnected players still retain their last
+  `player_place` as in accounts v1. The local checkout predates the 20 Nov report, so historical back-fill is
+  tested with a dated report fixture, not against the G4 world. The saved transcript confirms the incident.
+
 - **`talk` promises are loose (23 Nov):** any later conversation between the two people counts as keeping a `talk`
   promise, whether or not they discussed the promised subject. Matching the subject would need the conversation
   summary or facts to be checked.
@@ -933,13 +985,30 @@ streets, film grain, matching the game's portraits.
 
 ## 10. Next steps
 
-- **Review and deploy the local promise evidence fix:** 331 Python tests and all Node checks pass; migration 15
-  preserves version-14 commitments and plan references. The owner commits/pushes after review. After normal
-  backup/deployment, monitor real evidence, quiz progress, false claims, retries and neutral legacy lapses;
-  unsupported research/repayment needs real actions before it can be checked. See the 23 November history entry.
+- **Realism pack (23 Nov):** Part 5 and its spoken-decision extraction prerequisite are implemented locally.
+  Remaining Parts 1–4 need their own implementation; Part 1’s activity/cap work is still pending.
+  1. *Behaviour fixes:* every APC gets real chances to talk (Barry had 0 lines by 21 Nov; he's only free on
+     Mon/Thu dinner), a per-pair daily cap so the same two people (Raj–Anjali, Dez–Jess: 16 conversations each)
+     stop going round in circles. The filled spoken-decision extraction example and existing quote checks
+     are now in place; monitor whether real spoken choices become actions after deployment.
+  2. *Real Manchester weather:* Open-Meteo (free, no key) via existing `httpx`, cached, real only at 1× clock.
+     Rain moves outdoor routines indoors, appears in one prompt line, and shows on the map and in 3D.
+  3. *The real calendar:* UK bank holidays and Christmas/New Year opening hours, the Christmas run-up
+     (decorations, raffle draw), month-end payday. Fixed dates, no model calls, one prompt line.
+  4. *Ordinary bad days:* deterministic per person per day (hashlib, not `hash()`): off sick, running late,
+     hungover after a late night. Changes routine and mood; no model calls.
+  5. *Grace follows up reports — locally complete:* migration 16, one-off report back-fill, priority APC
+     pairing, account-specific player approaches/missed visits, spoken advice/warnings, three-day timeout,
+     reporter knowledge and god-view/player UI. Review and deploy normally after backup; verify the real
+     Dez→Grace report opens the owner's Rob case and monitor the first conversation. No commit/push made.
+  Plus a website "What's new" entry, guide updates and tests for each. Money and bank accounts are deferred
+  (owner, 23 Nov: too big for now).
+
+- **Promise evidence is deployed (23 Nov).** Keep watching real kept/broken/lapsed results and false claims with
+  the read-only promise report; unsupported research/repayment needs real actions before it can be checked.
 
 - Align the G4 checkout with the rewritten history using §6 so automatic updates resume. Review its
-  access controls and rotate the previously chat-exposed ngrok token. Request an eligible old-object/cache
+  access controls. Request an eligible old-object/cache
   purge through GitHub Support; do not merge old clones back into the cleaned history. Make the kit
   visible to this session before restarting Web3D rebuild stages.
 
@@ -1132,6 +1201,47 @@ the key pool and open sign-ups.
 ---
 
 ## 14. History
+
+### 23 November 2026 — Grace follows up reports
+
+- Implemented migration 16 and `cases.py`: attributed serious reports, incremental back-fill, one unresolved
+  case per named subject, routine/availability priority, daily attempts, correct-account player openings,
+  missed visits and catch-up, spoken outcomes and a three-game-day no-further-action timeout.
+- Fixed the spoken-decision extraction example first; retained the six-word speaker quote, strict argument,
+  transactional and daily action checks. Police outcomes additionally require Grace's current conversation
+  with its subject, and cannot be issued by morning/reaction calls. No outcome is inferred from an apology.
+- Outcomes record serious history and facts for subject, reporter and Grace. God-view cards/timeline show
+  cases; dashboard and 3D player panels show notices and outcomes, with incoming 3D chats. Explicit 3D street
+  presence fixes the previous “outside” state while walking there. Removed private rationale from the
+  dashboard's player conversation. Updated guide and website (“The police follow up”).
+- Confirmed the saved 20 Nov 23:00 transcript: Dez reported the jaw threat and gun mention directly to Grace.
+  The available local SQLite copy is older, so a dated fact fixture tests back-fill; the live G4 is untouched.
+  Conservative report grammar and persistent player presence remain limits (§9).
+- Validation: **357 Python tests pass**, including 19 new temporary-world/fake-client police checks and
+  migration-15→16 preservation. Map/navigation and Web3D Node checks pass, including incoming chat and panel
+  isolation. The full offline browser run passed: 20 desktop/phone screenshots, movement/collision,
+  fake player dialogue and all ambient checks. The system Python has incompatible HTTP test packages; the project virtualenv passes outside
+  the sandbox, whose async TestClient loop otherwise hangs. No runtime dependencies, commit or deployment.
+
+### 23 November 2026 — Grace follow-up implementation plan
+
+- Part 5 will append migration 16 for cases, scan Grace's attributed importance-5 reports once for
+  back-fill and then incrementally, prioritise APC subjects on her beat, approach the correct account's
+  player without interrupting chats, and leave missed-visit notices/catch-up.
+- First fix the spoken-decision extraction example (Part 1 prerequisite); preserve speaker attribution,
+  six verbatim words and all action checks. Outcomes use that path only, with subject/reporter facts,
+  serious history, and a three-game-day no-further-action timeout after speaking without a decision.
+- Finish with god-view case cards/timeline, player notices/outcomes, guide and website copy, and offline
+  temporary-database/fake-client regression coverage. Other realism-pack parts remain planned.
+
+### 23 November 2026 — Realism pack planned; bank idea deferred
+
+- The owner suggested a bank with accounts for everyone. Agreed it fits (money as checkable evidence, real money
+  pressure, loans with teeth), but proposed balances plus a cash machine at Patel's rather than a bank branch, with
+  routine income/spending in Python. Deferred by the owner as too big for now.
+- Planned instead (§10): behaviour fixes, real weather, the real calendar and ordinary bad days, as one Codex
+  job. Findings from the 21 Nov world copy: Barry 0 lines; Raj–Anjali and Dez–Jess 16 conversations each; the
+  actions table has no conversation decisions. The owner said the ngrok token is fine as it is.
 
 ### 23 November 2026 — Promises are fixed once made, and made to real people
 

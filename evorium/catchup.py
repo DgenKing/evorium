@@ -38,17 +38,18 @@ def _get(client, now, db_path):
         if me['last_seen_at'] is None:
             world._set(c, accounts.setting_key('catchup_fact_checkpoint'), c.execute('SELECT coalesce(max(id),0) FROM facts').fetchone()[0])
             c.execute('UPDATE agents SET last_seen_at=? WHERE id=?', (since, me['id']))
-        events = [dict(r) for r in c.execute('SELECT * FROM timeline WHERE sim_at>? AND sim_at<=? AND importance>=3 ORDER BY id DESC LIMIT 15', (since, now.strftime(DUE_FMT)))]
+        events = [dict(r) for r in c.execute("SELECT * FROM timeline WHERE sim_at>? AND sim_at<=? AND importance>=3 AND kind!='case' ORDER BY id DESC LIMIT 15", (since, now.strftime(DUE_FMT)))]
         stats = [dict(r) for r in c.execute('SELECT * FROM stat_changes WHERE sim_at>? AND sim_at<=? ORDER BY id DESC LIMIT 30', (since, now.strftime(DUE_FMT)))]
         offers = [dict(r) for r in c.execute('SELECT * FROM offers WHERE (created_at>? OR resolved_at>?) AND created_at<=? ORDER BY id DESC LIMIT 20', (since, since, now.strftime(DUE_FMT)))]
         actions = [dict(r) for r in c.execute("SELECT * FROM actions WHERE status='done' AND key!='wait' AND sim_at>? AND sim_at<=? ORDER BY id DESC LIMIT 20", (since, now.strftime(DUE_FMT)))]
         name_word = re.compile(r'\b' + re.escape(me['name']) + r'\b', re.I)
         gossip = [dict(r) for r in c.execute("SELECT f.content,a.name FROM facts f JOIN agents a ON a.id=f.agent_id WHERE a.kind='npc' AND instr(lower(f.content),lower(?))>0 AND f.importance>=3 AND f.id>? ORDER BY f.id DESC LIMIT 50", (me['name'], int(world._get(c, accounts.setting_key('catchup_fact_checkpoint'), '0'))))
                   if name_word.search(r['content'])][:5]
+        police_visits = [r[0] for r in c.execute("SELECT content FROM facts WHERE agent_id=? AND subject='police visit' AND id>? ORDER BY id DESC LIMIT 5", (me['id'], int(world._get(c, accounts.setting_key('catchup_fact_checkpoint'), '0'))))]
         latest = c.execute('SELECT coalesce(max(id),0) FROM timeline').fetchone()[0]
-        key = json.dumps([accounts.current.get(), since, latest])
+        key = json.dumps([accounts.current.get(), since, latest, police_visits])
         cache = c.execute('SELECT text FROM catchup_cache WHERE cache_key=?', (key,)).fetchone()
-        bullets = list(dict.fromkeys([r['text'] for r in events] + [r['reason'] for r in stats] + [f"A £{r['amount']:,} {r['kind']} offer is {r['status']}." for r in offers] + [r['result'] for r in actions] + [f"{r['name']}: {r['content']}" for r in gossip]))
+        bullets = list(dict.fromkeys(police_visits + [r['text'] for r in events] + [r['reason'] for r in stats] + [f"A £{r['amount']:,} {r['kind']} offer is {r['status']}." for r in offers] + [r['result'] for r in actions] + [f"{r['name']}: {r['content']}" for r in gossip]))
         paragraph = cache[0] if cache else None
         last = float(world._get(c, accounts.setting_key('catchup_model_at'), '0'))
         sid = system_id(c)

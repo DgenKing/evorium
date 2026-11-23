@@ -81,6 +81,8 @@ def _tick_loop():
             tick.check_due_promises(None, now, DEFAULT_DB_PATH)
             economy.maintain(now, DEFAULT_DB_PATH)
             player.maintenance(DeferredClient(DEFAULT_DB_PATH), now, DEFAULT_DB_PATH)
+            from evorium import cases
+            cases.maintain(now, DEFAULT_DB_PATH)
             if _state["auto"] and not backoff.paused():
                 try:
                     client = DeepSeekClient(DEFAULT_DB_PATH)
@@ -94,6 +96,7 @@ def _tick_loop():
                     if backoff.paused():raise LLMError('DeepSeek calls are paused while the service recovers.')
                     if _run_lock.acquire(blocking=False):
                         try:
+                            cases.approach(client,now,DEFAULT_DB_PATH)
                             plans.execute(client,now,DEFAULT_DB_PATH,auto=True)
                             for key,present in places.opportunities(now,_state['gap_minutes'],DEFAULT_DB_PATH):
                                 try:a,b=world.pick_pair([p['id'] for p in present],DEFAULT_DB_PATH)
@@ -122,6 +125,8 @@ async def lifespan(app: FastAPI):
     seed_agents(DEFAULT_DB_PATH)
     seed_events(DEFAULT_DB_PATH, world.now(DEFAULT_DB_PATH))
     economy.ensure(DEFAULT_DB_PATH, world.now(DEFAULT_DB_PATH))
+    from evorium import cases
+    cases.maintain(world.now(DEFAULT_DB_PATH), DEFAULT_DB_PATH)
     player.maintenance(DeferredClient(DEFAULT_DB_PATH), world.now(DEFAULT_DB_PATH), DEFAULT_DB_PATH, startup=True)
     stuck = mark_interrupted(DEFAULT_DB_PATH)
     now = world.now(DEFAULT_DB_PATH)
@@ -219,7 +224,9 @@ async def agents():
                 "SELECT content, CASE WHEN lapsed_at IS NOT NULL THEN 'lapsed' ELSE status END AS status, outcome FROM commitments WHERE agent_id=? AND (status!='open' OR lapsed_at IS NOT NULL) ORDER BY id DESC LIMIT 3", (aid,))]
             today_action = connection.execute("SELECT result FROM actions WHERE agent_id=? AND status='done' AND substr(sim_at,1,10)=? AND key!='wait' ORDER BY id DESC LIMIT 1", (aid, now.strftime('%Y-%m-%d'))).fetchone()
             considering = connection.execute("SELECT result FROM actions WHERE agent_id=? AND status='considering' ORDER BY id DESC LIMIT 1", (aid,)).fetchone()
-            out.append({"today_action": today_action[0] if today_action else None, "considering": considering[0] if considering else None, **dict(r), "in_pub": r["location"] == world.PUB, "facts": facts, "fact_counts": counts,
+            from evorium import cases
+            case_rows = [dict(v) for v in connection.execute("SELECT v.*,a.name AS subject_name FROM cases v JOIN agents a ON a.id=v.subject_id WHERE v.subject_id=? OR ?=? ORDER BY v.id DESC LIMIT 10", (aid, r['name'], cases.GRACE))]
+            out.append({"cases": case_rows, "today_action": today_action[0] if today_action else None, "considering": considering[0] if considering else None, **dict(r), "in_pub": r["location"] == world.PUB, "facts": facts, "fact_counts": counts,
                         "plans": plans.today(connection,aid,now), "relationships": relationships.for_card(connection, aid), "promises": open_commitments(connection, aid), "resolved": resolved, "memories": memories})
     return out
 

@@ -352,7 +352,7 @@ def test_migration_15_preserves_v14_world_and_plan_foreign_keys(tmp_path):
         src.backup(dst)
     init_db(copy); init_db(copy)
     with connect(copy) as c:
-        assert c.execute('PRAGMA user_version').fetchone()[0] == 15
+        assert c.execute('PRAGMA user_version').fetchone()[0] == len(MIGRATIONS)
         assert not c.execute('PRAGMA foreign_key_check').fetchall()
         after = [dict(r) for r in c.execute('SELECT * FROM commitments')]
         for old, new in zip(before, after):

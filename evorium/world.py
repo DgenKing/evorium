@@ -304,6 +304,10 @@ def pick_pair(ids: list[int], db_path: str | Path = DEFAULT_DB_PATH, recent_wind
             WHERE a.kind='player' AND v.status='running' AND EXISTS (SELECT 1 FROM messages m
             WHERE m.conversation_id=v.id AND julianday(m.created_at)>=julianday('now','-3 minutes'))""")}
         allowed -= busy
+        from evorium import cases
+        preferred = cases.priority(connection, [i for i in ids if i in allowed], now(db_path))
+        if preferred:
+            return preferred
     ids = [i for i in ids if i in allowed]
     if len(ids) < 2:
         raise ValueError("Fewer than two available characters.")

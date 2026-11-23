@@ -70,7 +70,10 @@ def _take_notes(client, db_path, conversation_id, a, b, transcript, sim_label):
                WHERE f.agent_id IN (?, ?) AND f.source IN ('seed','observed') ORDER BY f.id""", (a["id"], b["id"]))]
         opens = [{**c, "owner": who["name"]}
                  for who in (a, b) for c in open_commitments(connection, who["id"])]
-    messages = build_extraction_messages(a, b, transcript, known, opens, cast, sim_label)
+    from evorium import cases
+    with connect(db_path) as connection:
+        police_menu = {a['name']: cases.menu(connection, a, b), b['name']: cases.menu(connection, b, a)}
+    messages = build_extraction_messages(a, b, transcript, known, opens, cast, sim_label, police_menu)
     try:
         extraction = client.propose(a["id"], messages, schema=Extraction, max_tokens=EXTRACTION_MAX_TOKENS)
     except (InvalidProposal, LLMError) as exc:
@@ -80,6 +83,8 @@ def _take_notes(client, db_path, conversation_id, a, b, transcript, sim_label):
         extraction = Extraction(summary=f'{a["name"]} and {b["name"]} talked. {a["name"]}: "{last_a[:120]}" {b["name"]}: "{last_b[:120]}"')
     with connect(db_path) as connection:
         counts = store_extraction(connection, conversation_id, {a["name"]: a, b["name"]: b}, extraction, world.now(db_path))
+        cases.scan(connection, world.now(db_path))
+        cases.spoken(connection, conversation_id, world.now(db_path))
         for who in (a, b):
             connection.execute(
                 "INSERT INTO memories (agent_id, content, importance, source_conversation_id) VALUES (?, ?, 5, ?)",
@@ -127,6 +132,10 @@ def run_conversation(client, agent_a_id: int, agent_b_id: int, turns: int = 4,
             raise ValueError('A character is already talking or unavailable.')
         if location:
             a['location']=b['location']=location
+        from evorium import cases
+        if a['name'] == cases.GRACE or b['name'] == cases.GRACE:
+            subject = b if a['name'] == cases.GRACE else a
+            connection.execute("UPDATE cases SET last_attempt_day=? WHERE subject_id=? AND status!='closed'", (now.strftime('%Y-%m-%d'), subject['id']))
         conversation_id = connection.execute(
             "INSERT INTO conversations (location, status, sim_time, agent_a_id, agent_b_id, sim_at) VALUES (?, 'running', ?, ?, ?, ?)",
             (a["location"], sim_label, a["id"], b["id"], now.strftime(DUE_FMT)),
@@ -170,6 +179,9 @@ def run_conversation(client, agent_a_id: int, agent_b_id: int, turns: int = 4,
             logger.exception("Note-taking crashed for conversation %s", conversation_id)
             emit(f"Note-taking crashed ({type(exc).__name__}); conversation saved without notes.", "error")
             summary = f"{a['name']} and {b['name']} talked (notes unavailable)."
+    with connect(db_path) as connection:
+        from evorium import cases
+        cases.spoken(connection, conversation_id, world.now(db_path))
     _set_status(db_path, conversation_id, "completed", summary)
     with connect(db_path) as connection:
         relationships.familiar(connection, a["id"], b["id"])

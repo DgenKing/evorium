@@ -83,8 +83,9 @@ def knowledge_for_prompt(connection: sqlite3.Connection, speaker: dict, listener
     reasons = [r[0] for r in connection.execute('SELECT reason FROM relationship_events WHERE agent_id=? AND other_id=? ORDER BY id DESC LIMIT 2',(sid,lid))]
     broken = [r[0] for r in connection.execute("SELECT content FROM commitments WHERE agent_id=? AND to_agent_id=? AND status='broken' ORDER BY id DESC LIMIT 2",(lid,sid))]
     from evorium.economy import situation
+    from evorium.cases import followup_line
     return {
-        "situation": situation(connection, speaker, now),
+        "situation": situation(connection, speaker, now) + followup_line(connection, speaker, listener),
         "plans": [f"{p['start_at']}: {p['action']} {p['place'] or ''} [{p['status']}] — {p['outcome'] or p['reason']}" for p in today(connection,sid,now)],
         "relationship": [relationships.describe(rel), *reasons],
         "broken_promises": broken,

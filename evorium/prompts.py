@@ -139,13 +139,14 @@ CONVERSATION:
 {transcript}
 
 Return JSON exactly like:
-{{"summary": "...", "per_agent": {{"{a_name}": {{"decision": null, "feeling": {{"trust_change": 0, "warmth_change": 0, "reason": "..."}}, "facts": [{{"subject": "...", "content": "...", "source": "told", "told_by": "{b_name}", "importance": 3}}], "commitments": [{{"content": "Write forty quiz questions", "to": "{b_name}", "due_hours": 24, "replaces": null, "kind": "make", "target": {{"item": "quiz_questions", "count": 40}}}}], "new_people": []}}, "{b_name}": {{"decision": null, "feeling": {{...}}, "facts": [...], "commitments": [], "new_people": []}}}}, "commitments_done": []}}
+{{"summary": "...", "per_agent": {{"{a_name}": {{"decision": {{"action":"tell","args":{{"person":"{b_name}","fact_id":123}},"quote":"I am telling you what I witnessed"}}, "feeling": {{"trust_change": 0, "warmth_change": 0, "reason": "..."}}, "facts": [{{"subject": "...", "content": "...", "source": "told", "told_by": "{b_name}", "importance": 3}}], "commitments": [{{"content": "Write forty quiz questions", "to": "{b_name}", "due_hours": 24, "replaces": null, "kind": "make", "target": {{"item": "quiz_questions", "count": 40}}}}], "new_people": []}}, "{b_name}": {{"decision": null, "feeling": {{...}}, "facts": [...], "commitments": [], "new_people": []}}}}, "commitments_done": []}}
 Keep it tight: at most 3 facts and 3 commitments per speaker, an empty facts list is fine. Never record trivia.
+The filled decision illustrates "I am telling you what I witnessed" with a known fact id 123; never copy it unless those exact words and that owned fact occur. Extract actual choices (including advice or a warning) using the menu and verbatim speech.
 The example values are illustrations only: record a commitment whenever a speaker says they will do something (e.g. "I'll ring them", "forty by Sunday, that's a promise"), and use an empty list only when nobody promised anything."""
 
 
 def build_extraction_messages(a: dict, b: dict, transcript: list[dict], known_facts: list[str],
-                              open_commitments: list[dict], cast: list[str], sim_time: str) -> list[dict]:
+                              open_commitments: list[dict], cast: list[str], sim_time: str, police_menu: dict | None = None) -> list[dict]:
     lines = "\n".join(f'{m["speaker_name"]}: {m["text"]}' for m in transcript) or "(no lines)"
     known = "\n".join(f"- {f}" for f in known_facts) or "- (none)"
     opens = "\n".join(f"- id {c['id']} ({c['owner']}): {c['content']}; due {c.get('due_at')}; kind {c.get('kind')}; target {c.get('target_json')}; {c.get('progress', '')}" for c in open_commitments if not c.get("lapsed_at")) or "- (none)"
@@ -157,7 +158,8 @@ def build_extraction_messages(a: dict, b: dict, transcript: list[dict], known_fa
     speakers = {a["name"].split()[0]: a["name"], b["name"].split()[0]: b["name"]}
     # Argument names only: ranges are checked in Python, and Simon's limits must never reach the note-taker.
     menu = {name: [{'action': x.key, 'args': list(x.args_schema.model_fields)} for x in REGISTRY.values()
-                   if x.who in ('any', first) and x.key != 'wait'] for first, name in speakers.items()}
+                   if x.who in ('any', first) and x.key != 'wait'
+                   and (x.key not in ('give_advice','give_formal_warning') or (police_menu or {}).get(name, False))] for first, name in speakers.items()}
     prompt += '\nDecision menu per speaker (use only that speaker\'s own list): ' + json.dumps(menu)
     return [{"role": "user", "content": prompt}]
 

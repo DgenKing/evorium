@@ -215,6 +215,16 @@ MIGRATIONS = (
         "CREATE INDEX promise_claims_commitment ON promise_claims(commitment_id,outcome)",
         "CREATE INDEX commitments_due ON commitments(due_at) WHERE status='open' AND lapsed_at IS NULL",
     ),
+    # Migration 16: Grace's reports, preserving every existing world row.
+    (
+        """CREATE TABLE cases(id INTEGER PRIMARY KEY, subject_id INTEGER NOT NULL REFERENCES agents(id),
+            reported_by INTEGER REFERENCES agents(id), source_fact_id INTEGER REFERENCES facts(id),
+            source_timeline_id INTEGER REFERENCES timeline(id), summary TEXT NOT NULL, opened_at TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'open' CHECK(status IN ('open','spoken_to','closed')),
+            outcome TEXT CHECK(outcome IN ('advice','formal_warning','no_further_action')), closed_at TEXT,
+            spoken_at TEXT, last_incident_at TEXT NOT NULL, last_attempt_day TEXT, last_looked_day TEXT)""",
+        "CREATE UNIQUE INDEX cases_open_subject ON cases(subject_id) WHERE status!='closed'",
+    ),
 )
 
 VISIBLE_IMPORTANCE = 3  # facts scored below this are kept in the database but never shown to characters

@@ -31,6 +31,7 @@ Loan = schema('Loan', person=(str, Field(min_length=1, max_length=60)), amount=(
 Questions = schema('Questions', count=(int, Field(ge=5, le=20)))
 Petition = schema('Petition', text=(str, Field(min_length=1, max_length=120)))
 Answer = schema('Answer', ask_id=(int, Field(ge=1)), answer=(Literal['yes', 'no'], ...))
+PolicePerson = schema('PolicePerson', person=(str, Field(min_length=1, max_length=60)))
 Tell = schema('Tell', person=(str, Field(min_length=1, max_length=60)), fact_id=(int, Field(ge=1)))
 
 
@@ -77,6 +78,8 @@ MENU = [
     ('join_darts', 'any', Empty, False, 0, 'none'),
     ('answer_ask', 'any', Answer, False, 0, 'target'),
     ('tell', 'any', Tell, False, 0, 'target'),
+    ('give_advice', 'Grace', PolicePerson, False, 0, 'none'),
+    ('give_formal_warning', 'Grace', PolicePerson, False, 0, 'none'),
     ('wait', 'any', Empty, False, 0, 'none'),
     # A job offer also needs a real choice, through the same guarded path.
     ('accept_job', 'Jess', OfferID, True, 0, 'target'),
@@ -158,6 +161,10 @@ def check(c, actor, key, args, now):
     a = item.args_schema.model_validate(args).model_dump()
     guards(c, actor, item, a, now)
     s = e.stats(c)
+    if key in ('give_advice', 'give_formal_warning'):
+        from evorium import cases
+        conv = c.execute("SELECT id FROM conversations WHERE status='running' AND (agent_a_id=? OR agent_b_id=?) ORDER BY id DESC LIMIT 1", (actor['id'], actor['id'])).fetchone()
+        cases.outcome_case(c, actor, a['person'], conv['id'] if conv else None)
     if key == 'wait':
         return a
     if world.routine(actor['name'], now)[1] == 'asleep':
@@ -266,7 +273,12 @@ def apply(c, actor, key, a, now):
     text = f"{name} chose to {key.replace('_', ' ')}."
     def stat(k, v, why):
         e.change(c, k, v, why, now)
-    if key == 'change_pint_price':
+    if key in ('give_advice', 'give_formal_warning'):
+        from evorium import cases
+        conv = c.execute("SELECT id FROM conversations WHERE status='running' AND (agent_a_id=? OR agent_b_id=?) ORDER BY id DESC LIMIT 1", (actor['id'], actor['id'])).fetchone()
+        case = cases.outcome_case(c, actor, a['person'], conv['id'] if conv else None)
+        text = cases.finish(c, case, 'advice' if key == 'give_advice' else 'formal_warning', now)
+    elif key == 'change_pint_price':
         value = s['pub.pint_price_p'] + a['pence']
         text = f"{name} changed the Billet's pint price to £{value / 100:.2f}."
         stat('pub.pint_price_p', value, text)
@@ -403,6 +415,11 @@ def propose(c, actor, proposal, now, trigger='reaction', conversation_id=None, t
         else:
             raw = Decision.model_validate(raw).model_dump()
             evidence = raw['evidence']
+        if key in ('give_advice', 'give_formal_warning'):
+            from evorium import cases
+            if trigger != 'conversation':
+                raise ValueError('Grace must speak the outcome in conversation.')
+            cases.outcome_case(c, actor, args.get('person'), conversation_id)
         args = check(c, actor, key, args, now)
         item = REGISTRY[key]
         status = 'done'
@@ -471,6 +488,8 @@ def candidates(c, actor, now):
         elif key == 'write_quiz_questions': examples = [{'count': 20}]
         elif key == 'start_petition': examples = [{'text': 'Keep our terrace businesses open'}]
         elif key == 'answer_ask': examples = [{'ask_id': r['id'], 'answer': v} for r in c.execute("SELECT id FROM asks WHERE to_id=? AND status='open'", (actor['id'],)) for v in ('yes', 'no')]
+        elif key in ('give_advice', 'give_formal_warning'):
+            examples = [{'person': r['name']} for r in c.execute("SELECT a.name FROM cases v JOIN agents a ON a.id=v.subject_id WHERE v.status!='closed'")]
         elif key == 'tell': examples = [{'person': a['name'], 'fact_id': r['id']} for a in npc_agents(c) if a['id'] != actor['id'] for r in c.execute('SELECT id FROM facts WHERE agent_id=? AND importance>=3 ORDER BY id DESC LIMIT 2', (actor['id'],))]
         valid = []
         for args in examples:

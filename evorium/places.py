@@ -41,5 +41,7 @@ def opportunities(now,gap,db_path=DEFAULT_DB_PATH):
     people=present(now,db_path)
     with connect(db_path) as c:
         last={key:c.execute('SELECT coalesce(max(id),0) FROM conversations WHERE location=?',(name,)).fetchone()[0] for key,name in REGISTRY.items()}
-    return [(key,people[key]) for key in sorted(REGISTRY,key=lambda key:last[key])
+        from evorium import cases
+        preferred = {key: cases.priority(c, [a['id'] for a in people[key]], now) is not None for key in REGISTRY}
+    return [(key,people[key]) for key in sorted(REGISTRY,key=lambda key:(not preferred[key], last[key]))
             if len(people[key])>=2 and conversation_due(now,gap,db_path,REGISTRY[key])]

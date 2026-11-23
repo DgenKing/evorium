@@ -30,9 +30,11 @@ def state(db_path=DEFAULT_DB_PATH):
             LEFT JOIN agents a ON a.id=f.source_agent_id WHERE f.agent_id=? AND f.importance>=3 ORDER BY f.id DESC LIMIT 15''',(me['id'],))]
         promises=open_commitments(c,me['id'],limit=None)
         others=accounts.other_players(c)
+        from evorium import cases
+        police = cases.player_view(c, me['id'])
     return {'id':me['id'],'name':me['name'],'about':me['occupation'], 'place':world.get_setting(accounts.setting_key('player_place'),'',db_path),
             'conversation':sim.get_conversation(conv['id'],db_path) if conv else None,
-            'promises':promises,'learned':learned,'places':places.describe(now,db_path),'other_players':others}
+            'police':police,'promises':promises,'learned':learned,'places':places.describe(now,db_path),'other_players':others}
 
 
 def profile(name,about,db_path=DEFAULT_DB_PATH):
@@ -57,6 +59,9 @@ def close(client, db_path=DEFAULT_DB_PATH):
         full=sim.get_conversation(conv['id'],db_path)
         transcript=[{'speaker_name':m['speaker_name'],'text':m['text']} for m in full['messages']]
         summary=sim._take_notes(client,db_path,conv['id'],a,b,transcript,conv['sim_time']) if transcript and not backoff.paused() else ('They talked; detailed notes were unavailable while DeepSeek recovered.' if transcript else 'No words exchanged.')
+        with connect(db_path) as c:
+            from evorium import cases
+            cases.spoken(c, conv['id'], world.now(db_path))
         sim._set_status(db_path,conv['id'],'completed',summary)
         now=world.now(db_path)
         with connect(db_path) as c:

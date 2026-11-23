@@ -49,3 +49,16 @@ actors.label=()=>{};
 await actors.sync({speed:1,characters:[{id:21,name:'Thomas',first:'Thomas',kind:'player',visible:true,place:'street',waypoint:'STREET_WAIT',slot:0}]},true);
 assert.equal(requestedModels[0],'player');assert.equal(actors.people.get(21).tag.textContent,'Thomas');
 console.log('Accounts: other humans use the player body and cannot receive an E-talk prompt.');
+
+// Incoming APC chat is shown as ordinary dialogue and never replaces an open panel.
+const uiSource=fs.readFileSync(new URL('../evorium/static/world3d/js/ui.js',import.meta.url),'utf8').replace(/^import .*;$/gm,'').replaceAll('export ','');
+const elements=new Map();const element=id=>{if(!elements.has(id))elements.set(id,{hidden:true,textContent:'',style:{},replaceChildren(){},focus(){}});return elements.get(id);};
+let incoming={police:{notice:'PCSO Grace Adeyemi wants a word',outcomes:[]},conversation:{agent_b_id:16,messages:[{speaker_name:'Grace Adeyemi',text:'Can we have a word?',rationale:'PRIVATE'}]}};
+const UIClass=runInNewContext(uiSource+'\nUI;', {document:{getElementById:element},window:{},request:async()=>incoming,Date,setTimeout,clearTimeout});
+const graceActor={person:{id:16,first:'Grace'}};const ui=new UIClass({reset(){},blocked:false},{people:new Map([[16,graceActor]])});
+const displayed=[];ui.line=(name,text)=>displayed.push([name,text]);await ui.pollPlayer();
+assert.equal(ui.target,graceActor);assert.equal(element('chat').hidden,false);assert.equal(ui.input.blocked,true);
+assert.equal(displayed[0][1],'Can we have a word?');assert.ok(!JSON.stringify(displayed).includes('PRIVATE'));
+const otherTarget={person:{id:1,first:'Dez'}};ui.target=otherTarget;ui.polledAt=0;await ui.pollPlayer();assert.equal(ui.target,otherTarget);
+incoming={police:{notice:'',outcomes:['formal warning']},conversation:null};ui.polledAt=0;await ui.pollPlayer();assert.match(element('police-notice').textContent,/formal warning/);
+console.log('Police follow-ups: incoming chat, private rationale, existing-panel isolation and outcome notice passed.');
