@@ -104,7 +104,7 @@ and phone); it runs around the clock on the owner's HP G4 and is reachable over 
 | Dashboard | Character cards, live feed, usage/spend, controls, terrace card, **version** (git commit and date) and the **Restart server** button |
 | Map tab | 2D canvas of the pub, shop, empty unit and street; pixel sprites, bubbles, portrait popups |
 | 3D game | `/world3d`: Shuttle Street in Three.js, nine distinct MPFB models, third person, touch controls, chat and optional cosmetic street life |
-| Hosting | HP G4 home server, auto-updating from GitHub, nightly backups, public via ngrok; connection details kept private (§6) |
+| Hosting | HP G4 home server, auto-updating from GitHub, nightly backups, public via a Cloudflare Tunnel; connection details kept private (§6) |
 | Model | DeepSeek `deepseek-flash`, JSON mode, temperature 0.8 (0.6 decisions, 0.2 structured calls) |
 | Cost | About $0.00015 per call; about $0.40 a day for the whole world at real speed with auto mode on |
 | Tests | 393 Python tests + 8 Node map tests + 2 navigation tests + Web3D Node checks and offline Chrome checks, all fake/offline |
@@ -648,8 +648,9 @@ The real Evorium runs on the owner's always-on **HP ProDesk 405 G4 Mini** (Ryzen
 private. In commands below, `<server-user>`, `<server-address>`, `<project-dir>` and `<tunnel-domain>`
 are placeholders to fill in privately.
 
-- **Public access:** use the privately shared tunnel address (3D game at `/world3d`). Visitors click
-  through ngrok’s one-time warning page, then authenticate.
+- **Public access:** use the privately shared Cloudflare address (3D game at `/world3d`), then authenticate.
+  The game listens on 127.0.0.1 only; the tunnel is the only way in from outside the G4, and the firewall has no
+  rule for port 8000.
 - **Everything comes from GitHub.** Work on the main PC and push to `main`; the G4 updates itself.
 - **Never on GitHub:** `config.py` (private configuration), `evorium.sqlite3` (the world) and `backups/` exist only
   on the G4.
@@ -708,7 +709,7 @@ configuration or world data. A restricted, git-ignored history bundle is retaine
 | `evorium` | The game, on 127.0.0.1:8000, restarts itself if it stops and starts at boot |
 | `evorium-update.timer` | Auto-update from GitHub every 2 minutes |
 | `evorium-backup.timer` | Nightly backup at 03:15 to `backups/`, keeping 14 (`deploy/backup_world.py`, SQLite backup API). A systemd timer because Ubuntu 26.04 has no cron by default |
-| `evorium-ngrok` | The public tunnel: `ngrok http 8000 --url=<tunnel-domain>`. A plain systemd unit, because snap ngrok can't run `ngrok service install` |
+| `cloudflared` | The public tunnel (Cloudflare Tunnel, token-based). Its public hostname → `http://localhost:8000` is set in the Cloudflare dashboard, not in a file on the G4. `cloudflared-update.timer` keeps it updated |
 
 A sudoers rule lets the configured service account run `systemctl restart evorium` only, for the updater.
 
@@ -724,7 +725,7 @@ A sudoers rule lets the configured service account run `systemctl restart evoriu
 | Why did an update fail? | `cat ~/evorium/last_update_tests.txt` |
 | Back up now | `cd ~/evorium && .venv/bin/python deploy/backup_world.py` |
 | Restore a backup | `sudo systemctl stop evorium`, copy a file from `backups/` over `evorium.sqlite3`, `sudo systemctl start evorium` |
-| ngrok status | `systemctl status evorium-ngrok`, or the ngrok dashboard |
+| Tunnel status | `systemctl status cloudflared`, or the Cloudflare dashboard (Zero Trust → Networks → Tunnels) |
 
 ### Setting up a server from scratch (for reference)
 
@@ -738,10 +739,10 @@ A sudoers rule lets the configured service account run `systemctl restart evoriu
 5. **Install:** `bash deploy/install_home_server.sh`. It builds the venv, checks the private configuration, installs
    the `evorium` service, auto-update, the sudoers rule and the nightly backup, and takes a first backup. Safe to
    re-run.
-6. **ngrok:** `sudo snap install ngrok`, `ngrok config add-authtoken <token>`, test with `ngrok http 8000` (the
-   free plan uses the account's fixed domain), then create the `evorium-ngrok` systemd unit (User=<name>,
-   `ExecStart=/snap/bin/ngrok http 8000 --url=<domain> --log=stdout`, `Restart=always`) and
-   `sudo systemctl enable --now evorium-ngrok`.
+6. **Cloudflare Tunnel:** needs a domain on a Cloudflare account. In the dashboard (Zero Trust → Networks →
+   Tunnels) create a tunnel, run the `cloudflared service install <token>` command it shows on the server, and
+   add a public hostname pointing to `http://localhost:8000`. No LAN firewall rule is needed: keep the game on
+   `--host 127.0.0.1`.
 7. **Stay up:** Settings → Power: automatic suspend off. BIOS (F10 on HP): After Power Loss → Power On.
 
 ### Good to know
@@ -1093,7 +1094,7 @@ streets, film grain, matching the game's portraits.
 - **Old trivia still visible** until `python -m evorium.rescore --apply` is run once.
 - **Restart button** requires authentication when access control is enabled (as configured on the G4).
 - **Spend recorded before 19 Nov is overstated** by about $0.09 (old pricing).
-- **Security to-dos:** rotate the previously chat-exposed ngrok token and review the G4 access controls.
+- **Security to-dos:** review the G4 access controls.
 - **Starlette test-client deprecation warning** (harmless).
 
 ---
@@ -1305,6 +1306,17 @@ the key pool and open sign-ups.
 ---
 
 ## 14. History
+
+### 23 November 2026 — Public access moved from ngrok to Cloudflare Tunnel
+
+- **What:** ngrok hit its free limit. The owner set up a token-based Cloudflare Tunnel (`cloudflared` service),
+  then on the G4 removed the `evorium-ngrok` unit and the ngrok snap, deleted the temporary ufw rules that
+  opened port 8000 to the two home subnets, and put the `evorium` service back on `--host 127.0.0.1`
+  (verified: listening on 127.0.0.1:8000; `evorium` and `cloudflared` active, `evorium-ngrok` inactive).
+- **Why:** the tunnel reaches the game through localhost, so LAN access is no longer needed; the game is
+  reachable only through Cloudflare. `http://<server-address>:8000` from the home network no longer works.
+- **Docs:** §2, §6 (services, everyday commands, setup step 6) and §9 updated; the install script's messages
+  now point to Cloudflare. The old ngrok-token security to-do is gone with ngrok.
 
 ### 23 November 2026 — Realism pack complete: integrated review and verification
 

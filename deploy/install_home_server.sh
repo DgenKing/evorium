@@ -82,7 +82,7 @@ sudo systemctl daemon-reload
 sudo systemctl enable --now evorium
 sleep 3
 if systemctl is-active --quiet evorium; then
-  echo "Evorium is running on http://127.0.0.1:8000 (this machine only; ngrok shares it, see EVORIUM.md §6)."
+  echo "Evorium is running on http://127.0.0.1:8000 (this machine only; a Cloudflare Tunnel shares it, see EVORIUM.md §6)."
 else
   echo "The service didn't start. Last log lines:"; sudo journalctl -u evorium -n 30 --no-pager; exit 1
 fi
@@ -162,5 +162,5 @@ Useful commands:
   sudo systemctl restart evorium         # restart by hand
   tail -f $DIR/updates.log               # see auto-updates from GitHub as they happen
   bash $DIR/deploy/auto_update.sh        # check GitHub for updates right now
-Next: set up ngrok so others can reach it (EVORIUM.md §6, "Setting up a server from scratch", step 6).
+Next: set up a Cloudflare Tunnel so others can reach it (EVORIUM.md §6, "Setting up a server from scratch", step 6).
 EOF
