@@ -43,6 +43,10 @@ def open_commitments(connection: sqlite3.Connection, agent_id: int, limit=MAX_PR
     return rows
 
 
+# Everyone on the street knows these people's jobs by sight: the uniform, the bar, the shop counter, the round.
+PUBLIC_FACES = ('Dez', 'Jess', 'Raj', 'Anjali', 'Grace', 'Gary', 'Barry')
+
+
 def knowledge_for_prompt(connection: sqlite3.Connection, speaker: dict, listener: dict, now=None) -> dict:
     from evorium.plans import today
     from evorium import world
@@ -72,6 +76,19 @@ def knowledge_for_prompt(connection: sqlite3.Connection, speaker: dict, listener
            WHERE n.introduced_by = ? OR EXISTS (
                SELECT 1 FROM facts f WHERE f.agent_id = ? AND lower(f.content) LIKE '%' || lower(n.name) || '%')
            ORDER BY n.id DESC LIMIT 4""", (sid, sid))
+    # People they actually know, with their jobs, so nobody guesses (Ronnie once decided Grace, the PCSO, pulled pints).
+    # Known = talked to, mentioned in what they know (seed facts name old friends), or one of the street's public
+    # faces. Not trust/warmth: everyone starts slightly wary of Simon without knowing him.
+    # Strangers stay unknown, so Simon's Northgate job doesn't leak to people who've never met him.
+    acquaintances = _rows(connection,
+        """SELECT a.name, a.occupation FROM agents a LEFT JOIN relationships r ON r.agent_id=? AND r.other_id=a.id
+           WHERE a.kind='npc' AND a.id NOT IN (?, ?) AND (
+               coalesce(r.familiarity,0)>=1
+               OR substr(a.name,1,instr(a.name||' ',' ')-1) IN ({public})
+               OR EXISTS (SELECT 1 FROM facts f WHERE f.agent_id=? AND f.importance>=? AND
+                          instr(lower(f.content), lower(substr(a.name,1,instr(a.name||' ',' ')-1)))>0))
+           ORDER BY coalesce(r.familiarity,0) DESC, a.id LIMIT 14""".format(public=','.join('?' * len(PUBLIC_FACES))),
+        (sid, sid, lid, *PUBLIC_FACES, sid, VISIBLE_IMPORTANCE))
     last_with = connection.execute(
         """SELECT summary, sim_time FROM conversations
            WHERE summary IS NOT NULL AND ((agent_a_id=? AND agent_b_id=?) OR (agent_a_id=? AND agent_b_id=?))
@@ -84,8 +101,10 @@ def knowledge_for_prompt(connection: sqlite3.Connection, speaker: dict, listener
     broken = [r[0] for r in connection.execute("SELECT content FROM commitments WHERE agent_id=? AND to_agent_id=? AND status='broken' ORDER BY id DESC LIMIT 2",(lid,sid))]
     from evorium.economy import situation
     from evorium.cases import followup_line
+    from evorium import weather,calendar_uk,bad_days
     return {
         "situation": situation(connection, speaker, now) + followup_line(connection, speaker, listener),
+        "environment": weather.prompt_line(weather.read(connection,now))+"\n"+(calendar_uk.context(now)+" "+bad_days.prompt(bad_days.records(connection,now).get(str(sid),{}),now)).strip(),
         "plans": [f"{p['start_at']}: {p['action']} {p['place'] or ''} [{p['status']}] — {p['outcome'] or p['reason']}" for p in today(connection,sid,now)],
         "relationship": [relationships.describe(rel), *reasons],
         "broken_promises": broken,
@@ -96,6 +115,7 @@ def knowledge_for_prompt(connection: sqlite3.Connection, speaker: dict, listener
                      f" — due {p['due_at'] or 'unspecified'}; {p['progress']}" for p in promises],
         "their_promises": [p["content"] for p in their_promises],
         "people": [f'{p["name"]} — {p["description"]}' for p in people],
+        "acquaintances": [f'{p["name"]}: {p["occupation"]}' for p in acquaintances],
         "last_with_listener": (f'{last_with["sim_time"]}: {last_with["summary"]}' if last_with else None),
         "recent": [r["content"] for r in recent],
         "covered_today": covered_today(connection, sid, now),
@@ -131,6 +151,7 @@ def store_extraction(connection: sqlite3.Connection, conversation_id: int, parti
     for name, ext in extraction.per_agent.items():
         me = agent_id_for(name)
         if me is None or name not in participants and me not in {p["id"] for p in participants.values()}:
+            if ext.decision:logger.warning("Conversation %s decision dropped: speaker is not a participant.", conversation_id)
             continue
         from evorium import actions, economy
         if ext.decision:

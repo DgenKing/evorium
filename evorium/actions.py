@@ -98,6 +98,9 @@ class Decision(BaseModel):
     new_goal: str | None = Field(default=None, min_length=1, max_length=120)
 
 
+EXAMPLE_DECISION = {'action':'sign_petition', 'args':{}, 'quote':'I am signing the petition right now'}
+
+
 class SpokenDecision(BaseModel):
     model_config = ConfigDict(extra='forbid', strict=True, str_strip_whitespace=True)
     action: str = Field(max_length=60)
@@ -408,6 +411,8 @@ def propose(c, actor, proposal, now, trigger='reaction', conversation_id=None, t
     try:
         if trigger == 'conversation':
             spoken = SpokenDecision.model_validate(raw)
+            if spoken.model_dump() == EXAMPLE_DECISION:
+                raise ValueError('Copied example decision; no actual decision recorded.')
             quote = spoken.quote.casefold()
             if len(quote.split()) < 6 or not any(quote in t['text'].casefold() and t['speaker_id'] == actor['id'] for t in (transcript or [])):
                 raise ValueError('The decision needs six verbatim words spoken by this character.')

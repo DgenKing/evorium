@@ -94,7 +94,9 @@ def describe(dt: datetime) -> str:
 
 def pub_open(dt: datetime, stats=None) -> bool:
     """Open every day 09:00 until midnight."""
-    return not (stats or {}).get("pub.closed", 0) and 9 <= dt.hour < 24
+    from evorium.calendar_uk import hours
+    opening,closing=hours("pub",dt)
+    return not (stats or {}).get("pub.closed", 0) and opening <= dt.hour+dt.minute/60 < closing
 
 
 def _between(dt, start, end) -> bool:
@@ -102,7 +104,7 @@ def _between(dt, start, end) -> bool:
     return start <= h < end
 
 
-def _routine_location(name: str, dt: datetime, stats=None) -> tuple[str, str]:
+def _base_routine_location(name: str, dt: datetime, stats=None) -> tuple[str, str]:
     """(location, activity) for a character at a sim datetime. Deterministic."""
     stats = stats or {}
     first = name.split()[0]
@@ -112,12 +114,14 @@ def _routine_location(name: str, dt: datetime, stats=None) -> tuple[str, str]:
         return home_location(name), 'at home after the shop closed'
     if stats.get('pub.quiz') == 2 and not stats.get('pub.closed') and dt.weekday() == 3 and _between(dt, 19.5, 22.5) and first in ('Tommy', 'Mohammed', 'Brenda', 'Chloe', 'Peggy', 'Hannah', 'Liam', 'Ronnie', 'Gary'):
         # Work still takes priority; Mo is driving after 19:30 on Thursdays.
-        base_loc, base_act = _routine_location(name, dt)
+        base_loc, base_act = _base_routine_location(name, dt)
         if base_act not in ('driving', 'at work', 'asleep'):
             return PUB, 'at the Thursday quiz'
     wd = dt.weekday()  # Mon=0
     first = name.split()[0]
     if first == "Dez":
+        if pub_open(dt, stats) and _between(dt, 14, 14.5):
+            return PUB, "having a quiet tea break at the bar"
         if pub_open(dt, stats) and _between(dt, 15.5, 15.67):
             return STREET, "out front for a breather"
         if pub_open(dt, stats):
@@ -126,6 +130,7 @@ def _routine_location(name: str, dt: datetime, stats=None) -> tuple[str, str]:
             return "Cash and carry, Openshaw", "doing the pub's shopping"
         return "Flat above The Crooked Billet", "off duty upstairs" if _between(dt, 7, 24) else "asleep"
     if first == "Jess":
+        if wd == 1 and _between(dt,13,14) and pub_open(dt,stats):return PUB,"having lunch on her day off"
         if wd in ((3, 4, 5, 6, 2, 1)[:stats["jess.shifts"]] if "jess.shifts" in stats else (0, 1, 3, 4)) and _between(dt, 17, 23):
             return PUB, "working the bar"
         if wd < 5 and _between(dt, 6, 10):
@@ -168,7 +173,7 @@ def _routine_location(name: str, dt: datetime, stats=None) -> tuple[str, str]:
         return "Rented room, Stockport", "at home" if _between(dt, 7, 23) else "asleep"
     if first == 'Simon':
         if wd==3 and _between(dt,14,14.5):return "Patel's News, Ancoats",'visiting the newsagent'
-        if wd==1 and _between(dt,12.5,13.5) and pub_open(dt, stats):return PUB,'having lunch and looking over the terrace'
+        if wd in (0,1,2,4) and _between(dt,12.5,13.5) and pub_open(dt, stats):return PUB,'having lunch and looking over the terrace'
         if wd<5 and _between(dt,9,17.5):return 'Northgate Estates office, Spinningfields','at the office'
         return 'Home, Hale','at home' if _between(dt,7,23) else 'asleep'
     if first == 'Brenda':
@@ -199,6 +204,7 @@ def _routine_location(name: str, dt: datetime, stats=None) -> tuple[str, str]:
         if wd==4 and _between(dt,17,21) and pub_open(dt, stats):return PUB,'Friday pint after work'
         return 'Flat, Clayton','at home' if _between(dt,6.5,23.5) else 'asleep'
     if first == 'Anjali':
+        if wd in (1,3) and _between(dt,18,19.5) and pub_open(dt,stats):return PUB,'meeting friends after lectures'
         if wd in (0,2,4) and _between(dt,14.75,15):return STREET,'walking up from the tram stop'
         if ((wd in (0,2,4) and _between(dt,15,19)) or (wd==5 and _between(dt,9,17))):return "Patel's News, Ancoats",'helping on the counter'
         if wd<5 and _between(dt,10,14):return 'Manchester Met, All Saints','at lectures'
@@ -219,7 +225,7 @@ def _routine_location(name: str, dt: datetime, stats=None) -> tuple[str, str]:
         if wd<6 and _between(dt,8.5,8.67):return "Patel's News, Ancoats",'dropping off the post'
         if wd<6 and _between(dt,8.67,9):return STREET,'doing his round along the terrace'
         if wd<6 and _between(dt,7,12.5):return 'Post round, Ancoats','on his post round'
-        if wd in (0,2) and _between(dt,15,17) and pub_open(dt, stats):return PUB,'having an afternoon pint'
+        if wd in (0,2) and _between(dt,14,17) and pub_open(dt, stats):return PUB,'having an afternoon pint'
         return 'Home, Newton Heath','at home' if _between(dt,6,22.5) else 'asleep'
     if first == 'Kirsty':
         if _between(dt,10.5,11) or _between(dt,14,14.5):return STREET,'pushing the pram round the block'
@@ -227,6 +233,9 @@ def _routine_location(name: str, dt: datetime, stats=None) -> tuple[str, str]:
         if wd==2 and _between(dt,12,13.5) and pub_open(dt, stats):return PUB,'having lunch with Mia in the pram'
         return 'Flat, Miles Platting','at home with Mia' if _between(dt,6.5,23) else 'asleep'
     if first == 'Grace':
+        if wd in (0,2,4) and _between(dt,10,11):return STREET,'talking to neighbours on the beat'
+        if wd<5 and _between(dt,10,10.5):return STREET,'taking a tea break on the beat'
+        if wd<5 and _between(dt,16,16.33):return STREET,'pausing for a word on her beat'
         if wd<5 and (_between(dt,10,10.33) or _between(dt,13.5,13.83) or _between(dt,16,16.33)):return STREET,'on patrol'
         if wd<5 and _between(dt,13.83,14):return "Patel's News, Ancoats",'checking in with the shop'
         if wd in (4,5) and _between(dt,22.75,23.25) and pub_open(dt, stats):return PUB,'looking in at closing time'
@@ -234,6 +243,8 @@ def _routine_location(name: str, dt: datetime, stats=None) -> tuple[str, str]:
         if wd in (4,5) and _between(dt,17,24):return 'Ancoats beat','on patrol'
         return 'Home, Gorton','at home' if _between(dt,7,23.5) else 'asleep'
     if first == 'Barry':
+        if wd in (0,3) and _between(dt,10.5,11):return STREET,'having a flask of tea between windows'
+        if wd==4 and _between(dt,17,19) and pub_open(dt,stats):return PUB,'Friday pint after his round'
         if wd in (0,3) and _between(dt,9,12):return STREET,'cleaning the windows along the terrace'
         if wd in (0,3) and _between(dt,12,13) and pub_open(dt, stats):return PUB,'having his dinner'
         if wd<5 and _between(dt,8,16):return 'Window round, East Manchester','cleaning windows'
@@ -248,9 +259,55 @@ def _routine_location(name: str, dt: datetime, stats=None) -> tuple[str, str]:
 
 
 
+def _routine_location(name,dt,stats=None):
+    stats=stats or {}
+    from evorium import calendar_uk,bad_days
+    record=stats.get('_bad_days',{}).get(name,{})
+    if record.get('kind')=='off_sick':return home_location(name),'off sick at home'
+    if bad_days.blocks(record,dt):return home_location(name),'running late getting ready'
+    location,activity=_base_routine_location(name,dt,stats)
+    jess=stats.get('_bad_days',{}).get('Jess Hartley',{})
+    if name.startswith('Dez ') and jess.get('kind')=='off_sick' and pub_open(dt,stats) and _base_routine_location('Jess Hartley',dt,stats)[1]=='working the bar':
+        location,activity=PUB,'covering Jess behind the bar'
+    # Extend only an actual evening pub visit, by at most an hour, when free and awake.
+    if calendar_uk.payday_evening(dt) and 19<=dt.hour<23 and location==home_location(name) and activity!='asleep' and pub_open(dt,stats):
+        for minutes in range(5,61,5):
+            previous,doing=_base_routine_location(name,dt-timedelta(minutes=minutes),stats)
+            if previous==PUB and doing not in ('behind the bar','working the bar'):
+                location,activity=PUB,'staying a little longer for payday company'
+                break
+    from evorium import places
+    for key,place in places.REGISTRY.items():
+        if location==place and not places.is_open(key,dt,stats):
+            return home_location(name),'at home while the '+key+' is shut'
+    w=stats.get('_weather',{})
+    first=name.split()[0]
+    if w.get('raining'):
+        if first=='Peggy' and location==STREET:
+            return (PUB,'staying inside out of the rain') if pub_open(dt,stats) else (home_location(name),'staying home out of the rain')
+        if first in ('Brenda','Barry') and location==STREET and activity in ('chatting to neighbours on the pavement','having a flask of tea between windows'):
+            return (PUB,'having tea out of the rain') if pub_open(dt,stats) else (home_location(name),'staying home out of the rain')
+        if first=='Grace' and location==STREET and activity in ('taking a tea break on the beat','pausing for a word on her beat','talking to neighbours on the beat'):
+            return (places.REGISTRY['shop'],'pausing inside out of the rain') if places.is_open('shop',dt,stats) else (location,'sheltering in a doorway on her beat')
+        if first=='Hannah' and location==STREET and activity=='asking passers-by about the terrace' and pub_open(dt,stats):return PUB,'asking neighbours about the terrace indoors'
+        if first=='Kirsty' and location==STREET:return home_location(name),'skipping the pram walk in the rain'
+        if first=='Liam' and activity=='on a smoke break':
+            if dt.minute<5:return STREET,'having a quick smoke in a doorway'
+            return 'Mill conversion site, Ancoats','on the scaffold'
+        if first=='Barry' and 'cleaning' in activity and w.get('condition') in ('heavy_rain','thunder'):
+            return home_location(name),'window round stopped by heavy rain'
+    return location,activity
+
+
+def routine_inputs(c,at,real_at=None):
+    from evorium import economy,weather,bad_days
+    return {**economy.stats(c),'_weather':weather.read(c,at,real_at),
+            '_bad_days':{r['name']:r for r in bad_days.records(c,at).values()}}
+
+
 def _routine(name,dt,stats=None):
     location,activity=_routine_location(name,dt,stats)
-    free=activity not in ('asleep','behind the bar',"doing the pub's shopping",'working the bar','cleaning shift','behind the counter','at work','at the office','driving','on the scaffold','helping on the counter','at lectures','delivering the barrels','on his delivery round','working on her story','on his post round','on patrol','cleaning windows','doing his round along the terrace','cleaning the windows along the terrace')
+    free=activity not in ('off sick at home','running late getting ready','covering Jess behind the bar','asleep','behind the bar',"doing the pub's shopping",'working the bar','cleaning shift','behind the counter','at work','at the office','driving','on the scaffold','helping on the counter','at lectures','delivering the barrels','on his delivery round','working on her story','on his post round','on patrol','cleaning windows','doing his round along the terrace','cleaning the windows along the terrace')
     return location,activity,free
 
 
@@ -272,9 +329,11 @@ def home_location(name):
 def whereabouts(agent,now,db_path=DEFAULT_DB_PATH):
     with connect(db_path) as c:
         from evorium.economy import stats
-        values = stats(c)
+        values = routine_inputs(c, now)
         if (values.get("pub.closed") and agent["name"].split()[0] in ("Dez", "Jess")) or (values.get("shop.open", 1) == 0 and agent["name"].split()[0] == "Raj"):
             return routine(agent["name"], now, values)
+        from evorium import bad_days
+        if bad_days.blocks(values.get('_bad_days',{}).get(agent['name'],{}),now):return routine(agent['name'],now,values)
         plan=c.execute("""SELECT * FROM plans WHERE agent_id=? AND status='active' AND action IN ('visit','stay_home')
             AND start_at<=? AND end_at>? ORDER BY id DESC LIMIT 1""",(agent['id'],now.strftime('%Y-%m-%d %H:%M'),now.strftime('%Y-%m-%d %H:%M'))).fetchone()
     if plan:
@@ -293,7 +352,7 @@ def present_in_pub(agents: list[dict], dt: datetime) -> list[dict]:
     return [a for a in agents if a.get("kind", "npc") == "npc" and routine(a["name"], dt)[0] == PUB]
 
 
-def pick_pair(ids: list[int], db_path: str | Path = DEFAULT_DB_PATH, recent_window: int = 3) -> tuple[int, int]:
+def pick_pair(ids: list[int], db_path: str | Path = DEFAULT_DB_PATH, recent_window: int = 3, *, automatic=True) -> tuple[int, int]:
     """Prefer pairs that haven't met recently. Never repeat a pair from the last `recent_window` conversations if avoidable."""
     with connect(db_path) as connection:
         rows = connection.execute(
@@ -304,9 +363,15 @@ def pick_pair(ids: list[int], db_path: str | Path = DEFAULT_DB_PATH, recent_wind
             WHERE a.kind='player' AND v.status='running' AND EXISTS (SELECT 1 FROM messages m
             WHERE m.conversation_id=v.id AND julianday(m.created_at)>=julianday('now','-3 minutes'))""")}
         allowed -= busy
+        day = now(db_path).strftime('%Y-%m-%d')
+        pair_counts = {frozenset((r['agent_a_id'],r['agent_b_id'])):r['n'] for r in connection.execute("""SELECT v.agent_a_id,v.agent_b_id,count(*) AS n FROM
+            (SELECT min(agent_a_id,agent_b_id) AS agent_a_id,max(agent_a_id,agent_b_id) AS agent_b_id FROM conversations
+             WHERE status IN ('completed','running') AND substr(sim_at,1,10)=?
+             AND agent_a_id IN (SELECT id FROM agents WHERE kind='npc') AND agent_b_id IN (SELECT id FROM agents WHERE kind='npc')) v
+            GROUP BY v.agent_a_id,v.agent_b_id""", (day,))}
         from evorium import cases
         preferred = cases.priority(connection, [i for i in ids if i in allowed], now(db_path))
-        if preferred:
+        if preferred and (not automatic or pair_counts.get(frozenset(preferred),0)<2):
             return preferred
     ids = [i for i in ids if i in allowed]
     if len(ids) < 2:
@@ -322,10 +387,42 @@ def pick_pair(ids: list[int], db_path: str | Path = DEFAULT_DB_PATH, recent_wind
         if rank < recent_window:
             recent.add(key)
     pairs = [(a, b) for i, a in enumerate(ids) for b in ids[i + 1:]]
+    if automatic:
+        pairs = [p for p in pairs if pair_counts.get(frozenset(p),0)<2]
+        if not pairs:
+            raise PairLimitReached('This pair has talked enough today; let the place be quiet.')
     candidates = [p for p in pairs if frozenset(p) not in recent] or pairs
+    oldest = max(max(person_seen.get(a,50),person_seen.get(b,50)) for a,b in candidates)
+    candidates = [p for p in candidates if max(person_seen.get(p[0],50),person_seen.get(p[1],50))==oldest]
     # Favour pairs who haven't met lately AND people who haven't spoken lately, so quiet characters get a turn
     # rather than whoever is always behind the bar.
     weights = [(1 + last_seen.get(frozenset(p), 50)) * (1 + (person_seen.get(p[0], 50) + person_seen.get(p[1], 50)) / 2)
                for p in candidates]
     a, b = random.choices(candidates, weights=weights, k=1)[0]
     return (a, b) if random.random() < 0.5 else (b, a)
+
+
+class PairLimitReached(ValueError):
+    """Silence at this opportunity, rather than shopping around other places."""
+
+
+def shared_free_hours(names, start, stats=None):
+    """Pure audit: count full shared 30-minute slots, checking every minute, not just arrival."""
+    from evorium import places
+    hours = dict.fromkeys(names, 0.0)
+    for slot in range(7*48):
+        begin=start.replace(hour=0,minute=0,second=0,microsecond=0)+timedelta(minutes=30*slot)
+        shared=None
+        for minute in range(30):
+            at=begin+timedelta(minutes=minute)
+            groups={key:[] for key in places.REGISTRY}
+            for name in names:
+                location,_,free=_routine(name,at,stats)
+                if free:
+                    for key,place in places.REGISTRY.items():
+                        if location==place and places.is_open(key,at,stats):groups[key].append(name)
+            together={name for group in groups.values() if len(group)>1 for name in group}
+            shared=together if shared is None else shared & together
+            if not shared:break
+        for name in shared:hours[name]+=.5
+    return hours

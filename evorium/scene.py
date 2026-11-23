@@ -25,7 +25,7 @@ def assign_spots(characters):
         place, activity, first = item['place'], item['activity'], item['first']
         waypoint = None
         if place == 'pub':
-            if activity in ('behind the bar', 'working the bar'):
+            if activity in ('behind the bar', 'working the bar', 'covering Jess behind the bar'):
                 waypoint = 'PUB_BAR' if first == 'Jess' else 'PUB_HOST'
             elif activity == 'at his usual table':
                 waypoint = 'PUB_WINDOW'
@@ -63,6 +63,8 @@ def snapshot(db_path=DEFAULT_DB_PATH, *, real_at=None):
             now = datetime.strptime(settings['anchor_sim'], world.FMT) + timedelta(seconds=elapsed * speed)
         else:
             now = real_at.astimezone(world.TZ).replace(tzinfo=None)
+        from evorium import weather
+        weather_now = weather.from_settings(settings, now, real_at)
         stamp = now.strftime('%Y-%m-%d %H:%M')
         values = dict(c.execute('SELECT key,value FROM stats').fetchall())
         cutoff = (real_at - timedelta(minutes=2)).isoformat()
@@ -103,6 +105,7 @@ def snapshot(db_path=DEFAULT_DB_PATH, *, real_at=None):
         notices = [dict(row) for row in c.execute('SELECT place,text FROM notices WHERE julianday(since)<=julianday(?) AND (until IS NULL OR julianday(until)>julianday(?)) ORDER BY id', (stamp, stamp))]
     hour = now.hour + now.minute / 60
     daylight = 0.0 if hour < 7 or hour >= 19 else 1.0 if hour < 17 else (19 - hour) / 2
-    return {'sim_at': stamp, 'sim_time': world.describe(now), 'speed': speed, 'daylight': daylight,
+    from evorium import calendar_uk
+    return {'calendar':calendar_uk.state(now),'weather':weather_now,'sim_at': stamp, 'sim_time': world.describe(now), 'speed': speed, 'daylight': daylight,
             'pub_open': places.is_open('pub', now, values), 'shop_open': places.is_open('shop', now, values),
             'notices': notices, 'characters': assign_spots(characters), 'player': player}

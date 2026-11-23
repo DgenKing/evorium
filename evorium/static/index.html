@@ -206,6 +206,7 @@ async function loadAgents(){
       <div class="row"><b>Now</b><span style="color:${a.in_pub?'var(--ok)':'var(--muted)'}">${esc(a.activity||'—')} · ${esc((a.location||'').split(',')[0])}</span></div>
       <div class="row"><b>Knowledge</b>${fc.seed||0} known · ${fc.told||0} told · <span style="color:var(--err)">${fc.claim||0} rumour</span></div>
       ${(a.cases||[]).length?`<div class="mem"><b>Police cases · god view</b>${a.cases.map(c=>`<div>#${esc(c.id)} ${esc(c.subject_name)} · ${esc(c.status)}${c.outcome?' · '+esc(c.outcome.replaceAll('_',' ')):''}: ${esc(c.summary)}</div>`).join('')}</div>`:''}
+      ${a.bad_day?`<div class="row"><b>Today</b> ${esc(a.bad_day)}</div>`:''}
       ${a.today_action?`<div class="row"><b>Today:</b> ${esc(a.today_action)}</div>`:''}
       ${a.considering?`<div class="row"><b>Thinking about:</b> ${esc(a.considering)}</div>`:''}
       <div class="mem"><b>Today's plans</b>${(a.plans||[]).filter(p=>p.status!=='cancelled').map(p=>`<div>${esc(p.start_at.slice(11))} · ${esc(p.action)} ${esc(p.place||'')} [${esc(p.status)}] — ${esc(p.reason)}</div>`).join('')||'<div>Following their routine.</div>'}</div>
@@ -247,7 +248,7 @@ async function loadUsage(){
   $('u-spend').textContent = '$' + u.estimated_spend_usd.toFixed(4);
   $('u-cap').textContent = u.max_spend_usd==null ? 'no config' : '$'+u.max_spend_usd.toFixed(2);
   $('u-left').textContent = '$' + u.estimated_remaining_usd.toFixed(4);
-  $('location').textContent = `${u.sim_time}${u.speed!=1?' · '+u.speed+'×':''}${u.tick_alive?'':' · ⚠ tick stalled'}`;
+  $('location').textContent = `${u.sim_time}${u.weather?' · '+u.weather.label:''}${u.speed!=1?' · '+u.speed+'×':''}${u.tick_alive?'':' · ⚠ tick stalled'}`;
   if (u.version) {
     const v = u.version;
     $('version').textContent = 'v ' + v.commit + (v.date ? ' · ' + v.date : '') + (v.modified ? ' (edited)' : '');

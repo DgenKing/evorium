@@ -52,7 +52,7 @@ async function boot(){
  const controls=input.sample();if(!test){player.update(dt,controls,follow.yaw);follow.update(dt,player.position,controls);doors();}else if(!studio)player.actor.animate('idle',dt);
  world.update(test?1/60:dt);if(!studio)actors.update(test?1/60:dt,camera);else for(const entry of lineup){entry.actor.animate(pose,1/60);entry.actor.mixer.setTime(Number(params.get('frame')||.5));entry.actor.ground(pose);entry.actor.label.visible=entry.actor.root.visible;}if(test){if(!studio){player.actor.mixer.setTime(.5);player.actor.ground();}player.actor.root.position.copy(player.position);if(!studio)for(const a of actors.people.values()){a.mixer.setTime(.5);a.ground();}}ambient?.update(dt,snapshot.daylight,document.hidden);visibleTriangles=0;visibleDrawCalls=0;scene.traverse(o=>{if(o.isMesh&&!o.userData.counted){o.userData.counted=true;o.onBeforeRender=(_renderer,_scene,_camera,geometry,_material,group)=>{visibleDrawCalls++;visibleTriangles+=(group?.count??geometry.index?.count??geometry.attributes.position.count)/3;};}});renderer.render(scene,camera);labels.render(scene,camera);
  const nearby=actors.nearestTalk(player);$('talk').hidden=!nearby||input.blocked;$('talk-hint').hidden=!nearby||input.blocked;if(nearby)$('talk-hint').textContent='Press E to talk to '+nearby.person.first;
- if(!test){const next=watchdog.update(dt,preset);if(next!==preset){preset=next;ambient?.setQuality(preset);world.preset=presets[preset];world.sun.castShadow=!!presets[preset].shadows;applyPreset();ui.toast('Quality adjusted for smoother walking.');}}
+ if(!test){const next=watchdog.update(dt,preset);if(next!==preset){preset=next;ambient?.setQuality(preset);world.weather.setQuality(preset);world.preset=presets[preset];world.sun.castShadow=!!presets[preset].shadows;applyPreset();ui.toast('Quality adjusted for smoother walking.');}}
  if(!$('debug').hidden)$('debug').textContent=JSON.stringify({...report(),lastPoll:net.lastPoll},null,2);
  window.__evoriumReport=report();
  }
@@ -71,7 +71,7 @@ async function boot(){
  const cameraDistance=world.cameraDistance(new THREE.Vector3(-8,1.5,-3),new THREE.Vector3(-1,0,0),3.5);if(cameraDistance>1.2)throw Error('Camera crossed wall');
  world.open.pub=false;player.position.set(-4.62,.06,.9);player.velocity.set(0,0,0);for(let i=0;i<100;i++)player.update(1/60,{x:0,y:-1},0);if(player.position.z<.25)throw Error('Closed door crossed');
  const closedDoorZ=player.position.z;world.open=open;player.position.copy(saved);player.velocity.set(0,0,0);return{jumpHeight:maximum,wallX,cameraDistance,closedDoorZ};
- },refresh:async()=>{snapshot=await request('/world/scene');world.updateSnapshot(snapshot);await actors.sync(snapshot,true);return report();},
+ },calendar:decorations=>{snapshot.calendar={decorations};world.updateSnapshot(snapshot);return world.festive.visible;},weather:(reading,quality)=>{if(quality)world.weather.setQuality(quality);snapshot.weather=reading;world.updateSnapshot(snapshot);return {style:world.weather.style,particles:world.weather.object?.geometry.attributes.position.count||0};},refresh:async()=>{snapshot=await request('/world/scene');world.updateSnapshot(snapshot);await actors.sync(snapshot,true);return report();},
  async movement(){
  const status=await request('/smoke/status');if(!status.fake_models)throw Error('Movement test requires verified offline smoke server');
  const events=[],results=[];player.position.set(-4.62,.06,1.5);player.place='street';joined='';await request('/player/leave',{});

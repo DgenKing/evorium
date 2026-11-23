@@ -77,7 +77,7 @@ decides how the world treats you.
 
 ## 2. Where it stands today
 
-**One sentence:** eight AI characters live real-time daily routines around a pub and a newsagent in Ancoats,
+**One sentence:** eighteen AI characters live real-time daily routines around a pub and a newsagent in Ancoats,
 Manchester; they talk, gossip, remember, make plans and take validated decisions with financial and social
 consequences; you can walk in and talk to them in a dashboard, a 2D map or a 3D world in the browser (desktop
 and phone); it runs around the clock on the owner's HP G4 and is reachable over the internet.
@@ -85,9 +85,9 @@ and phone); it runs around the clock on the owner's HP G4 and is reachable over 
 | Area | State |
 |---|---|
 | Characters | 18 APCs + one player per account (existing owner Rob retained; friends created at first login) + 1 system ("World") row |
-| Places | The Crooked Billet (pub, 09:00–24:00 every day), Patel's News (shop, Mon–Sat 07:00–19:00), Shuttle Street (always) |
+| Places | Billet normally 09:00–24:00; Patel's normally Mon–Sat 07:00–19:00; festive/bank-holiday hours apply (§4); street always |
 | Clock | Real UK time × speed multiplier (0 = paused, 1 = real, up to 600×+) |
-| Conversations | 4 lines, or 6 for a pair's first meeting or fresh serious news; one at a time worldwide |
+| Conversations | 4/6 lines; automatic pairs capped at two per game day, with quiet-APC priority and at least three hours of shared free time per normal week |
 | Memory | Facts (seed / observed / told / claim) scored 1–5 for importance; only ≥3 saved or shown |
 | Relationships | Directed trust, warmth, familiarity (0–100), shown as words to the model, bars on the map |
 | Promises | Typed APC promises require owner-attributed database evidence; completion reports are claims, uncheckable promises lapse neutrally; human self-reporting retained (local, 23 Nov) |
@@ -95,6 +95,7 @@ and phone); it runs around the clock on the owner's HP G4 and is reachable over 
 | Decisions | Fixed menu; one action plus one tell per NPC per day; big decisions need evidence and twelve hours |
 | Economy | Visible/private ledger, offers and deadlines, weekly pub settlement, notices, changing routines |
 | Story arcs | Python resolves Northgate; darts and flat-hunt templates can follow |
+| Realism | Cached Manchester weather, fixed UK holidays/festive events/payday visits, deterministic ordinary setbacks; no extra model calls for Parts 1–4 |
 | Police follow-ups | Grace opens serious reported cases, seeks subjects on her beat, approaches the correct player and records advice/warnings (local, 23 Nov) |
 | Catch-up | "While you were away": significant events and gossip, cached narration or bullet fallback |
 | Director | Nudges a stalled or looping world with one mundane event a day at most |
@@ -106,7 +107,7 @@ and phone); it runs around the clock on the owner's HP G4 and is reachable over 
 | Hosting | HP G4 home server, auto-updating from GitHub, nightly backups, public via ngrok; connection details kept private (§6) |
 | Model | DeepSeek `deepseek-flash`, JSON mode, temperature 0.8 (0.6 decisions, 0.2 structured calls) |
 | Cost | About $0.00015 per call; about $0.40 a day for the whole world at real speed with auto mode on |
-| Tests | 357 Python tests + 8 Node map tests + 2 navigation tests + Web3D Node checks and offline Chrome checks, all fake/offline |
+| Tests | 393 Python tests + 8 Node map tests + 2 navigation tests + Web3D Node checks and offline Chrome checks, all fake/offline |
 
 ### Tech stack and dependencies
 
@@ -145,15 +146,18 @@ view and controls; this is for trusted friends, not public registration or separ
 ### The heartbeat (every 5 real seconds, `main._tick_loop`)
 
 1. Read the sim clock (`world.now`).
-2. Execute due plans; move everyone to their routine or plan location (`tick.update_routines`).
-3. Deliver scheduled world events (letters, phone calls), create offers, notice posted signs, expire deadlines,
+2. Refresh weather if due; select/maintain deterministic daily setbacks, execute due plans and update routines.
+   Weather refresh is a separate 30-real-minute HTTP budget; no model call is used.
+3. Deliver once-only calendar events and scheduled world events (letters, phone calls), create offers, notice posted signs, expire deadlines,
    check due APC promises against database evidence (at most two per tick), settle overdue Sundays and evaluate
    Python-owned story outcomes. These continue during model outages and with auto mode off.
 4. Close idle player chats; scan Grace’s serious reports and expire unresolved spoken-to cases.
 5. In auto mode ("Let them live"): daily digest → daily plans → budgeted reactions →
    optional ending narration → director check → at most one conversation, at whichever public place has 2+
    people and has waited longest. Grace approaches a co-located player with a case before automatic APC
-   chats; an available APC case pairing takes priority at its place.
+   chats; an available APC case pairing takes priority at its place. Automatic NPC pairs stop after two
+   completed/running chats on the same game date. A capped-only opportunity stays silent; player chats
+   and manual run controls remain available. Longest-unheard people take priority in ordinary picking.
 
 DeepSeek failures pause all model calls for 1, 2, 4, 8, then 15 real minutes until a call succeeds. Routines,
 letters, settlement and deadlines carry on. Invalid model replies don't trigger the pause; only network, HTTP and
@@ -248,6 +252,57 @@ scheduler, model call or dependency. The extraction JSON example includes a fill
 preserves its kind/target. The previous example-specific content suppression was removed so the forty-question
 promise itself is never silently discarded.
 
+### Weather, calendar and ordinary bad days (local, 23 Nov)
+
+All routines remain pure functions of `(name, datetime, stats)`. `world.routine_inputs` assembles ledger,
+weather and daily-condition inputs outside the routine. No routine reads settings, calls the network, hashes
+random choices or invokes a model. `world.shared_free_hours` counts complete shared 30-minute slots in a normal week, checking every minute against
+real opening/free rules; all eighteen APCs have at least three hours of shared free time. Existing story beats
+remain, with tea breaks/lunches/after-work visits for isolated people. The complete-slot audit additionally extended
+Gary’s afternoon visits and Grace’s community stops, avoiding over-counted brief encounters.
+
+`weather.py` uses existing httpx and fixed Ancoats coordinates (53.485, −2.226). The tick reserves a refresh
+attempt in world settings no more than every **30 real minutes**, including failed attempts, with a **three-second
+timeout**. It stores temperature, WMO-derived condition, rain, wind and observation time. Failures retain the
+prior reading; none/older than **six real hours** means unknown and no effects. Fetch only at real-aligned 1×
+(within five minutes of UK real time); other clocks reuse the labelled **last reading**, without inventing
+conditions. Page requests/prompts only read the cache. See [Open-Meteo documentation](https://open-meteo.com/en/docs).
+
+Rain shelters Peggy in the pub, skips Kirsty's pram walks and shortens Liam's doorway smoke break to five
+minutes. Optional street tea/chat pauses shelter too; heavy rain/thunder stops Barry's window work. Necessary
+travel and outdoor duties continue. The dashboard/header, map and public scene expose the reading, including
+unknown/cached status. The guide credits Open-Meteo (CC BY 4.0). `WEATHER_ENABLED=False` disables fetches.
+
+`calendar_uk.py` holds a fixed England bank-holiday table through **2027**, verified against
+[GOV.UK](https://www.gov.uk/bank-holidays). Christmas Eve/New Year's Eve/Bonfire Night and last-working-day
+payday are pure date context. Calendar hours apply to all routines/plans. Payday and the following Friday may
+extend an existing free evening pub visit by at most one hour, capped by normal sleep/work/closing rules.
+This changes opportunities for company, not wages/bank balances. World-settings markers make the **2026**
+decorations, ticket sales, raffle draw, Christmas Eve and New Year's Eve events once-only. Present APCs get
+observed facts; public decorations/ticket notices inform later visitors. SHA-256 picks a raffle winner only
+from APCs present at the draw; a restart on a later date records no invented winner. No extra people appear.
+
+`bad_days.py` selects and persists one outcome per APC/date with SHA-256: **3% off sick**, **6% running late**
+by 30–60 minutes, **35% hungover only among recorded post-23:00 pub attendees**, otherwise ordinary routine.
+Outcomes are mutually exclusive. Late-pub eligibility uses tick-recorded actual presence or recorded chats,
+never a guessed routine. Seed-story-event, open-offer expiry and open-promise due/retry days are exempt;
+festive hosts' key dates are protected. New critical deadlines suppress an already-selected setback.
+Sickness means home, awake and unavailable for visits. Delay shifts only the first departure; hangovers delay
+it by an hour and give a rough morning. Plans cannot override a blocked visit. Jess's absence leaves the pub
+open with Dez behind the bar; simultaneous sickness is suppressed for Dez when needed to cover.
+
+Each setback creates its own observed fact and low-priority god-view timeline entry once. Only that APC gets
+the short feeling context; others learn it through conversation. The god-view card shows the condition.
+Temporary mood restoration never overwrites a mood changed by dialogue. Weather occupies one short prompt
+line; calendar plus the APC's feeling share the second. Existing dialogue/planning calls and output budgets
+are unchanged: approximately **40–70 extra input tokens** for these dedicated lines (model-tokenizer estimate),
+under **$0.00003 per uncached call** at the documented peak input price, with no additional model calls.
+Existing bounded memory retrieval still carries newly observed facts in the usual way.
+
+All small state uses the existing `world` settings table; **no migration beyond Part 5's 16** is needed.
+Promise evidence/resolution and seed facts are unchanged. Test weather HTTP is faked globally; the smoke
+server disables refresh and uses fake dialogue on a SQLite backup copy.
+
 ### Grace follows up reports (local implementation, 23 Nov)
 
 Migration **16** appends `cases` and a partial unique index: one unresolved case per subject agent ID.
@@ -335,6 +390,9 @@ collision-verified A* graph), bubbles, lighting and doors. `ambient.js` adds bro
 | `evorium/tick.py` | Routine updates, event delivery, due-promise checks |
 | `evorium/sim.py` | Conversation runner, note-taking, `turns_for` |
 | `evorium/memory.py` | What a character knows (`knowledge_for_prompt`), storing notes, promise claims and guarded resolution |
+| `evorium/weather.py` | Background weather fetch, validated WMO reading and persisted cache/fallback |
+| `evorium/calendar_uk.py` | Fixed holidays, hours, payday context and once-only festive events/raffle |
+| `evorium/bad_days.py` | Deterministic daily conditions, eligibility/exemptions, own facts and safe temporary moods |
 | `evorium/cases.py` | Grace’s report scanning, follow-up scheduling, account-specific approaches and validated case outcomes |
 | `evorium/promise_evidence.py` | Typed target validation, owner-attributed game evidence, progress and opportunity checks |
 | `evorium/prompts.py` | Dialogue, note-taking and promise-check prompts |
@@ -389,27 +447,38 @@ Grace follows serious reports up through cases (§3), using her existing patrol 
 
 | Character | Who | Routine (summary) |
 |---|---|---|
-| **Dez Whitworth**, 54 | Landlord, The Crooked Billet. Dry, loyal, worried about the lease. | Cash and carry 07–09; behind the bar whenever open (09–24); flat upstairs |
-| **Jess Hartley**, 34 | Barmaid, single mum to Alfie. Sharp, tired, needs hours. | Office cleaning weekday mornings; bar shifts 17–23 on Thu, Fri, Sat, Sun (her shift count from the ledger, filled in that order, then Wed, Tue); a drink on Wed evening |
+| **Dez Whitworth**, 54 | Landlord, The Crooked Billet. Dry, loyal, worried about the lease. | Cash and carry 07–09; behind the bar when open, quiet tea 14:00–14:30 and a short pavement breather; covers Jess if sick; flat upstairs |
+| **Jess Hartley**, 34 | Barmaid, single mum to Alfie. Sharp, tired, needs hours. | Office cleaning weekday mornings; bar shifts 17–23 on Thu, Fri, Sat, Sun (her shift count from the ledger, filled in that order, then Wed, Tue); Tuesday lunch 13–14 and a drink on Wed evening |
 | **Tommy Shaw**, 67 | Retired bus driver. Mischievous; wants the Thursday quiz back. | Walk to shops 10–12; pub most evenings 19–22:30 (Thu from 18) |
 | **Raj Patel**, 41 | Runs Patel's News (family shop since 1988). Careful, warm. | Shop Mon–Sat 07–19; quiet half Tue/Thu/Fri evening; Sunday pint |
 | **Chloe Barlow**, 29 | Junior architect from Stockport. Looking for a flat. | Coffee at Patel's 08:15–08:35 weekdays; work 9–18; pub Tue–Fri 18:15–21:30, Saturday afternoon |
-| **Simon Ferris**, 46 | Asset Manager, Northgate Estates. Polite, corporate, evasive. | Office weekdays; lunch at the Billet Tuesdays 12:30–13:30; Patel's News Thursdays 14:00–14:30 |
+| **Simon Ferris**, 46 | Asset Manager, Northgate Estates. Polite, corporate, evasive. | Office weekdays; lunch at the Billet Mon/Tue/Wed/Fri 12:30–13:30; Patel's News Thursdays 14:00–14:30 |
 | **Brenda Ashworth**, 71 | Retired dinner lady, tenants' association chair. Loves a petition. | Paper at the shop 09:00–09:30; pensioners' lunch at the pub Tue/Thu 12:30–14; Wed evening; Sat and Sun 13–15 |
 | **Mo Iqbal**, 38 | Private hire driver, nights. Funny, observant, doesn't drink. | Shop 16:00–16:20; pub Tue/Thu/Fri 18–19:30 before his shift and Sunday afternoon; drives 19:30–04 |
 | **Peggy Coyle**, 82 | Retired mill worker, widow, sixty years a regular. Sharp, funny, nosy, remembers the old street. | Paper at Patel's 09:30; half of stout at the bar Mon–Sat 12–14:30; Sunday 13–15 |
 | **Liam Byrne**, 27 | Scaffolder on the mill conversion behind the terrace. Cheerful, loud, saving a deposit with Kayleigh. | Breakfast at Patel's 07:00; on site 07:30–16:30; Billet at lunch 12:30–13:15; Friday pint 17–21 |
-| **Anjali Patel**, 19 | Raj's daughter, law student at Manchester Met. Bright, direct, protective; knows her dad's worried. | Lectures weekdays; behind the counter Mon/Wed/Fri 15–19 and Saturday 9–17 |
+| **Anjali Patel**, 19 | Raj's daughter, law student at Manchester Met. Bright, direct, protective; knows her dad's worried. | Lectures weekdays; behind the counter Mon/Wed/Fri 15–19 and Saturday 9–17; pub friends Tue/Thu 18–19:30 |
 | **Pete Lomax**, 58 | Brewery drayman for thirty years. Gruff, kind, a gossip; knows which pubs have shut. | Delivers to the Billet Tue/Fri 10:00–10:45; on his round weekdays; Saturday afternoon pint |
 | **Hannah Kerr**, 31 | Local news reporter digging into firms buying up Ancoats. Friendly, persistent, protects sources. | Papers and coffee at Patel's 08:30 weekdays; Billet Wed/Fri 17:30–19:30 |
-| **Gary Walsh**, 49 | Postman, fifteen years on the round. Chatty, terrible jokes, sees everyone's post. | Post at Patel's 08:30, along the terrace 08:40–09:00; Billet Mon/Wed 15–17 |
+| **Gary Walsh**, 49 | Postman, fifteen years on the round. Chatty, terrible jokes, sees everyone's post. | Post at Patel's 08:30, along the terrace 08:40–09:00; Billet Mon/Wed 14–17 |
 | **Kirsty Doyle**, 26 | Young mum (baby Mia), Jess's neighbour and best mate. Warm, frazzled, a bit lonely. | Pram round the block 10:30 and 14:00 daily; Patel's 11:00; Wednesday lunch at the Billet |
-| **Grace Adeyemi**, 33 | PCSO for Ancoats. Calm, observant, approachable; doesn't gossip. | Patrols past the terrace 10:00, 13:30, 16:00 weekdays; looks in at the Billet at closing Fri/Sat |
-| **Barry Hughes**, 61 | Window cleaner who sees inside every building. Wry storyteller. | Terrace windows Mon/Thu 09–12, then dinner at the Billet |
+| **Grace Adeyemi**, 33 | PCSO for Ancoats. Calm, observant, approachable; doesn't gossip. | Patrols past the terrace 10:00, 13:30, 16:00 weekdays, with community stops 10–11 Mon/Wed/Fri, 10–10:30 Tue/Thu and short pauses at 16:00; looks in at the Billet at closing Fri/Sat |
+| **Barry Hughes**, 61 | Window cleaner who sees inside every building. Wry storyteller. | Terrace windows Mon/Thu 09–12 with a 10:30 flask break, then dinner; Friday pint 17–19 |
 | **Ronnie Clegg**, 70 | Retired bus driver, Tommy's old mate from the 216. Dry, competitive, likes a bet. | Paper and racing post at Patel's 09:45; Billet Mon/Wed/Fri 13–16 and Sunday lunchtime |
 
 When the quiz runs (Thursdays 19:30–22:30), Tommy, Brenda, Chloe, Peggy, Hannah and Liam come in if they're free, with Ronnie and Gary. A closed pub or shop
 sends its people home. House rule: names mostly British, a few others.
+
+### Calendar and opening exceptions
+
+- Christmas Day: Billet **12:00–16:00**, Patel's **shut**.
+- Boxing Day and listed bank holidays: Patel's **09:00–16:00**, including Sunday Boxing Day.
+- New Year's Day: Billet **12:00–24:00**. Other pub days retain 09:00–24:00, unless the ledger closes it.
+- 2026: decorations and raffle tickets **5 Dec 12:00**; raffle **20 Dec 20:00**; Christmas Eve evening
+  **24 Dec 19:00**; New Year's Eve **31 Dec 20:00**. Decorations remain until 6 Jan; ticket sales stop at draw time.
+
+Rain, closures and recorded bad days override optional activities, so a listed base routine is not a guarantee
+someone will be there. Payday lengthens some evening visits without moving shifts or established story beats.
 
 ### The story seed
 
@@ -509,7 +578,7 @@ when accessing the game remotely. `GET /me` reports the current canonical accoun
 ### Tests
 
 ```bash
-.venv/bin/python -m pytest -q        # 357 tests
+.venv/bin/python -m pytest -q        # 393 tests
 node tests/map_view.test.cjs         # map
 node tests/world3d.test.mjs          # 3D routes, animation states, quality, slots, cast
 node tests/nav.test.cjs              # burger menu
@@ -529,8 +598,8 @@ say “PCSO Grace Adeyemi wants a word”. If the case is absent, inspect the ba
 again; the real G4 report has not yet been verified by this implementation session.
 
 Keep the clock at 1× and “Let them live” on. End any current chat, then use the dashboard places list/map
-to find Grace and enter her actual place. Her weekday street visits are around 10:00–10:20, 13:30–13:50
-and 16:00–16:20, then the shop around 13:50–14:00; she visits the Billet Friday/Saturday 22:45–23:15.
+to find Grace and enter her actual place. Her street visits are 10:00–11:00 Mon/Wed/Fri or 10:00–10:30 Tue/Thu, plus 13:30–13:50
+and 16:00–16:20 weekdays, then the shop around 13:50–14:00; she visits the Billet Friday/Saturday 22:45–23:15.
 When both are available, let the heartbeat start her conversation rather than clicking Send first.
 She approaches at most once per case per game day. Reply naturally (for example, own the threat and
 apologise), then press **End conversation** so ordinary notes can record her spoken decision.
@@ -539,6 +608,15 @@ facts. Advice versus warning is Grace’s choice; no spoken outcome leaves `spok
 three-game-day no-new-report timeout. These conversations change real memories; do not manufacture a
 new threat just to rerun the test. Automated fake-client cases can be rerun with
 `.venv/bin/python -m pytest tests/test_cases.py -q` without changing the live world.
+
+### Testing the realism pack offline
+
+`.venv/bin/python -m pytest tests/test_realism_behaviour.py tests/test_weather.py tests/test_calendar_uk.py tests/test_bad_days.py -q`
+runs the 35 focused checks without live state or HTTP. The full suite also includes Grace's follow-ups and the
+pre-existing acquaintance/job-context changes. Use the project virtualenv; the machine's system packages have
+an incompatible old TestClient. This session's sandbox hangs async HTTP tests; the virtualenv suite passes
+outside it. Browser smoke uses only a copied database, disables weather refresh and uses fake model clients.
+The browser test hooks exercise rain/snow/fog/unknown and festive lights as well as movement and chat.
 
 ### The smoke server (offline, fake replies)
 
@@ -560,6 +638,10 @@ Commit `config.example.py`, never `config.py`. Before committing, check `git sta
 ---
 
 ## 6. The home server (HP G4)
+
+The realism pack needs no new dependency, API key or service. Weather adds at most 48 short outbound HTTPS
+attempts per real day to Open-Meteo; failures keep the world running. Optional `WEATHER_ENABLED=False` goes in
+private `config.py` to stop requests. No server credentials, configuration or live state were changed here.
 
 The real Evorium runs on the owner's always-on **HP ProDesk 405 G4 Mini** (Ryzen 5 PRO 2400GE, 16 GB RAM,
 128 GB, Ubuntu 26.04). Deployment-specific addresses, account names and absolute server paths are kept
@@ -672,6 +754,12 @@ A sudoers rule lets the configured service account run `systemctl restart evoriu
 ---
 
 ## 7. The 3D web game
+
+Cached weather drives lightweight rain/snow particles, wet-surface sheen/darker daylight and fog. Low quality
+uses at most 60 rain streaks or 40 snowflakes; higher quality at most 360/220. Unknown weather removes effects.
+Particles are confined to the street and do not add collisions, people, assets or dependencies. The calendar
+switches a small instanced festive light string; no new art pipeline is needed. Real-phone performance still
+needs hardware checking; desktop headless software-renderer timings are not phone FPS measurements.
 
 Grace can now walk up for a report follow-up: the ordinary chat panel opens with her spoken line, and a
 notice/outcome appears above the street. Incoming chat never replaces an already-open chat. Walking on the
@@ -919,6 +1007,12 @@ streets, film grain, matching the game's portraits.
 
 ## 9. Known issues and open questions
 
+- **Realism limits (23 Nov):** the fixed holiday table ends in 2027 and festive events are for Christmas 2026.
+  Weather is cached model output for Ancoats, not a street rain sensor; outages older than six hours give no
+  effects. Fast/offset clocks use the labelled last real reading. Raffle draws missed until a later date have
+  no invented winner. Bad-day/late-pub records begin when this version runs; earlier unrecorded visits cannot
+  be reconstructed. Real-phone weather performance is unverified.
+
 - **Police report wording (23 Nov):** Python uses conservative named-actor threat/harm patterns, so unusual
   paraphrases or pronoun-only reports can be missed. It does not decide truth or impose barring. Follow-up
   requires the normal auto mode and public routine overlap; disconnected players still retain their last
@@ -964,8 +1058,8 @@ streets, film grain, matching the game's portraits.
   fading and departures vanish at the route end; NPCs can overlap while walking; speech bubbles near the screen
   edge get cut off; shared lightmap gives small props little detail; no separate night bake or bloom.
 - **Not yet tested on a real phone**, especially iPhone memory, keyboard and touch.
-- **Daytime pub is empty on weekdays:** only Dez before late afternoon. Option: Tommy after his walk, Brenda at
-  lunchtime.
+- **Quiet places can now stay silent:** automatic pairs stop at two chats per game day, even if nobody else
+  is around. All eighteen APCs have at least three hours of shared free time in a normal sampled week.
 - **Director heuristics** are conservative word checks; since M4 it also rejects any digit and words such as set,
   pay, close and sign, so many of its ideas get dropped.
 - **A failed reaction call is used up**; the "offer nearly due" reminder three days before expiry gives another
@@ -976,7 +1070,8 @@ streets, film grain, matching the game's portraits.
   until MPFB models are built for them. Dashboard, map and conversations are fine.
 - **Some facts are stored twice** (5 in the 20 Nov copy, e.g. "Dez chose to wait" noted in two conversations).
   Harmless; a de-duplication on insert would tidy it.
-- **Same-pair loops:** two APCs alone in a place (Raj and Anjali at the shop) talk over and over; consider a limit of 2–3 conversations per pair per sim day unless something new has happened.
+- **Topic repetition can still happen:** the two-chat automatic pair cap limits loops but does not guarantee
+  fresh dialogue each day. Unsupported research promises remain uncheckable.
 - **Unsupported promises:** research ("I'll look up Companies House"), general making, off-ledger payments, loan
   repayment and unverifiable conditions have no deterministic evidence. The local fix makes these vague and
   lapses them neutrally; a real research/repayment action remains future work. New conversations can still
@@ -993,7 +1088,8 @@ streets, film grain, matching the game's portraits.
   lapsed promises; history and catch-up describe the lapse. Legacy promises cannot be retrospectively typed
   safely, so they lapse without penalties. Watch live promise behaviour after deployment rather than assuming
   prompt compliance from offline tests; no real model calls were used for this change.
-- **Spoken decisions not recorded:** the note-taker's `decision` path produced nothing in 130 conversations (Dez said he'd counter at £3,200). Investigate the prompt and validation, which may be the example-JSON trap again.
+- **Spoken decisions need live observation:** filled examples, copied-example rejection and quote attribution
+  are tested offline, but the latest G4 action rows could not be checked without its missing backup copy.
 - **Old trivia still visible** until `python -m evorium.rescore --apply` is run once.
 - **Restart button** requires authentication when access control is enabled (as configured on the G4).
 - **Spend recorded before 19 Nov is overstated** by about $0.09 (old pricing).
@@ -1004,24 +1100,13 @@ streets, film grain, matching the game's portraits.
 
 ## 10. Next steps
 
-- **Realism pack (23 Nov):** Part 5 and its spoken-decision extraction prerequisite are implemented locally.
-  Remaining Parts 1–4 need their own implementation; Part 1’s activity/cap work is still pending.
-  1. *Behaviour fixes:* every APC gets real chances to talk (Barry had 0 lines by 21 Nov; he's only free on
-     Mon/Thu dinner), a per-pair daily cap so the same two people (Raj–Anjali, Dez–Jess: 16 conversations each)
-     stop going round in circles. The filled spoken-decision extraction example and existing quote checks
-     are now in place; monitor whether real spoken choices become actions after deployment.
-  2. *Real Manchester weather:* Open-Meteo (free, no key) via existing `httpx`, cached, real only at 1× clock.
-     Rain moves outdoor routines indoors, appears in one prompt line, and shows on the map and in 3D.
-  3. *The real calendar:* UK bank holidays and Christmas/New Year opening hours, the Christmas run-up
-     (decorations, raffle draw), month-end payday. Fixed dates, no model calls, one prompt line.
-  4. *Ordinary bad days:* deterministic per person per day (hashlib, not `hash()`): off sick, running late,
-     hungover after a late night. Changes routine and mood; no model calls.
-  5. *Grace follows up reports — locally complete:* migration 16, one-off report back-fill, priority APC
-     pairing, account-specific player approaches/missed visits, spoken advice/warnings, three-day timeout,
-     reporter knowledge and god-view/player UI. Review and deploy normally after backup; verify the real
-     Dez→Grace report opens the owner's Rob case and monitor the first conversation. No commit/push made.
-  Plus a website "What's new" entry, guide updates and tests for each. Money and bank accounts are deferred
-  (owner, 23 Nov: too big for now).
+- **Realism pack Parts 1–5 are locally implemented (23 Nov).** Parts 1–4 add routine overlap/fairness,
+  automatic pair caps and copied-decision rejection, weather, holidays/festive events/payday and deterministic
+  setbacks. Part 5 retains migration 16 and Grace's case follow-ups. Review and commit/push normally after the
+  final checks; no commit or deployment was made here. After normal backup/deployment, verify the actual Dez
+  report back-fills to the owner's Rob case, watch spoken actions and weather freshness, and check on a real
+  phone. Existing uncommitted acquaintance/job-context changes were preserved. Money/bank accounts remain
+  deferred. Extend holiday/festive tables before later seasons.
 
 - **Promise evidence is deployed (23 Nov).** Keep watching real kept/broken/lapsed results and false claims with
   the read-only promise report; unsupported research/repayment needs real actions before it can be checked.
@@ -1220,6 +1305,135 @@ the key pool and open sign-ups.
 ---
 
 ## 14. History
+
+### 23 November 2026 — Realism pack complete: integrated review and verification
+
+- Owner authorised proceeding through all four parts without stopping after the full brief review. All four
+  are implemented alongside Part 5. Existing acquaintance/job-context edits were preserved; no commit/push.
+- Tightened the week audit to check every minute of each complete 30-minute shared slot. This caught short
+  encounters that an instant sample over-counted. Gary now visits Mon/Wed 14–17; Grace has longer Mon/Wed/Fri
+  morning community stops and full Tuesday/Thursday half-hour pauses. Whole-slot shared hours are: Dez 3.5,
+  Jess 3.5, Simon 4, Anjali 3, Grace 4, Gary 4, Barry 5; everyone else also reaches at least 3 hours.
+- Final integration: optional rainy street pauses shelter, the planner displays holiday hours, Dez's sick-shift
+  coverage renders behind the bar on both maps, and weather particles reduce when the performance watchdog
+  lowers quality. A missing past raffle draw no longer claims there was nobody there: it records a missed
+  draw without inventing past attendance. No promise-evidence, seed-list or schema changes were needed.
+- **393 Python tests pass**, including **35 focused Parts 1–4 tests**, the pre-existing acquaintance-context
+  test, Grace's case regressions and a new API integration check for weather/calendar/private condition data.
+  Every part had full-suite/Node checks and a fake-model copied-world Chrome smoke run; all 20 final desktop/
+  phone screenshots, physics/movement/chat, weather/festive-light and ambient checks passed. Final weather
+  quality downgrade is additionally checked in Node and the focused browser smoke.
+- Dedicated environment context is at most two lines (weather; calendar plus own condition), approximately
+  40–70 extra input tokens, under $0.00003 per uncached call at the documented peak input price. Output caps
+  and model-call paths are unchanged. Open-Meteo attempts are at most 48/day; tests/smoke never fetch weather.
+- Limits: `backups/g4-latest.sqlite3` is absent, so only the saved export's Barry/pair counts could be verified.
+  The smoke source is the older local copy, copied read-only into a temporary world. Latest live action rows,
+  the real weather fetch and real-phone performance remain deployment/hardware checks. All supplied holiday
+  dates match GOV.UK; fixed tables cover through 2027 and the festive event schedule is Christmas 2026.
+- Suggested messages: Part 1 “Fix APC conversation opportunities, repeat caps and spoken decisions”; Part 2
+  “Add cached Manchester weather and street effects”; Part 3 “Add UK holidays, festive events and payday visits”;
+  Part 4 “Add deterministic APC bad days with story safeguards”. Combined: “Complete the Evorium realism pack”.
+
+### 23 November 2026 — Realism Part 4: ordinary bad days
+
+- Added deterministic SHA-256 daily setbacks in existing world settings: 3% off sick, 6% late by 30–60 minutes,
+  and 35% hungover among those eligible through recorded late pub attendance. Outcomes are mutually exclusive;
+  non-attendees never get hangovers. Actual late presence is sampled by the tick and recorded chats also count.
+- Scheduled seed-event, open-offer expiry and open-promise due/retry days are exempt, as are the festive hosts'
+  key dates. Recheck new deadlines while a setback is active. Sick APCs stay home awake/unavailable; delays
+  affect only the first departure. Plans cannot force sick/delayed people to visit. Jess's sick shifts are
+  covered by Dez, keeping the pub open; reserve Dez from simultaneous sickness when he must cover.
+- Own observed fact and low-importance god-view history are recorded once. Conditions appear on god-view cards;
+  others learn them in conversation. The speaker's short feeling shares the calendar line, preserving the
+  two-line environment budget. Temporary moods restore only if dialogue has not changed them.
+- Added eleven tests for deterministic rates, evidence eligibility, all critical exemptions, Jess/Dez coverage,
+  first-activity delay (including night shifts spanning midnight), plan conflict, idempotence/privacy, safe mood
+  restoration and public/god-view API data. No promise-evidence or
+  commitment-resolution changes, new models/dependencies or schema migration.
+- Part 3 validation: 382 Python tests and map/nav/Web3D checks passed, plus fake-model copied-world Chrome
+  movement/chat/weather/festive-light smoke. Updated the Part 2 weather prompt test to require both the weather
+  and newly required calendar line, rather than the old single-line environment string.
+
+### 23 November 2026 — Realism Part 3: calendar and festive evenings
+
+- Added the fixed, GOV.UK-verified England holiday table through 2027, holiday opening hours and pure payday,
+  Friday-after-payday, Bonfire Night and Christmas countdown helpers. Pub/shop routines and plans respect
+  closures; free evening visitors may stay at most an extra hour, without delaying work or sleep.
+- Added once-only 2026 decorations/ticket notices, raffle draw, Christmas Eve and New Year's Eve events.
+  Only present APCs observe an event; public decorations/ticket notices also inform later visitors. Raffle
+  selection uses SHA-256 and present APCs only; a restart on a later date records no invented past winner.
+- Calendar uses the second short environment line in dialogue/planning, with festive map/3D lights and guide/
+  website updates. No payroll/bank change, model call, dependency or migration. Fixed dates need extension
+  after 2027; the implemented Christmas event schedule is for 2026.
+- Six calendar tests cover dates, closure boundaries, every APC's holiday routine, modest extensions,
+  once-only observed events, raffle membership/determinism and the late-restart rule.
+- Part 2 validation: 376 Python tests, map/navigation/Web3D Node checks and the fake-model copy-only browser
+  movement/chat checks passed, including actual rain/snow/fog/unknown particle rendering.
+
+### 23 November 2026 — Realism Part 2: real Manchester weather
+
+- Added Open-Meteo parsing and a 30-real-minute world-settings cache, with a three-second timeout and bounded
+  failed attempts. Failed/malformed HTTP retains the prior reading; readings older than six hours are unknown.
+  Refresh is background-only at real-aligned 1×; other clocks reuse the labelled last reading without invention.
+- Weather is supplied explicitly in routine inputs. Rain shelters Peggy, shortens Liam's doorway smoke break,
+  skips Kirsty's pram walk and heavy rain stops Barry's window round. Unknown weather has no effects.
+- Dialogue and existing daily planning share one short weather line. Usage/scene/header/map expose weather;
+  Three.js has quality-bounded rain/snow, fog and darker wet lighting. Guide credits Open-Meteo; website updated.
+- Twelve fake-HTTP/temp-DB weather tests pass. Test weather HTTP is globally faked and the offline smoke server
+  disables refresh, so tests never fetch weather. No new runtime dependency/model call/schema change.
+- Part 1 validation before weather: 364 Python tests, map/nav/Web3D Node checks and copy-only fake-model browser
+  movement, collision and player-chat smoke passed. Existing acquaintance-context test is included in the count.
+
+### 23 November 2026 — Realism Part 1: chances to talk and fewer loops
+
+- Added a pure sampled-week shared-free-time audit and believable opportunities for the six APCs below
+  three hours: Dez's quiet bar tea, Jess's Tuesday lunch, Simon's lunches, Anjali's after-lecture meetings,
+  Grace's community pauses and Barry's flask break/Friday pint. Existing shifts, bench and quiz retained.
+- Automatic pairing now caps completed/running NPC pairs at two per game date, keeps player chats exempt,
+  and stops the current scheduling opportunity when its sole pair is capped. Manual run remains available.
+  Pairing prioritises the longest-unheard available person before existing pair weights.
+- Replaced the earlier tell illustration with a legal sign_petition payload, explicitly rejected if copied
+  exactly; six-word/speaker attribution and action checks remain. Rejections retain their existing action
+  record and logged reason. No promise-evidence changes, migration, model calls or dependency.
+- Added six offline regression tests covering the weekly minimum, fairness over actual routine overlaps,
+  caps, player/manual exemptions, copied examples and valid/wrong-speaker spoken decisions.
+
+### 23 November 2026 — Full realism brief reviewed; plan awaiting approval
+
+- Read the owner's supplied full four-part brief. It supersedes the provisional summary-based plan and
+  explicitly requires posting a plan and waiting for the owner's OK before implementation. No Parts 1–4
+  implementation code has been written. Existing acquaintance/job-context edits in memory.py, prompts.py
+  and test_cast.py are separate work and will be preserved.
+- Read-only findings: requested `backups/g4-latest.sqlite3` is absent. The saved 21 Nov current-world export
+  confirms Barry has zero dialogue lines, and Dez–Jess and Raj–Anjali each have 16 conversations. Database
+  action counts and live-data freshness cannot be verified from that export. No live database was touched.
+- Pure week sampling (30-minute slots, real routine/opening/free rules, normal ledger settings) found shared
+  free hours: Dez 0, Jess 2.5, Simon 1, Anjali 0, Grace 0, Barry 2; every other APC has at least 3 hours.
+  Existing routines are unchanged. These six need believable opportunities without moving established beats.
+- Part 1 plan: world.py/places.py/tick.py/sim.py for a pure weekly audit, routine overlap, fair picking and a
+  two-per-game-day automatic pair cap. prompts.py/memory.py/actions.py/models.py as needed for a valid filled
+  decision example, explicit copied-example rejection and diagnostics, preserving speaker/quote/action guards.
+  Risks: preserving shifts/bench/quiz, quiet APC fairness, capped-place silence and Grace's follow-ups.
+- Part 2 plan: weather.py and the existing background loop cache Open-Meteo for 30 real minutes in world settings.
+  Retain last readings on failure; older than six hours is unknown. Refresh only at real-aligned 1× and reuse
+  the last reading at other speeds, labelled appropriately. Pass weather explicitly through routine inputs;
+  add Peggy shelter, shorter doorway smoke breaks, skipped pram walks and heavy-rain window-work cancellation.
+  Wire usage/scene, header, map and vendored-Three.js rain/snow/fog/darker lighting with quality limits.
+- Part 3 plan: calendar_uk.py with the requested fixed holiday table, explicit festive opening hours and pure
+  payday/date helpers. All eight supplied holiday dates match GOV.UK (https://www.gov.uk/bank-holidays).
+  tick/settings/timeline deliver observed festive events once, with a deterministic raffle winner from actual
+  APC attendance. Modest payday/following-Friday pub extensions respect free time and closures; no new wages.
+- Part 4 plan: a small bad-days module using SHA-256 name/date inputs and world settings for idempotent daily
+  state. Target 3% sickness, 6% lateness (30–60 minutes), and 35% hangover only after recorded post-23:00 pub
+  attendance. Exempt scheduled-event/offer/open-promise deadline days. Pass effects explicitly to routines,
+  record own fact/low-priority history once, and display the condition on the god-view card. Preserve Jess's
+  shift definition and pub opening; Dez covers. Do not change promise evidence or resolution logic.
+- Prefer existing world settings; no schema change is expected. Migration 16 already belongs to Part 5;
+  any genuinely needed new migration would be appended as 17. No new seed facts/dependencies/model calls.
+  Combine weather/calendar/own condition into at most two short additional prompt lines; measure token impact.
+- After each part, run the full Python/Node checks and fake-model copy-only smoke/browser checks, then update
+  this document. Add guide notes and separate weather/calendar/bad-days website entries. Final report will
+  include test counts, cost impact, verification limits and a suggested commit message per part. No commit/push.
 
 ### 23 November 2026 — In-game police follow-up test checklist
 

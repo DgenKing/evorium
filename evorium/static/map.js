@@ -148,6 +148,7 @@
     }
     text('The Crooked Billet',280,137,17,COLOURS.ink,'center');
     text("Patel's News",795,137,17,COLOURS.ink,'center');
+    if(usage.calendar?.decorations){for(let i=0;i<16;i++){rect(56+i*28,135+(i%2)*4,4,4,i%2?'#eec95d':'#b9d79b');}}
     drawDoor('pub',!!usage.pub_open);drawDoor('shop',shopOpen);
     if (!usage.pub_open) { rect(49,146,462,266,'#171a2388');text('CLOSED',282,401,12,'#d3c8b4','center'); }
     if (!shopOpen) { rect(679,146,232,266,'#171a2377');text('CLOSED',793,401,12,'#d3c8b4','center'); }
@@ -174,10 +175,17 @@
       for(const x of [220,350]) { rect(x,414,45,8,'#e4b566');rect(x-8,424,61,14,'#e4b56633'); }
     }
   }
+  function drawWeather(time){
+    const w=usage.weather||{},snow=w.condition==='snow';if(!w.raining&&!snow)return;
+    ctx.save();ctx.strokeStyle='#b8d3e266';ctx.fillStyle='#eef5ffbb';
+    for(let i=0;i<(snow?45:70);i++){const x=(i*137+time*.012)%WIDTH,y=440+(i*53+time*(snow?.009:.065))%150;
+      if(snow){ctx.fillRect(x,y,2,2);}else{ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(x-2,y+7);ctx.stroke();}}
+    ctx.restore();
+  }
   function drawHud() {
     rect(16,14,WIDTH-32,78,'#252824ec');
     text(usage.sim_time||'Waiting for the simulation…',32,39,16);
-    text(`${usage.speed??'—'}× clock · Pub ${usage.pub_open?'open':'closed'}`,32,66,13,'#c0b69f');
+    text(`${usage.speed??'—'}× · ${usage.weather?.label||'Weather unavailable'} · Pub ${usage.pub_open?'open':'closed'}`,32,66,13,'#c0b69f');
     text(`In the pub: ${(usage.present||[]).join(', ')||'nobody'}`,WIDTH-32,66,13,'#c0b69f','right');
   }
   function drawSprite(context,person,time=0,scale=SPRITE_SCALE) {
@@ -228,7 +236,7 @@
       text(label,person.x,person.y+19,12,'#f4e9cf','center');
       if(speakers.has(String(person.agent.id))) drawBubble(person);
     }
-    drawHud();
+    drawWeather(time);drawHud();
   }
   function drawBubble(person) {
     const x=person.x+9,y=person.y-55;
@@ -251,7 +259,7 @@
   // Movement and card functions below share the same stable person records.
   function targetFor(agent) {
     if(agent.location===PUB) {
-      if(['behind the bar','working the bar'].includes(agent.activity)) return 'staff';
+      if(['behind the bar','working the bar','covering Jess behind the bar'].includes(agent.activity)) return 'staff';
       if(agent.activity==='at his usual table') return 'tommy';
       if(agent.activity==='here for darts and company') return 'darts';
       return 'pub';

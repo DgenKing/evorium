@@ -10,7 +10,9 @@ def is_open(key, now, stats=None):
     if key=='street':return True
     if key=='pub':return world.pub_open(now, stats)
     if stats.get('shop.open', 1) == 0:return False
-    return key=='shop' and now.weekday()<6 and 7<=now.hour<19
+    from evorium.calendar_uk import hours
+    opening=hours(key,now) if key=='shop' else None
+    return bool(opening and opening[0]<=now.hour+now.minute/60<opening[1])
 
 
 def present(now, db_path=DEFAULT_DB_PATH):

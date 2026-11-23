@@ -24,3 +24,6 @@ CATCHUP_COOLDOWN_SECONDS = 600
 # Optional named logins, each with a separate player. Set real credentials only in config.py.
 # ACCOUNTS = {"Thomas": "<set-privately>"}
 ACCOUNTS = {}
+
+# Open-Meteo: background refresh only, no key; cached for 30 real minutes.
+WEATHER_ENABLED = True

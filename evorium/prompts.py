@@ -41,6 +41,7 @@ def build_messages(speaker: dict, listener: dict, transcript: list[dict], knowle
     )
     if listener.get('kind') == 'player':
         system += f"\n{listener['name']} is someone you know only from what is listed here. Do not assume anything else about them."
+    if knowledge.get("environment"):system += "\n" + knowledge["environment"]
     system += _section("YOUR SITUATION:", knowledge.get("situation", []))
     system += _section("WHAT YOU KNOW FOR CERTAIN (your own experience):", knowledge["certain"])
     system += _section("WHAT OTHERS HAVE TOLD YOU (second-hand, may be wrong):", knowledge["told"])
@@ -50,6 +51,8 @@ def build_messages(speaker: dict, listener: dict, transcript: list[dict], knowle
     system += _section(f"HOW YOU FEEL ABOUT {listener['name'].upper()}:", knowledge.get('relationship',[]))
     system += _section(f"PROMISES {listener['name'].upper()} HAS BROKEN TO YOU:", knowledge.get('broken_promises',[]))
     system += _section("WHAT YOU HAVE DONE AND PLAN TO DO TODAY:",knowledge.get("plans",[]))
+    system += _section("PEOPLE ROUND HERE YOU KNOW, AND WHAT THEY DO (anyone not listed, you don't know what they do):",
+                       knowledge.get("acquaintances", []))
     system += _section("OTHER PEOPLE YOU KNOW OF:", knowledge["people"])
     if knowledge["last_with_listener"]:
         system += f"\n\nLAST TIME YOU SPOKE WITH {listener['name'].upper()}:\n- {knowledge['last_with_listener']}\nPick up from there; do not re-ask what was already answered."
@@ -139,9 +142,9 @@ CONVERSATION:
 {transcript}
 
 Return JSON exactly like:
-{{"summary": "...", "per_agent": {{"{a_name}": {{"decision": {{"action":"tell","args":{{"person":"{b_name}","fact_id":123}},"quote":"I am telling you what I witnessed"}}, "feeling": {{"trust_change": 0, "warmth_change": 0, "reason": "..."}}, "facts": [{{"subject": "...", "content": "...", "source": "told", "told_by": "{b_name}", "importance": 3}}], "commitments": [{{"content": "Write forty quiz questions", "to": "{b_name}", "due_hours": 24, "replaces": null, "kind": "make", "target": {{"item": "quiz_questions", "count": 40}}}}], "new_people": []}}, "{b_name}": {{"decision": null, "feeling": {{...}}, "facts": [...], "commitments": [], "new_people": []}}}}, "commitments_done": []}}
+{{"summary": "...", "per_agent": {{"{a_name}": {{"decision": {{"action":"sign_petition","args":{{}},"quote":"I am signing the petition right now"}}, "feeling": {{"trust_change": 0, "warmth_change": 0, "reason": "..."}}, "facts": [{{"subject": "...", "content": "...", "source": "told", "told_by": "{b_name}", "importance": 3}}], "commitments": [{{"content": "Write forty quiz questions", "to": "{b_name}", "due_hours": 24, "replaces": null, "kind": "make", "target": {{"item": "quiz_questions", "count": 40}}}}], "new_people": []}}, "{b_name}": {{"decision": null, "feeling": {{...}}, "facts": [...], "commitments": [], "new_people": []}}}}, "commitments_done": []}}
 Keep it tight: at most 3 facts and 3 commitments per speaker, an empty facts list is fine. Never record trivia.
-The filled decision illustrates "I am telling you what I witnessed" with a known fact id 123; never copy it unless those exact words and that owned fact occur. Extract actual choices (including advice or a warning) using the menu and verbatim speech.
+The filled sign_petition decision is an illustration only and its exact payload is rejected as a copied example; extract the actual action and actual spoken words. Extract actual choices (including advice or a warning) using the menu and verbatim speech.
 The example values are illustrations only: record a commitment whenever a speaker says they will do something (e.g. "I'll ring them", "forty by Sunday, that's a promise"), and use an empty list only when nobody promised anything."""
 
 

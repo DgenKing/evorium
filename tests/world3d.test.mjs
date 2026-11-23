@@ -62,3 +62,13 @@ assert.equal(displayed[0][1],'Can we have a word?');assert.ok(!JSON.stringify(di
 const otherTarget={person:{id:1,first:'Dez'}};ui.target=otherTarget;ui.polledAt=0;await ui.pollPlayer();assert.equal(ui.target,otherTarget);
 incoming={police:{notice:'',outcomes:['formal warning']},conversation:null};ui.polledAt=0;await ui.pollPlayer();assert.match(element('police-notice').textContent,/formal warning/);
 console.log('Police follow-ups: incoming chat, private rationale, existing-panel isolation and outcome notice passed.');
+
+const weatherSource=fs.readFileSync(new URL('../evorium/static/world3d/js/weather.js',import.meta.url),'utf8').replace(/^import .*;$/gm,'').replaceAll('export ','');
+const weatherStyle=runInNewContext(weatherSource+'\nweatherStyle;');
+const WeatherClass=runInNewContext(weatherSource+'\nWeatherFX;');
+const weatherSwitch={quality:'high',reading:{condition:'rain',raining:true},set(r){this.style=weatherStyle(r,this.quality);}};WeatherClass.prototype.setQuality.call(weatherSwitch,'low');assert.equal(weatherSwitch.style.count,60);
+assert.equal(weatherStyle({condition:'unknown'}).count,0);
+assert.ok(weatherStyle({condition:'rain',raining:true},'low').count<weatherStyle({condition:'rain',raining:true},'high').count);
+assert.equal(weatherStyle({condition:'snow'}).snow,true);assert.equal(weatherStyle({condition:'fog'}).fog,true);
+assert.equal(weatherStyle({condition:'rain',raining:true}).dark,true);
+console.log('Weather: bounded quality particle counts, unknown fallback, snow, fog and wet lighting passed.');

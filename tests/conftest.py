@@ -19,3 +19,11 @@ def no_dashboard_password(monkeypatch):
     from evorium import main
     monkeypatch.setattr(main, "DASHBOARD_PASSWORD", "")
     monkeypatch.setattr(main, "ACCOUNTS", {})
+
+
+@pytest.fixture(autouse=True)
+def offline_weather(monkeypatch):
+    from evorium import weather
+    def unavailable(*args, **kwargs):
+        raise weather.httpx.ConnectError('Offline test: weather HTTP must be faked explicitly')
+    monkeypatch.setattr(weather.httpx, 'get', unavailable)

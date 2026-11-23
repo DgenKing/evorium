@@ -24,7 +24,7 @@ with sqlite3.connect(LIVE.as_uri() + '?mode=ro', uri=True) as source, sqlite3.co
 os.environ['EVORIUM_DB_PATH'] = str(DEST)
 os.environ['EVORIUM_LOG_FILE'] = ''
 from evorium import configuration
-configuration.load = lambda: SimpleNamespace(DASHBOARD_PASSWORD='', MAX_SPEND_USD=4)
+configuration.load = lambda: SimpleNamespace(DASHBOARD_PASSWORD='', MAX_SPEND_USD=4, WEATHER_ENABLED=False)
 from evorium import llm, world
 from evorium.models import ActionProposal, Extraction
 

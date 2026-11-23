@@ -22,6 +22,15 @@ try{
  if(!process.argv.includes('--screens-only')&&!process.argv.includes('--cast')&&!process.argv.includes('--poses')){
  const physics=await evaluate('window.__evoriumTest.physics()');await fs.writeFile(output+'/physics.json',JSON.stringify(physics,null,2));console.log('PHYSICS',JSON.stringify(physics));
  const movement=await evaluate('window.__evoriumTest.movement()');await fs.writeFile(output+'/movement.json',JSON.stringify(movement,null,2));console.log('MOVEMENT',JSON.stringify(movement.results));
+ if(!await evaluate('window.__evoriumTest.calendar(true)')||await evaluate('window.__evoriumTest.calendar(false)'))throw Error('Festive decoration toggle failed');
+ console.log('CALENDAR festive lights toggle passed');
+ for(const condition of ['rain','snow','fog','unknown']){
+ const result=await evaluate(`window.__evoriumTest.weather({condition:'${condition}',raining:${condition==='rain'}})`);
+ if((condition==='rain'||condition==='snow')&&!result.particles)throw Error('Missing weather particles '+condition);
+ if(condition==='fog'&&!result.style.fog)throw Error('Missing weather fog');
+ if(condition==='unknown'&&result.particles)throw Error('Unknown weather should have no particles');
+ const shot=await cdp('Page.captureScreenshot',{format:'png'});await fs.writeFile(output+'/weather-'+condition+'.png',Buffer.from(shot.data,'base64'));
+ }const highRain=await evaluate("window.__evoriumTest.weather({condition:'rain',raining:true},'high')");const lowRain=await evaluate("window.__evoriumTest.weather({condition:'rain',raining:true},'low')");if(lowRain.particles>=highRain.particles)throw Error('Weather quality downgrade failed');await evaluate("window.__evoriumTest.weather({condition:'unknown'})");console.log('WEATHER rain, snow, fog, unknown and quality downgrade rendered without errors');
  const chat=await evaluate('window.__evoriumTest.chat()');await fs.writeFile(output+'/chat.json',JSON.stringify(chat,null,2));console.log('CHAT',chat.text);
  await fetch(base+'/smoke/at',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({at:'2026-11-19 18:59:00'})});const beforeFast=await evaluate('window.__evoriumTest.refresh()');
  await fetch(base+'/speed',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({speed:60})});await pause(6000);const fast=await evaluate('window.__evoriumTest.refresh()');if(fast.speed!==60||fast.sim_at===beforeFast.sim_at||JSON.stringify(fast.characters)===JSON.stringify(beforeFast.characters))throw Error('60x routine changes not reflected');await fs.writeFile(output+'/speed60.json',JSON.stringify(fast,null,2));await fetch(base+'/speed',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({speed:0})});

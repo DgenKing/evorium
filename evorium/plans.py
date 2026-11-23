@@ -39,7 +39,7 @@ def validate(proposal,agent,now,db_path=DEFAULT_DB_PATH):
     if start<=now or end.date()!=now.date():raise ValueError('Plan must start later today and end today.')
     with connect(db_path) as c:
         from evorium.economy import stats
-        values=stats(c)
+        values=world.routine_inputs(c,now)
         people=npc_agents(c)
         person=next((a for a in people if a['name']==p.person),None)
         count=c.execute("SELECT count(*) FROM plans WHERE agent_id=? AND sim_day=? AND status!='cancelled'",(agent['id'],now.date().isoformat())).fetchone()[0]
@@ -67,6 +67,7 @@ def insert(c,plan):
 
 
 def daily(client,now,db_path=DEFAULT_DB_PATH):
+    from evorium import calendar_uk
     if now.hour<7:return 0
     with connect(db_path) as c:agents=npc_agents(c)
     calls=0
@@ -75,7 +76,7 @@ def daily(client,now,db_path=DEFAULT_DB_PATH):
             if c.execute('SELECT 1 FROM plans WHERE agent_id=? AND sim_day=?',(a['id'],now.date().isoformat())).fetchone():continue
             from evorium import actions
             from evorium.economy import stats
-            values=stats(c)
+            values=world.routine_inputs(c,now)
             menu=actions.candidates(c,a,now)
             knowledge=knowledge_for_prompt(c,a,a,now)
             promises=open_commitments(c,a['id'])
@@ -93,7 +94,7 @@ It is {now.strftime(DUE_FMT)}. Most days you simply follow your routine; return 
 {('Serious news on your mind: '+json.dumps(big_news)+'. Real people rarely sit on news like this: if it affects you or someone you know, consider ringing someone about it, or going where you can tell or ask someone you trust. ') if big_news else ''}Return JSON {{"actions": [], "plans": [{{"action":"visit","place":"shop","person":null,"hour":0,"minute":0,"duration_minutes":30,"fulfils":null,"reason":"one sentence"}}]}}.
 Actions: visit, phone, stay_home. Places: pub, shop, street or null. Person: another NPC full name or null. Use actual JSON null, zero to two plans, minute 0 or 30, duration 30–180. Only later today, while free; places must be open throughout. Phone another NPC; stay_home only replaces an evening pub customer visit.
 Timetable: {json.dumps(timetable)}
-Public places: pub (every day 09–24); shop (Mon–Sat 07–19); street (always).
+Public places today: pub {calendar_uk.hours("pub",now)}; shop {calendar_uk.hours("shop",now) or "shut"}; street always open.
 Keep checkable promises before their deadlines. Use a matching visit or phone plan with its promise id in fulfils.
 Use the action menu for action, tell and quiz-question promises; saying "done" never completes them.
 Open promises with ids, targets, progress and deadlines: {json.dumps(promises)}
@@ -142,7 +143,11 @@ def execute(client,now,db_path=DEFAULT_DB_PATH,auto=False):
         agents={a['id']:a for a in npc_agents(c)}
     for p in rows:
         a=agents[p['agent_id']];status=None;outcome='';conversation_id=None
-        if p['action']=='phone':
+        from evorium import bad_days
+        with connect(db_path) as c:blocked=bad_days.blocks(bad_days.records(c,now).get(str(a['id']),{}),now)
+        if p['action']=='visit' and blocked:
+            status='missed';outcome='Could not make the visit because of today’s setback.'
+        elif p['action']=='phone':
             if not auto:continue
             other=agents.get(p['person_id'])
             with connect(db_path) as c:reachable=other and world.routine(other['name'],now)[1]!='asleep' and not busy(c,other['id']) and not busy(c,a['id'])

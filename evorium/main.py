@@ -74,9 +74,15 @@ def _tick_loop():
         try:
             _state["last_tick"] = time.time()
             now = world.now(DEFAULT_DB_PATH)
+            from evorium import weather
+            weather.refresh(now, DEFAULT_DB_PATH)
+            from evorium import bad_days
+            bad_days.maintain(now, DEFAULT_DB_PATH)
             plans.execute(None,now,DEFAULT_DB_PATH,auto=False)
             for change in tick.update_routines(now, DEFAULT_DB_PATH):
                 emit(f"[{world.describe(now)}] {change}")
+            from evorium import calendar_uk
+            calendar_uk.maintain(now, DEFAULT_DB_PATH)
             tick.deliver_events(now, DEFAULT_DB_PATH)
             tick.check_due_promises(None, now, DEFAULT_DB_PATH)
             economy.maintain(now, DEFAULT_DB_PATH)
@@ -100,6 +106,7 @@ def _tick_loop():
                             plans.execute(client,now,DEFAULT_DB_PATH,auto=True)
                             for key,present in places.opportunities(now,_state['gap_minutes'],DEFAULT_DB_PATH):
                                 try:a,b=world.pick_pair([p['id'] for p in present],DEFAULT_DB_PATH)
+                                except world.PairLimitReached:break
                                 except ValueError:continue
                                 try:run_conversation(client,a,b,turns_for(a,b,DEFAULT_DB_PATH),DEFAULT_DB_PATH,location=places.REGISTRY[key])
                                 except ValueError:continue
@@ -226,7 +233,9 @@ async def agents():
             considering = connection.execute("SELECT result FROM actions WHERE agent_id=? AND status='considering' ORDER BY id DESC LIMIT 1", (aid,)).fetchone()
             from evorium import cases
             case_rows = [dict(v) for v in connection.execute("SELECT v.*,a.name AS subject_name FROM cases v JOIN agents a ON a.id=v.subject_id WHERE v.subject_id=? OR ?=? ORDER BY v.id DESC LIMIT 10", (aid, r['name'], cases.GRACE))]
-            out.append({"cases": case_rows, "today_action": today_action[0] if today_action else None, "considering": considering[0] if considering else None, **dict(r), "in_pub": r["location"] == world.PUB, "facts": facts, "fact_counts": counts,
+            from evorium import bad_days
+            condition=bad_days.records(connection,now).get(str(aid),{})
+            out.append({"bad_day": bad_days.LABELS.get(condition.get('kind'),'') or '', "cases": case_rows, "today_action": today_action[0] if today_action else None, "considering": considering[0] if considering else None, **dict(r), "in_pub": r["location"] == world.PUB, "facts": facts, "fact_counts": counts,
                         "plans": plans.today(connection,aid,now), "relationships": relationships.for_card(connection, aid), "promises": open_commitments(connection, aid), "resolved": resolved, "memories": memories})
     return out
 
@@ -249,7 +258,10 @@ async def usage():
     except LLMError:
         cap = None
     now = world.now(DEFAULT_DB_PATH)
+    from evorium import weather,calendar_uk
+    with connect(DEFAULT_DB_PATH) as c: weather_now = weather.read(c, now)
     data.update({
+        "weather": weather_now, "calendar": calendar_uk.state(now),
         "ledger": economy.ledger(DEFAULT_DB_PATH, now), "director": world.get_setting("director","1",DEFAULT_DB_PATH)=="1", "places": places.describe(now,DEFAULT_DB_PATH), "max_spend_usd": cap, "last_error": _last_error["message"], "running": _run_lock.locked(),
         "auto": _state["auto"], "auto_conversations": _state["conversations"], "gap_minutes": _state["gap_minutes"],
         "sim_at": now.strftime("%Y-%m-%d %H:%M"), "sim_time": world.describe(now), "speed": world.get_speed(DEFAULT_DB_PATH), "pub_open": world.pub_open(now, economy.read(DEFAULT_DB_PATH)),
@@ -374,7 +386,7 @@ async def run(req: RunRequest):
             if len(ids) < 2:
                 raise HTTPException(409, f"Fewer than two people in the pub right now ({world.describe(now)}). "
                                          f"In: {', '.join(p['name'].split()[0] for p in present) or 'nobody'}. Speed the clock up or wait.")
-            try:a, b = world.pick_pair(ids, DEFAULT_DB_PATH)
+            try:a, b = world.pick_pair(ids, DEFAULT_DB_PATH, automatic=False)
             except ValueError:raise HTTPException(409,'Fewer than two available people; someone is talking to the player.')
         cid = await run_in_threadpool(run_conversation, client, a, b, req.turns, DEFAULT_DB_PATH)
         return get_conversation(cid, DEFAULT_DB_PATH)

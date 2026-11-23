@@ -154,3 +154,24 @@ def freeze_clock(path, at):
         world._set(c, 'anchor_real', world._real_now().strftime(world.FMT))
         world._set(c, 'anchor_sim', at.strftime(world.FMT))
         world._set(c, 'speed', 0)
+
+
+def test_apcs_know_the_jobs_of_people_they_know_but_not_strangers(tmp_path):
+    # Live bug, 23 Nov: Ronnie said Grace (the PCSO) "pulls pints"; he'd only ever been told names.
+    from evorium.db import connect, init_db
+    from evorium.memory import knowledge_for_prompt
+    from evorium.prompts import build_messages
+    from evorium.seed import seed_agents
+    path = tmp_path / 'w.sqlite3'
+    init_db(path); seed_agents(path)
+    with connect(path) as c:
+        agents = {r['name'].split()[0]: dict(r) for r in c.execute('SELECT * FROM agents')}
+        known = knowledge_for_prompt(c, agents['Ronnie'], agents['Tommy'])['acquaintances']
+        assert 'Grace Adeyemi: Police community support officer' in known      # a public face
+        assert not any(k.startswith('Tommy') or k.startswith('Ronnie') for k in known)  # not the listener or himself
+        assert not any(k.startswith('Simon') for k in known)                    # never met: his Northgate job stays hidden
+        c.execute('UPDATE relationships SET familiarity=3 WHERE agent_id=? AND other_id=?', (agents['Ronnie']['id'], agents['Simon']['id']))
+        known = knowledge_for_prompt(c, agents['Ronnie'], agents['Tommy'])['acquaintances']
+        assert any(k.startswith('Simon Ferris: Asset Manager at Northgate Estates') for k in known)
+        text = build_messages(agents['Ronnie'], agents['Tommy'], [], knowledge_for_prompt(c, agents['Ronnie'], agents['Tommy']), 'now')[0]['content']
+        assert 'PEOPLE ROUND HERE YOU KNOW, AND WHAT THEY DO' in text and 'Grace Adeyemi: Police community support officer' in text
