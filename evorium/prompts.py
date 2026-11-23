@@ -93,15 +93,16 @@ For EACH of the two speakers, record:
   Never record X's own invention under the other speaker as a "claim".
   Personal opinions, tastes and plans about the speaker's own life ("I'd budget £900 a month") are "observed", not claims.
 - "commitments": things that speaker promised to do AFTER this conversation and has not yet done. Write each as a
-  short instruction ("Ring Northgate's agent", "Write forty quiz questions"). "to": who they promised, or null.
+  short instruction ("Ring Northgate's agent", "Write forty quiz questions"). "to": REQUIRED full name of the person they promised.
+  A promise to nobody in particular, or to themselves, is not a promise: do not record it.
   Do NOT record: anything already done during the conversation (pouring or buying a drink, answering a question);
   ordinary parts of their job. Record conditional promises and vague promises with those explicit types.
   "due_hours": REQUIRED integer — how many hours from now ({sim_time}) it should be done by
   ("tonight" = 4, "first thing tomorrow" = 18, "tomorrow" = 24, "by Friday" = hours from now until Friday evening,
   no time mentioned or "keep an ear out" = 72).
-  "replaces": if this is the same promise as one in the OPEN COMMITMENTS list, restated with more detail or a new
-  deadline, give that id here (integer) so it is updated instead of duplicated; otherwise null. If an open
-  commitment is merely mentioned again with nothing new, do not record it at all.
+  "replaces": if this is the same promise as one in the OPEN COMMITMENTS list (even with a new deadline or more
+  detail), give that id here (integer); otherwise null. Promises are fixed once made: restating one never changes
+  its deadline, recipient or wording, and no duplicate is recorded.
   "kind" and "target": REQUIRED. Use only explicit, checkable targets; never guess:
   action: {{"key":"allowed menu key","args":{{...}}}}; the owner must be allowed that action.
   visit: {{"place":"pub|shop|street"}}, optionally "start_at"/"end_at" in YYYY-MM-DD HH:MM game time.

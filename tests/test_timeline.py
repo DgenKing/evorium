@@ -28,7 +28,7 @@ def test_filters_and_triggered_kinds(db):
         resolve_commitment(c,other,'broken','Forgot',now)
     tick.update_routines(now,db);seed_events(db,now);tick.deliver_events(now+timedelta(days=4),db)
     kinds={e['kind'] for e in timeline.entries(db)}
-    assert {'rumour','promise_made','promise_updated','promise_kept','promise_broken','world_event','arrival'}<=kinds
+    assert {'rumour','promise_made','promise_kept','promise_broken','world_event','arrival'}<=kinds
     assert all(e['importance']>=3 for e in timeline.entries(db,min_importance=3))
     assert all(1 in (e['agent_id'],e['other_id']) for e in timeline.entries(db,agent_id=1))
     assert all(e['kind']=='rumour' for e in timeline.entries(db,kinds=['rumour']))

@@ -170,34 +170,24 @@ def store_extraction(connection: sqlite3.Connection, conversation_id: int, parti
             counts["facts"] += 1
         for c in ext.commitments:
             from evorium.promise_evidence import validate_target
+            if c.replaces is not None and connection.execute(
+                    "SELECT 1 FROM commitments WHERE id=? AND agent_id=? AND status='open' AND lapsed_at IS NULL",
+                    (c.replaces, me)).fetchone():
+                # Promises are fixed once made: restating one never changes its deadline, recipient, wording or
+                # type (an APC could otherwise put a promise off for ever just by mentioning it again).
+                restated.add(c.replaces)
+                continue
+            to_id = agent_id_for(c.to)
+            if to_id is None or to_id == me:
+                continue  # a promise is made to a real person in the world, not to nobody or to oneself
             actor = dict(connection.execute('SELECT * FROM agents WHERE id=?', (me,)).fetchone())
             kind, target = validate_target(connection, actor, c.kind, c.target)
             due_at = (now + timedelta(hours=c.due_hours or DEFAULT_DUE_HOURS)).strftime(DUE_FMT)
-            if c.replaces is not None:
-                # Same promise restated with more detail or a new deadline: update it rather than add a duplicate.
-                # If what it promises changed (a legacy promise gaining a type, or a new target), it is a new promise
-                # from this conversation: evidence counts only from now, and this conversation can't fulfil it.
-                # SQLite evaluates every SET expression against the old row, so the CASE sees the old kind/target.
-                target_json = json.dumps(target)
-                changed = "(coalesce(kind,'')!=? OR coalesce(target_json,'')!=?)"
-                cur = connection.execute(
-                    "UPDATE commitments SET content=?, due_at=?, to_agent_id=COALESCE(?, to_agent_id), kind=?, target_json=?, retry_at=NULL, "
-                    f"made_at=CASE WHEN {changed} THEN ? ELSE made_at END, "
-                    f"source_conversation_id=CASE WHEN {changed} THEN ? ELSE source_conversation_id END "
-                    "WHERE id=? AND agent_id=? AND status='open' AND lapsed_at IS NULL",
-                    (c.content, due_at, agent_id_for(c.to), kind, target_json,
-                     kind, target_json, now.strftime(DUE_FMT), kind, target_json, conversation_id, c.replaces, me))
-                if cur.rowcount:
-                    restated.add(c.replaces)
-                    timeline.record(connection, now, 'promise_updated', f"{name}: {c.content}", 2, me, agent_id_for(c.to), conversation_id)
-                    counts["updated"] += 1
-                    schedule_promise(connection, c.replaces, now)
-                    continue
             cid = connection.execute(
                 "INSERT INTO commitments (agent_id, to_agent_id, content, source_conversation_id, due_at, kind, target_json, made_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                (me, agent_id_for(c.to), c.content, conversation_id, due_at, kind, json.dumps(target), now.strftime(DUE_FMT))).lastrowid
+                (me, to_id, c.content, conversation_id, due_at, kind, json.dumps(target), now.strftime(DUE_FMT))).lastrowid
             schedule_promise(connection, cid, now)
-            timeline.record(connection, now, 'promise_made', f"{name} promised: {c.content}", 2, me, agent_id_for(c.to), conversation_id)
+            timeline.record(connection, now, 'promise_made', f"{name} promised: {c.content}", 2, me, to_id, conversation_id)
             counts["commitments"] += 1
         for p in ext.new_people:
             if agent_id_for(p.name) is not None:

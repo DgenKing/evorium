@@ -160,7 +160,7 @@ def test_mark_interrupted_closes_stuck_conversations(db):
         assert [r[0] for r in c.execute("SELECT status FROM conversations ORDER BY id")] == ["failed", "completed"]
 
 
-def test_restated_promise_updates_in_place_and_is_not_marked_done(db):
+def test_restated_promise_is_fixed_and_is_not_marked_done(db):
     first = Extraction(summary="s", per_agent={"Tommy Shaw": AgentExtraction(
         commitments=[CommitmentOut(content="Write the quiz questions", to="Dez Whitworth")])})
     run_conversation(FakeClient(extraction=first), 3, 1, turns=1, db_path=db)
@@ -174,8 +174,9 @@ def test_restated_promise_updates_in_place_and_is_not_marked_done(db):
     with connect(db) as c:
         rows = c.execute("SELECT id, content, status, due_at FROM commitments").fetchall()
     assert len(rows) == 1
-    assert rows[0]["content"] == "Write forty quiz questions by Friday"
-    assert rows[0]["status"] == "open" and rows[0]["due_at"] > due
+    # Promises are fixed once made: restating one changes neither its wording nor its deadline.
+    assert rows[0]["content"] == "Write the quiz questions"
+    assert rows[0]["status"] == "open" and rows[0]["due_at"] == due
 
 
 def test_replaces_cannot_touch_someone_elses_promise(db):
@@ -185,7 +186,7 @@ def test_replaces_cannot_touch_someone_elses_promise(db):
     with connect(db) as c:
         cid = c.execute("SELECT id FROM commitments").fetchone()[0]
     second = Extraction(summary="s", per_agent={"Jess Hartley": AgentExtraction(
-        commitments=[CommitmentOut(content="Ask about more hours", replaces=cid)])})
+        commitments=[CommitmentOut(content="Ask about more hours", to="Dez Whitworth", replaces=cid)])})
     run_conversation(FakeClient(extraction=second), 1, 4, turns=1, db_path=db)
     with connect(db) as c:
         rows = [tuple(r) for r in c.execute("SELECT agent_id, content FROM commitments ORDER BY id")]

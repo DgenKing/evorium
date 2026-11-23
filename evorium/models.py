@@ -73,7 +73,7 @@ class CommitmentOut(BaseModel):
     due_hours: int | None = Field(default=None, ge=1, le=24 * 60)
     kind: str = "vague"
     target: dict = Field(default_factory=dict)
-    replaces: int | None = None  # id of an open commitment this one restates with new detail or a new deadline
+    replaces: int | None = None  # id of an open commitment this one restates; promises are fixed, so nothing changes
 
 
 class PromiseCheck(BaseModel):

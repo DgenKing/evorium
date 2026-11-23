@@ -171,7 +171,8 @@ Budget or balance errors stop auto mode.
    one decision; plus a summary and completion **claims**, never model-certified promise closures. The example JSON in that prompt shows a filled-in promise and
    feeling on purpose: empty examples get copied, which silently broke feelings and promises before.
 4. Python stores it: facts scored below 3 are dropped (at most 3 kept per person per conversation); feelings are
-   capped at ±2 and applied ×2; promises get validated types, targets and game-time creation/deadlines; a decision needs at least six verbatim words from that
+   capped at ±2 and applied ×2; promises get validated types, targets and game-time creation/deadlines, must be
+   made to a real other person, and are **fixed once made** (restating one changes nothing); a decision needs at least six verbatim words from that
    speaker and must pass the action checks; both speakers get the summary as a memory; the timeline gets an
    entry.
 
@@ -909,6 +910,12 @@ streets, film grain, matching the game's portraits.
   repayment and unverifiable conditions have no deterministic evidence. The local fix makes these vague and
   lapses them neutrally; a real research/repayment action remains future work. New conversations can still
   make similar promises, so this does not by itself solve same-pair topic loops.
+- **Promises the game can't check (23 Nov):** only Tommy can write quiz questions, so Dez promising to "write a few
+  myself" becomes `vague` and lapses without blame. APCs can promise things the action menu doesn't let them do;
+  either widen the actions or stop such promises.
+- **Restated promises already extended on the G4:** before the fixed-promise rule, 13 promises were restated and
+  some got later deadlines (Peggy's to Rob moved from 16:21 on 23 Nov to 26 Nov). The original deadlines weren't
+  stored, so they can't be restored in general.
 - **APC self-certification fixed locally (23 Nov), awaiting owner review/deployment.** Deadline checks no longer
   ask the model, extraction reports become claims, and plan fulfilment must match real evidence. Migration 15
   uses `lapsed_at`, preserving the original table, status CHECK and plan foreign keys. All active views exclude
@@ -1125,6 +1132,20 @@ the key pool and open sign-ups.
 ---
 
 ## 14. History
+
+### 23 November 2026 — Promises are fixed once made, and made to real people
+
+- Live report on the G4 (19 conversations since the update): legacy promises lapse correctly (Tommy's "ask Dez"
+  at 14:50), 0 evidence problems, no claims yet. But restating had become a loophole: Peggy promised Rob to talk to
+  Brenda by 16:21, repeated it to someone else, and her deadline jumped to 26 Nov (the 72-hour default when no
+  deadline is said). Promises could be put off for ever, so none had come due.
+- Owner's rule: **promises are tied to real people and can't be changed once set.** `memory.store_extraction` now
+  ignores a restatement of an open promise entirely (deadline, recipient, wording and type stay as made, no
+  `promise_updated` entry) and drops any promise not made to a real other person (no recipient, an unknown name,
+  or themselves). The extraction prompt says so. This replaces the earlier made_at-reset fix for restated
+  promises, which is no longer needed.
+- Tests: fixed-once-made, real-recipient (three cases) and recorded-to-them tests; the older restate tests were
+  updated to the new rule. 336 Python tests pass.
 
 ### 23 November 2026 — Website "What's new", promises in the guide
 
