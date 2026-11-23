@@ -44,7 +44,7 @@ def validate(proposal,agent,now,db_path=DEFAULT_DB_PATH):
         person=next((a for a in people if a['name']==p.person),None)
         count=c.execute("SELECT count(*) FROM plans WHERE agent_id=? AND sim_day=? AND status!='cancelled'",(agent['id'],now.date().isoformat())).fetchone()[0]
         overlaps=c.execute("SELECT 1 FROM plans WHERE agent_id=? AND status IN ('planned','active') AND start_at<? AND end_at>?",(agent['id'],end.strftime(DUE_FMT),start.strftime(DUE_FMT))).fetchone()
-        fulfils=c.execute("SELECT id FROM commitments WHERE id=? AND agent_id=? AND status='open'",(p.fulfils,agent['id'])).fetchone() if p.fulfils else None
+        fulfils=c.execute("SELECT id FROM commitments WHERE id=? AND agent_id=? AND status='open' AND lapsed_at IS NULL",(p.fulfils,agent['id'])).fetchone() if p.fulfils else None
     if count>=2:raise ValueError('At most two plans per day.')
     if overlaps:raise ValueError('Plans cannot overlap.')
     if p.action=='visit':
@@ -91,10 +91,12 @@ def daily(client,now,db_path=DEFAULT_DB_PATH):
         prompt=f'''You are {a['name']}, {a['occupation']}. {a['personality']} Goal: {a['current_goal']}.
 It is {now.strftime(DUE_FMT)}. Most days you simply follow your routine; return an empty list unless you have a real reason.
 {('Serious news on your mind: '+json.dumps(big_news)+'. Real people rarely sit on news like this: if it affects you or someone you know, consider ringing someone about it, or going where you can tell or ask someone you trust. ') if big_news else ''}Return JSON {{"actions": [], "plans": [{{"action":"visit","place":"shop","person":null,"hour":0,"minute":0,"duration_minutes":30,"fulfils":null,"reason":"one sentence"}}]}}.
-Actions: visit, phone, stay_home. Places: pub, shop or null. Person: another NPC full name or null. Use actual JSON null, zero to two plans, minute 0 or 30, duration 30–180. Only later today, while free; places must be open throughout. Phone another NPC; stay_home only replaces an evening pub customer visit.
+Actions: visit, phone, stay_home. Places: pub, shop, street or null. Person: another NPC full name or null. Use actual JSON null, zero to two plans, minute 0 or 30, duration 30–180. Only later today, while free; places must be open throughout. Phone another NPC; stay_home only replaces an evening pub customer visit.
 Timetable: {json.dumps(timetable)}
-Public places: pub (every day 09–24); shop (Mon–Sat 07–19).
-Open promises with ids and deadlines: {json.dumps(promises)}
+Public places: pub (every day 09–24); shop (Mon–Sat 07–19); street (always).
+Keep checkable promises before their deadlines. Use a matching visit or phone plan with its promise id in fulfils.
+Use the action menu for action, tell and quiz-question promises; saying "done" never completes them.
+Open promises with ids, targets, progress and deadlines: {json.dumps(promises)}
 Relationships and cast: {json.dumps(relations)}
 Your knowledge: {json.dumps(knowledge)}
 You may also take at most one decision today from this menu: {json.dumps(menu)}.
@@ -168,5 +170,8 @@ def execute(client,now,db_path=DEFAULT_DB_PATH,auto=False):
             with connect(db_path) as c:
                 c.execute('UPDATE plans SET status=?,outcome=? WHERE id=?',(status,outcome,p['id']))
                 if status=='done' and p['fulfils_commitment_id']:
-                    resolve_commitment(c,p['fulfils_commitment_id'],'done',outcome,now,conversation_id)
+                    from evorium.promise_evidence import plan_supports
+                    commitment = c.execute("SELECT * FROM commitments WHERE id=? AND agent_id=? AND status='open' AND lapsed_at IS NULL", (p['fulfils_commitment_id'], p['agent_id'])).fetchone()
+                    if commitment and plan_supports(c, p, commitment, now, conversation_id):
+                        resolve_commitment(c,p['fulfils_commitment_id'],'done',outcome,now,conversation_id)
                 timeline.record(c,now,'action',outcome,3 if status=='done' and p['fulfils_commitment_id'] else 2,a['id'],p['person_id'],conversation_id)

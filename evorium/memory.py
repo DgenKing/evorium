@@ -1,6 +1,7 @@
 """What an agent knows, has been told, has promised — and how new knowledge is stored."""
 
 import logging
+import json
 import sqlite3
 from datetime import datetime, timedelta
 
@@ -20,7 +21,6 @@ MAX_RECENT = 3
 MAX_FACTS_PER_SPEAKER = 3   # per conversation, after trivia is dropped
 REPEAT_TOPIC_AFTER = 2      # a subject raised in this many conversations today counts as "already covered"
 DEFAULT_DUE_HOURS = 72  # every promise gets a deadline, so the tick always checks it eventually
-EXAMPLE_COMMITMENT = "ring the brewery about the late delivery"  # must match the example in prompts.py
 
 
 def _rows(connection, sql, params=()):
@@ -32,11 +32,15 @@ def _mentions(text: str, name: str) -> bool:
 
 
 def open_commitments(connection: sqlite3.Connection, agent_id: int, limit=MAX_PROMISES) -> list[dict]:
-    return _rows(connection,
-        """SELECT c.id, c.content, c.to_agent_id, a.name AS to_name, c.due_at
+    rows = _rows(connection,
+        """SELECT c.*, a.name AS to_name
            FROM commitments c LEFT JOIN agents a ON a.id = c.to_agent_id
-           WHERE c.agent_id = ? AND c.status = 'open' ORDER BY c.id DESC LIMIT ?""",
+           WHERE c.agent_id = ? AND c.status = 'open' AND c.lapsed_at IS NULL ORDER BY c.id DESC LIMIT ?""",
         (agent_id, -1 if limit is None else limit))
+    from evorium.promise_evidence import progress
+    for p in rows:
+        p['progress'] = progress(connection, p)
+    return rows
 
 
 def knowledge_for_prompt(connection: sqlite3.Connection, speaker: dict, listener: dict, now=None) -> dict:
@@ -61,7 +65,7 @@ def knowledge_for_prompt(connection: sqlite3.Connection, speaker: dict, listener
         (sid, VISIBLE_IMPORTANCE, MAX_CLAIMS))
     promises = open_commitments(connection, sid)
     their_promises = _rows(connection,
-        "SELECT content FROM commitments WHERE agent_id=? AND to_agent_id=? AND status='open' ORDER BY id DESC LIMIT 4",
+        "SELECT content || ' — due ' || coalesce(due_at,'unspecified') AS content FROM commitments WHERE agent_id=? AND to_agent_id=? AND status='open' AND lapsed_at IS NULL ORDER BY id DESC LIMIT 4",
         (lid, sid))
     people = _rows(connection,
         """SELECT n.name, n.description FROM npcs n
@@ -87,7 +91,8 @@ def knowledge_for_prompt(connection: sqlite3.Connection, speaker: dict, listener
         "certain": [c["content"] for c in certain],
         "told": [f'{t["content"]} (told to me by {t["by_name"] or "someone"})' for t in told],
         "claims": [c["content"] for c in claims],
-        "promises": [p["content"] + (f" (to {p['to_name']})" if p["to_name"] else "") for p in promises],
+        "promises": [p["content"] + (f" (to {p['to_name']})" if p["to_name"] else "") +
+                     f" — due {p['due_at'] or 'unspecified'}; {p['progress']}" for p in promises],
         "their_promises": [p["content"] for p in their_promises],
         "people": [f'{p["name"]} — {p["description"]}' for p in people],
         "last_with_listener": (f'{last_with["sim_time"]}: {last_with["summary"]}' if last_with else None),
@@ -164,23 +169,26 @@ def store_extraction(connection: sqlite3.Connection, conversation_id: int, parti
                 timeline.record(connection, now, 'serious', f"{name}: {f.content}", 4, me, conversation_id=conversation_id)
             counts["facts"] += 1
         for c in ext.commitments:
-            if c.content.strip().lower() == EXAMPLE_COMMITMENT:  # the prompt's illustration, copied by mistake
-                continue
+            from evorium.promise_evidence import validate_target
+            actor = dict(connection.execute('SELECT * FROM agents WHERE id=?', (me,)).fetchone())
+            kind, target = validate_target(connection, actor, c.kind, c.target)
             due_at = (now + timedelta(hours=c.due_hours or DEFAULT_DUE_HOURS)).strftime(DUE_FMT)
             if c.replaces is not None:
                 # Same promise restated with more detail or a new deadline: update it rather than add a duplicate.
                 cur = connection.execute(
-                    "UPDATE commitments SET content=?, due_at=?, to_agent_id=COALESCE(?, to_agent_id) "
-                    "WHERE id=? AND agent_id=? AND status='open'",
-                    (c.content, due_at, agent_id_for(c.to), c.replaces, me))
+                    "UPDATE commitments SET content=?, due_at=?, to_agent_id=COALESCE(?, to_agent_id), kind=?, target_json=?, retry_at=NULL "
+                    "WHERE id=? AND agent_id=? AND status='open' AND lapsed_at IS NULL",
+                    (c.content, due_at, agent_id_for(c.to), kind, json.dumps(target), c.replaces, me))
                 if cur.rowcount:
                     restated.add(c.replaces)
                     timeline.record(connection, now, 'promise_updated', f"{name}: {c.content}", 2, me, agent_id_for(c.to), conversation_id)
                     counts["updated"] += 1
+                    schedule_promise(connection, c.replaces, now)
                     continue
-            connection.execute(
-                "INSERT INTO commitments (agent_id, to_agent_id, content, source_conversation_id, due_at) VALUES (?, ?, ?, ?, ?)",
-                (me, agent_id_for(c.to), c.content, conversation_id, due_at))
+            cid = connection.execute(
+                "INSERT INTO commitments (agent_id, to_agent_id, content, source_conversation_id, due_at, kind, target_json, made_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                (me, agent_id_for(c.to), c.content, conversation_id, due_at, kind, json.dumps(target), now.strftime(DUE_FMT))).lastrowid
+            schedule_promise(connection, cid, now)
             timeline.record(connection, now, 'promise_made', f"{name} promised: {c.content}", 2, me, agent_id_for(c.to), conversation_id)
             counts["commitments"] += 1
         for p in ext.new_people:
@@ -197,22 +205,106 @@ def store_extraction(connection: sqlite3.Connection, conversation_id: int, parti
             continue  # restated in this conversation, so it is plainly not finished
         row = connection.execute("SELECT * FROM commitments WHERE id=?", (cid,)).fetchone()
         if row and row['agent_id'] in participant_ids:
-            counts['resolved'] += resolve_commitment(connection, cid, 'done', 'Reported completed in conversation.', now, conversation_id)
+            owner_kind = connection.execute('SELECT kind FROM agents WHERE id=?', (row['agent_id'],)).fetchone()[0]
+            if owner_kind == 'npc':
+                said = ' '.join(r[0] for r in connection.execute(
+                    'SELECT text FROM messages WHERE conversation_id=? AND speaker_id=? ORDER BY id',
+                    (conversation_id, row['agent_id']))) or 'Reported completed in conversation.'
+                record_claim(connection, cid, row['agent_id'], said, now, conversation_id)
+            else:
+                counts['resolved'] += resolve_commitment(connection, cid, 'done', 'Reported completed in conversation.', now, conversation_id)
     return counts
 
 
-def resolve_commitment(connection, cid, status, outcome, now, conversation_id=None):
-    """One idempotent path for every promise outcome."""
-    row = connection.execute("SELECT c.*, a.name FROM commitments c JOIN agents a ON a.id=c.agent_id WHERE c.id=? AND c.status='open'",(cid,)).fetchone()
-    if not row: return 0
-    connection.execute("UPDATE commitments SET status=?, outcome=?, resolved_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id=?",(status,outcome,cid))
-    timeline.record(connection, now, 'promise_kept' if status=='done' else 'promise_broken',
-        f"{row['name']} {'kept' if status=='done' else 'broke'} a promise: {row['content']} — {outcome}",
-        3 if status=='done' else 4, row['agent_id'], row['to_agent_id'], conversation_id)
+KEPT_TRUST = 8
+KEPT_WARMTH = 2
+BROKEN_TRUST = -12
+BROKEN_WARMTH = -4
+FALSE_CLAIM_TRUST = -20
+FALSE_CLAIM_WARMTH = -6
+
+
+def schedule_promise(c, cid, now):
+    from evorium import economy
+    p = c.execute('SELECT * FROM commitments WHERE id=?', (cid,)).fetchone()
+    if c.execute("SELECT kind FROM agents WHERE id=?", (p['agent_id'],)).fetchone()[0] != 'npc':
+        return
+    hours = max(1, (datetime.strptime(p['due_at'], DUE_FMT) - now).total_seconds() / 3600 - 24)
+    economy.schedule(c, p['agent_id'], f"Promise {cid} due {p['due_at']}", now, hours)
+
+
+def record_claim(c, cid, agent_id, said, now, conversation_id=None):
+    """A report is a claim, even when evidence might later support it."""
+    p = c.execute("SELECT * FROM commitments WHERE id=? AND agent_id=? AND status='open' AND lapsed_at IS NULL",
+                  (cid, agent_id)).fetchone()
+    if not p:
+        return 0
+    if conversation_id is not None and c.execute('SELECT 1 FROM promise_claims WHERE commitment_id=? AND source_conversation_id=?',
+                                                (cid, conversation_id)).fetchone():
+        return 0
+    c.execute('INSERT INTO promise_claims(commitment_id,agent_id,said,sim_at,source_conversation_id) VALUES (?,?,?,?,?)',
+              (cid, agent_id, said, now.strftime(DUE_FMT), conversation_id))
+    c.execute('UPDATE commitments SET claimed_at=? WHERE id=?', (now.strftime(DUE_FMT), cid))
+    timeline.record(c, now, 'promise_claim', f"Completion claimed, awaiting evidence: {p['content']}", 2, agent_id, p['to_agent_id'], conversation_id)
+    return 1
+
+
+def lapse_commitment(c, p, now, reason):
+    cur = c.execute("UPDATE commitments SET lapsed_at=?,outcome=? WHERE id=? AND status='open' AND lapsed_at IS NULL",
+                    (now.strftime(DUE_FMT), reason, p['id']))
+    if not cur.rowcount:
+        return 0
+    name = c.execute('SELECT name FROM agents WHERE id=?', (p['agent_id'],)).fetchone()[0]
+    text = f"{name}'s promise lapsed: {p['content']}. {reason}"
+    timeline.record(c, now, 'promise_lapsed', text, 3, p['agent_id'], p['to_agent_id'])
+    if p['to_agent_id']:
+        c.execute("INSERT INTO facts(agent_id,subject,content,source,importance) VALUES (?,'promise',?,'observed',3)",
+                  (p['to_agent_id'], text))
+    return 1
+
+
+def resolve_commitment(connection, cid, status, outcome, now, conversation_id=None, *, evidence_until=None):
+    """Idempotent outcomes. APC completion always requires world evidence."""
+    row = connection.execute("SELECT c.*, a.name, a.kind AS owner_kind FROM commitments c JOIN agents a ON a.id=c.agent_id WHERE c.id=? AND c.status='open' AND c.lapsed_at IS NULL", (cid,)).fetchone()
+    if not row:
+        return 0
+    false_claim = False
+    cutoff = evidence_until or now.strftime(DUE_FMT)
+    if row['owner_kind'] == 'npc':
+        from evorium.promise_evidence import evidence_for
+        evidence = evidence_for(connection, dict(row) | {'evidence_until': cutoff})
+        if status == 'done':
+            if not evidence:
+                return 0
+            outcome = f"World records confirm completion ({len(evidence)} supporting record(s))."
+        elif status == 'broken':
+            false_claim = connection.execute("SELECT 1 FROM promise_claims WHERE commitment_id=? AND outcome='pending' AND sim_at<=?", (cid, cutoff)).fetchone() is not None
+            outcome = ('Completion was claimed, but world records show no matching completion.' if false_claim else
+                       'No matching completion in world records despite an opportunity before the deadline.')
+        else:
+            raise ValueError('Use lapse_commitment for neutral lapses.')
+    changed = connection.execute("UPDATE commitments SET status=?, outcome=?, resolved_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id=? AND status='open' AND lapsed_at IS NULL", (status, outcome, cid))
+    if not changed.rowcount:
+        return 0
+    if row['owner_kind'] == 'npc' and (status == 'done' or false_claim):
+        connection.execute("UPDATE promise_claims SET outcome=? WHERE commitment_id=? AND outcome='pending' AND sim_at<=?",
+                           ('supported' if status == 'done' else 'false', cid, cutoff))
+    text = f"{row['name']} {'kept' if status == 'done' else 'broke'} a promise: {row['content']} — {outcome}"
+    timeline.record(connection, now, 'promise_kept' if status == 'done' else 'promise_broken',
+                    text, 3 if status == 'done' else 4, row['agent_id'], row['to_agent_id'], conversation_id)
+    if false_claim:
+        timeline.record(connection, now, 'promise_false_claim', text, 4, row['agent_id'], row['to_agent_id'], conversation_id)
     if row['to_agent_id']:
-        relationships.adjust(connection,row['to_agent_id'],row['agent_id'],8 if status=='done' else -12,2 if status=='done' else -4,
-            f"{'Kept' if status=='done' else 'Broke'} a promise: {row['content']} — {outcome}",now,conversation_id)
-        if connection.execute("SELECT kind FROM agents WHERE id=?",(row['agent_id'],)).fetchone()[0]=='player':
-            text=(f"{row['name']} did what they promised: {row['content']}" if status=='done' else f"{row['name']} promised to {row['content']} and didn't.")
-            connection.execute("INSERT INTO facts(agent_id,subject,content,source,importance) VALUES (?,'promise',?,'observed',4)",(row['to_agent_id'],text))
+        trust, warmth = ((KEPT_TRUST, KEPT_WARMTH) if status == 'done' else
+                         (FALSE_CLAIM_TRUST, FALSE_CLAIM_WARMTH) if false_claim else (BROKEN_TRUST, BROKEN_WARMTH))
+        relationships.adjust(connection, row['to_agent_id'], row['agent_id'], trust, warmth, text, now, conversation_id)
+        fact_text = text
+        if row['owner_kind'] == 'player':
+            fact_text = (f"{row['name']} did what they promised: {row['content']}" if status == 'done' else
+                         f"{row['name']} promised to {row['content']} and didn't.")
+        connection.execute("INSERT INTO facts(agent_id,subject,content,source,importance) VALUES (?,'promise',?,'observed',4)",
+                           (row['to_agent_id'], fact_text))
+    if row['owner_kind'] == 'npc':
+        connection.execute("INSERT INTO facts(agent_id,subject,content,source,importance) VALUES (?,'promise',?,'observed',4)",
+                           (row['agent_id'], text))
     return 1

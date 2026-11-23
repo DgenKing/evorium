@@ -10,7 +10,7 @@
 > (`git show 6fec17c:EVORIUM_BUILD_BRIEF_M3.md`, etc.), the old README, the home server guide, the Web3D
 > pipeline, controls and verification notes, the portrait prompts, and the M4, Web3D and Unreal Codex briefs.
 >
-> **Last updated:** 21 November 2026
+> **Last updated:** 23 November 2026
 
 ## Contents
 
@@ -67,7 +67,7 @@ decides how the world treats you.
   against world rules before anything is written. The model never edits state directly, invents possessions,
   teleports characters or declares other people's private thoughts as facts.
 - **Don't call the model constantly.** Movement, routines, sleep, work and money are plain Python. The model is
-  called for conversations, note-taking, daily plans, decisions, promise checks, the director and digests.
+  called for conversations, note-taking, daily plans, decisions, the director and digests; promise checks are Python only.
 - **Knowledge boundaries.** Characters know only what they saw, were told, or were seeded with. Hearsay is
   labelled as hearsay; inventions are labelled as rumour.
 - **Engine-independent core.** The simulation is a Python service with a JSON API. The dashboard, the 2D map
@@ -90,7 +90,7 @@ and phone); it runs around the clock on the owner's HP G4 and is reachable over 
 | Conversations | 4 lines, or 6 for a pair's first meeting or fresh serious news; one at a time worldwide |
 | Memory | Facts (seed / observed / told / claim) scored 1–5 for importance; only ≥3 saved or shown |
 | Relationships | Directed trust, warmth, familiarity (0–100), shown as words to the model, bars on the map |
-| Promises | Extracted from talk, with deadlines; kept/broken changes trust (recording fixed 19 Nov) |
+| Promises | Typed APC promises require owner-attributed database evidence; completion reports are claims, uncheckable promises lapse neutrally; human self-reporting retained (local, 23 Nov) |
 | Plans | Up to two visits/calls per NPC per day, plus at most one action proposal on the morning call |
 | Decisions | Fixed menu; one action plus one tell per NPC per day; big decisions need evidence and twelve hours |
 | Economy | Visible/private ledger, offers and deadlines, weekly pub settlement, notices, changing routines |
@@ -105,7 +105,7 @@ and phone); it runs around the clock on the owner's HP G4 and is reachable over 
 | Hosting | HP G4 home server, auto-updating from GitHub, nightly backups, public via ngrok; connection details kept private (§6) |
 | Model | DeepSeek `deepseek-flash`, JSON mode, temperature 0.8 (0.6 decisions, 0.2 structured calls) |
 | Cost | About $0.00015 per call; about $0.40 a day for the whole world at real speed with auto mode on |
-| Tests | 249 Python tests + 8 Node map tests + 2 navigation tests + Web3D Node checks and offline Chrome checks, all fake/offline |
+| Tests | 331 Python tests + 8 Node map tests + 2 navigation tests + Web3D Node checks and offline Chrome checks, all fake/offline |
 
 ### Tech stack and dependencies
 
@@ -146,9 +146,10 @@ view and controls; this is for trusted friends, not public registration or separ
 1. Read the sim clock (`world.now`).
 2. Execute due plans; move everyone to their routine or plan location (`tick.update_routines`).
 3. Deliver scheduled world events (letters, phone calls), create offers, notice posted signs, expire deadlines,
-   settle overdue Sundays and evaluate Python-owned story outcomes. These continue during model outages.
+   check due APC promises against database evidence (at most two per tick), settle overdue Sundays and evaluate
+   Python-owned story outcomes. These continue during model outages and with auto mode off.
 4. Close idle player chats.
-5. In auto mode ("Let them live"): daily digest → due-promise checks → daily plans → budgeted reactions →
+5. In auto mode ("Let them live"): daily digest → daily plans → budgeted reactions →
    optional ending narration → director check → at most one conversation, at whichever public place has 2+
    people and has waited longest.
 
@@ -166,11 +167,11 @@ Budget or balance errors stop auto mode.
    over today**.
 2. The model returns `{"say", "rationale", "mood"}`, validated by pydantic.
 3. After the last line, one **note-taking** call extracts per speaker: facts (with source and importance),
-   promises (with deadlines), a **feeling** about the other person, new named people and at most one decision;
-   plus a summary and any promises now done. The example JSON in that prompt shows a filled-in promise and
+   typed promises (with targets and deadlines), a **feeling** about the other person, new named people and at most
+   one decision; plus a summary and completion **claims**, never model-certified promise closures. The example JSON in that prompt shows a filled-in promise and
    feeling on purpose: empty examples get copied, which silently broke feelings and promises before.
 4. Python stores it: facts scored below 3 are dropped (at most 3 kept per person per conversation); feelings are
-   capped at ±2 and applied ×2; promises get deadlines; a decision needs at least six verbatim words from that
+   capped at ±2 and applied ×2; promises get validated types, targets and game-time creation/deadlines; a decision needs at least six verbatim words from that
    speaker and must pass the action checks; both speakers get the summary as a memory; the timeline gets an
    entry.
 
@@ -192,8 +193,57 @@ before importance existed (preview first; `--apply` backs up first; stop the ser
 ### Relationships
 
 Directed rows (Jess→Dez ≠ Dez→Jess). Changes only come from evidence: +1 familiarity per conversation,
-kept promise trust +8 / warmth +2, broken promise trust −12 / warmth −4, note-taker feeling up to ±4 each,
+kept promise trust +8 / warmth +2, broken promise trust −12 / warmth −4 (false completion claim −20 / −6),
+  note-taker feeling up to ±4 each,
 plus the fixed effects of actions. The model only ever sees words ("you are wary of… and like them").
+
+### Promise evidence and claims (local implementation, 23 Nov)
+
+The world decides whether an APC kept a promise. `promise_evidence.evidence_for(connection, commitment)`
+requires matching evidence attributable to that promise's owner, at game time on/after `made_at`. The shared
+`memory.resolve_commitment` refuses APC completion without evidence and applies each outcome once. Human
+players retain their own Done/Didn't do it controls and existing maintenance behaviour.
+
+| Type | Evidence |
+|---|---|
+| `action` | Owner's `actions` row, `status='done'`, matching allowed registry key and arguments |
+| `visit` | Owner's arrival at the specified public place, or completed matching visit plan, within any specified window |
+| `talk` | Completed conversation with the named target and an owner message; the promise-making conversation is excluded |
+| `tell` | Owner's tell action with the specific fact and recipient, or that same information as an attributed told fact in a completed conversation with an owner message |
+| `make` | Quiz questions only: sum of positive `pub.quiz_questions_ready` changes linked to Tommy's own completed write actions since the promise |
+| `pay` | Matching accepted offer/loan or accepted/paid loan ask, backed by the owner's matching completed settlement action |
+| `conditional` | Explicit condition text, a typed database trigger with a named actor, and a typed inner promise; only evidence after the trigger fulfils the consequence |
+| `vague` / legacy `kind=NULL` | No completion certification; neutral lapse at the deadline |
+
+Invalid types, unknown people/actions/arguments, unavailable action ownership and unsupported targets become
+`vague`, without guessing. Only quiz questions can currently be made; research, general making, off-ledger
+payments and loan repayment have no world action/evidence. Conditions that cannot be expressed as existing
+typed database events are vague. No trigger by the deadline means a conditional promise lapses without penalty.
+
+Conversation `commitments_done` IDs create pending `promise_claims` with the owner's words, game time and source
+conversation; they do not close anything. Completed plans must match the promise type/target and have actual
+evidence. At the deadline, evidence means kept (+8 trust/+2 warmth). No evidence after an hour of awake/free
+opportunity means broken (−12/−4). Opportunity samples routines every 30 game minutes and also checks visit
+opening hours or conversation-target reachability. No opportunity sets `retry_at` once, 24 game hours after
+`due_at`, leaving the original deadline unchanged; still no opportunity at retry means a neutral lapse.
+Late heartbeat processing evaluates evidence at the original deadline/retry, not at its later processing time.
+
+An unsupported completion claim on a checkable, triggered promise becomes false at the deadline, with
+−20 trust/−6 warmth, a timeline entry and an observed recipient fact. Supported claims are marked supported.
+Resolution facts describe world records rather than the APC's explanation. Neutral lapses produce one
+recipient fact without changing trust. Existing gossip/tell and catch-up carry these outcomes.
+
+Migration **15** only adds fields, the claim ledger and indexes: no table rebuild, status CHECK change or
+foreign-key disabling. A lapse remains `status='open'` in SQLite with `lapsed_at` set; all open/current views,
+planning validation and maintenance exclude it, while promise history displays **lapsed**. `made_at` is game
+time, back-filled from the source conversation where available; `commitments.created_at` remains real time and
+is never compared to game evidence. Older rows without a recoverable game timestamp lapse neutrally.
+
+Dialogue, morning planning and reactions receive deadlines and actual progress (including question counts).
+Promise reminders reuse the existing bounded reaction queue, menu and plans/`fulfils` mechanism; no new
+scheduler, model call or dependency. The extraction JSON example includes a filled typed promise; normalization
+preserves its kind/target. The previous example-specific content suppression was removed so the forty-question
+promise itself is never silently discarded.
 
 ### Decisions, money and consequences (M4)
 
@@ -244,7 +294,8 @@ collision-verified A* graph), bubbles, lighting and doors. `ambient.js` adds bro
 | `evorium/places.py` | Pub/shop registry, opening hours, who's present, conversation opportunities |
 | `evorium/tick.py` | Routine updates, event delivery, due-promise checks |
 | `evorium/sim.py` | Conversation runner, note-taking, `turns_for` |
-| `evorium/memory.py` | What a character knows (`knowledge_for_prompt`), storing notes, promise resolution |
+| `evorium/memory.py` | What a character knows (`knowledge_for_prompt`), storing notes, promise claims and guarded resolution |
+| `evorium/promise_evidence.py` | Typed target validation, owner-attributed game evidence, progress and opportunity checks |
 | `evorium/prompts.py` | Dialogue, note-taking and promise-check prompts |
 | `evorium/models.py` | Pydantic schemas and lenient clean-up of model output |
 | `evorium/relationships.py` | Trust/warmth/familiarity, bands, card data |
@@ -261,7 +312,7 @@ collision-verified A* graph), bubbles, lighting and doors. `ambient.js` adds bro
 | `evorium/accounts.py` | Request identity, account-owned players and per-account settings |
 | `evorium/player.py` | Each human player’s profile, presence, chats and promises |
 | `evorium/llm.py` | DeepSeek client, budget cap, usage and cost records |
-| `evorium/db.py` | Schema migrations (14 so far), connection helper |
+| `evorium/db.py` | Schema migrations (15 so far), connection helper |
 | `evorium/seed.py` | Cast, seed facts, scheduled events, starting relationships |
 | `evorium/rescore.py` | One-off importance scoring of old facts |
 | `evorium/static/index.html` | Dashboard + tab bar |
@@ -366,7 +417,8 @@ uvicorn evorium.main:app --host 127.0.0.1 --port 8000
 ```
 
 - Open `http://127.0.0.1:8000`. Startup creates `evorium.sqlite3` and seeds the cast if it's absent;
-  restarting reuses the database. Existing saves migrate in place and are never reset.
+  restarting reuses the database. Existing saves migrate in place and are never reset. Migration 15 adds
+  promise evidence fields/claims without rebuilding commitments; verified on a version-14 world copy.
 - **Stop:** Ctrl+C, or `pkill -f "uvicorn evorium.main:app"`. **Restart after code changes:** the "Restart
   server" button, top right of the dashboard (it re-runs the same command and the page reloads itself).
 - **The real world lives on the G4 now (§6).** On the main PC, only run copies: `EVORIUM_DB_PATH=/path/to/copy.sqlite3`
@@ -397,7 +449,7 @@ when accessing the game remotely. `GET /me` reports the current canonical accoun
 
 ### Model calls and cost
 
-- **Limits:** dialogue and player replies 300 tokens; note-taking 900; promise checks 200; daily planning 400 per
+- **Limits:** dialogue and player replies 300 tokens; note-taking 900; promise checks use no model tokens; daily planning 400 per
   NPC; reactions 350 (at most 12 a day); director 300; digest 250; arc narration 300; catch-up 250. Planning,
   director and digest add about ten calls a day for eight NPCs. Failed daily planning isn't repeated that day.
 - **Prices** (checked 19 Nov 2026, [DeepSeek pricing](https://api-docs.deepseek.com/quick_start/pricing/)), per
@@ -414,7 +466,7 @@ when accessing the game remotely. `GET /me` reports the current canonical accoun
 ### Tests
 
 ```bash
-.venv/bin/python -m pytest -q        # 249 tests
+.venv/bin/python -m pytest -q        # 331 tests
 node tests/map_view.test.cjs         # map
 node tests/world3d.test.mjs          # 3D routes, animation states, quality, slots, cast
 node tests/nav.test.cjs              # burger menu
@@ -470,6 +522,10 @@ Every 2 minutes `evorium-update.timer` runs `deploy/auto_update.sh`. When `main`
 It logs to `~/evorium/updates.log` and writes failed test output to `last_update_tests.txt`. It refuses to
 update if code was edited on the G4 itself, so never edit code there. Only push finished work to `main`: it goes
 live within minutes.
+
+The local promise fix appends migration 15; the normal updater backup remains required before deployment.
+Migration was checked on a version-14 copy with referenced plans and on the isolated smoke-world copy, with
+foreign keys enabled and integrity checks passing. The G4 world/service was not touched during implementation.
 
 ### Add a trusted friend (accounts v1)
 
@@ -844,7 +900,16 @@ streets, film grain, matching the game's portraits.
 - **Some facts are stored twice** (5 in the 20 Nov copy, e.g. "Dez chose to wait" noted in two conversations).
   Harmless; a de-duplication on insert would tidy it.
 - **Same-pair loops:** two APCs alone in a place (Raj and Anjali at the shop) talk over and over; consider a limit of 2–3 conversations per pair per sim day unless something new has happened.
-- **Promises that can't be kept:** there's no action for things like research ("I'll look up Companies House"), so such promises repeat forever. Consider a research action that returns a real Python-held fact.
+- **Unsupported promises:** research ("I'll look up Companies House"), general making, off-ledger payments, loan
+  repayment and unverifiable conditions have no deterministic evidence. The local fix makes these vague and
+  lapses them neutrally; a real research/repayment action remains future work. New conversations can still
+  make similar promises, so this does not by itself solve same-pair topic loops.
+- **APC self-certification fixed locally (23 Nov), awaiting owner review/deployment.** Deadline checks no longer
+  ask the model, extraction reports become claims, and plan fulfilment must match real evidence. Migration 15
+  uses `lapsed_at`, preserving the original table, status CHECK and plan foreign keys. All active views exclude
+  lapsed promises; history and catch-up describe the lapse. Legacy promises cannot be retrospectively typed
+  safely, so they lapse without penalties. Watch live promise behaviour after deployment rather than assuming
+  prompt compliance from offline tests; no real model calls were used for this change.
 - **Spoken decisions not recorded:** the note-taker's `decision` path produced nothing in 130 conversations (Dez said he'd counter at £3,200). Investigate the prompt and validation, which may be the example-JSON trap again.
 - **Old trivia still visible** until `python -m evorium.rescore --apply` is run once.
 - **Restart button** requires authentication when access control is enabled (as configured on the G4).
@@ -855,6 +920,11 @@ streets, film grain, matching the game's portraits.
 ---
 
 ## 10. Next steps
+
+- **Review and deploy the local promise evidence fix:** 331 Python tests and all Node checks pass; migration 15
+  preserves version-14 commitments and plan references. The owner commits/pushes after review. After normal
+  backup/deployment, monitor real evidence, quiz progress, false claims, retries and neutral legacy lapses;
+  unsupported research/repayment needs real actions before it can be checked. See the 23 November history entry.
 
 - Align the G4 checkout with the rewritten history using §6 so automatic updates resume. Review its
   access controls and rotate the previously chat-exposed ngrok token. Request an eligible old-object/cache
@@ -1050,6 +1120,57 @@ the key pool and open sign-ups.
 ---
 
 ## 14. History
+
+### 23 November 2026 — Evidence-backed APC promises (local implementation)
+
+- Implemented the owner's approved plan and amendment: appended migration 15 with typed targets, game-time
+  creation, retry/claim/lapse timestamps and `promise_claims`. Left the commitments table, its original status
+  CHECK and all foreign-key references intact. Legacy rows survive and back-fill game time where possible.
+- Added one evidence matcher, guarded shared resolution, pending conversation claims, exact plan matching,
+  deterministic bounded deadline checks and one retry without moving `due_at`. False completion claims cost
+  −20 trust/−6 warmth rather than an honest miss's −12/−4. World-derived facts and timeline entries feed gossip
+  and catch-up. Conditional triggers need actual database events; unsupported/legacy promises lapse neutrally.
+- Applied `lapsed_at IS NULL` to every open/current promise query, including human-view/maintenance filters
+  explicitly requested by the owner; human self-resolution otherwise remains unchanged. Dashboard promise
+  history labels lapses correctly. No accounts, authentication or player route changes.
+- Preserved typed targets through extraction cleanup, supplied a filled typed JSON example, exposed fact IDs
+  for precise tells, and added deadlines/progress to dialogue, morning planning and reactions. Existing reminder
+  queues and action/plan budgets are reused. Removed the old example-content suppression: a real forty-question
+  promise must not be dropped just because it matches the illustration.
+- Evidence rejects the wrong owner, old/future events, different targets/arguments, incomplete or silent-owner
+  conversations, and the promise-making conversation itself. Quiz progress counts actual action-linked stat
+  changes. Asks use their owner's completed answer action because the table has no resolution timestamp.
+- **Verification:** full `.venv/bin/python -m pytest -q`: **331 passed**, one existing Starlette deprecation
+  warning. Includes **81 new promise tests**, 0/50 self-certified quiz completions on each audit path, all typed
+  evidence/opportunity cases, neutral lapses, human controls, and a version-14 copy with referenced plans.
+  `node tests/map_view.test.cjs` (**8 passed**), `node tests/nav.test.cjs` (**2 passed**) and
+  `node tests/world3d.test.mjs` all pass. Sandboxed pytest stalled; the same offline suites passed outside the
+  sandbox. No dependencies added or real API calls made.
+- Existing fake smoke server started on **8011**, using only `/tmp/evorium-promise-smoke/world.sqlite3` copied
+  read-only from the local development world. Dashboard, `/world3d`, APC/player views and scene returned 200;
+  migration version 15, foreign-key check and integrity check passed. Server stopped cleanly. No new browser
+  rendering capture was needed for this promise change; physical-phone limits remain unchanged.
+- Updated §2, §3, §5, §6, §9 and §10. §7's 3D architecture is unaffected. No live-world/configuration edits,
+  branches, commits or pushes. Ready for owner review and push after review; no deployment performed.
+
+### 23 November 2026 — Promise evidence investigation and proposed implementation
+
+- Confirmed all three self-certification paths: model deadline answers, conversation extraction and
+  unmatched plan fulfilment reach the shared resolver. No implementation changes yet; the owner explicitly
+  requested a plan and approval before coding. Existing local documentation edits were preserved.
+- Proposed migration 15 adds typed targets, game-time creation, retry and claim timestamps plus a claims
+  ledger. The existing commitments status CHECK excludes `lapsed`; migration must safely accommodate that
+  outcome while preserving IDs, rows and foreign-key references, without editing earlier migrations.
+- Evidence will join owner-authored actions, completed plans/conversations, attributed told facts and
+  action-linked quiz stat changes using game timestamps. Asks lack a resolution timestamp, so accepted
+  answers need their completed `answer_ask` action as evidence. Loans can be advanced but there is no
+  repayment action; unsupported payments/research/conditions must remain uncheckable, never inferred.
+- Proposed bounded deterministic deadline checks, one unchanged-deadline retry for lack of opportunity,
+  neutral lapses, evidence-based resolution facts, stronger false-claim penalties for checkable promises,
+  and deadline/progress context for the existing planner and reaction mechanism. Human controls stay intact.
+- Validation planned: per-type evidence/opportunity tests, 50-seed false-completion assay, claim and
+  migration regressions, full offline Python suite and Node tests. No tests run during this investigation;
+  no live world, private configuration, branches, commits or deployment changed. Not ready to push.
 
 ### 21 November 2026 — Named accounts v1 (local implementation)
 

@@ -98,31 +98,32 @@ class FakePromiseClient:
         return PromiseCheck(done=self.done, what_happened="I rang them; they said a letter is on its way.", mood="relieved")
 
 
-def test_due_promises_are_checked_and_resolved(db):
+def test_legacy_due_promises_lapse_without_model_calls(db):
     now = datetime(2026, 11, 17, 12, 0)
     with connect(db) as c:
-        c.execute("INSERT INTO commitments (agent_id, content, due_at) VALUES (1, 'Ring the landlord''s agent', '2026-11-17 10:00')")
-        c.execute("INSERT INTO commitments (agent_id, content, due_at) VALUES (1, 'Sort the quiz', '2026-11-30 10:00')")
-        c.execute("INSERT INTO commitments (agent_id, content) VALUES (1, 'Keep an eye out')")
+        c.execute("INSERT INTO commitments (agent_id, to_agent_id, content, due_at) VALUES (1,3,'Ring the agent','2026-11-17 10:00')")
+        c.execute("INSERT INTO commitments (agent_id, content, due_at) VALUES (1,'Sort the quiz','2026-11-30 10:00')")
+        c.execute("INSERT INTO commitments (agent_id, content) VALUES (1,'Keep an eye out')")
     client = FakePromiseClient(done=True)
     assert tick.check_due_promises(client, now, db) == 1
-    assert client.calls == 1
+    assert client.calls == 0
     with connect(db) as c:
-        rows = c.execute("SELECT content, status, outcome FROM commitments ORDER BY id").fetchall()
-        assert rows[0][1] == "done" and "rang them" in rows[0][2]
-        assert rows[1][1] == "open" and rows[2][1] == "open"
-        assert c.execute("SELECT COUNT(*) FROM facts WHERE subject='promise' AND agent_id=1").fetchone()[0] == 1
-        assert c.execute("SELECT mood FROM agents WHERE id=1").fetchone()[0] == "relieved"
+        rows = c.execute('SELECT status,lapsed_at FROM commitments ORDER BY id').fetchall()
+        assert rows[0]['status'] == 'open' and rows[0]['lapsed_at']
+        assert not rows[1]['lapsed_at'] and not rows[2]['lapsed_at']
+        assert c.execute("SELECT count(*) FROM facts WHERE subject='promise' AND agent_id=3").fetchone()[0] == 1
 
 
-def test_unanswerable_promise_check_is_deferred_not_guessed(db):
+def test_unanswerable_legacy_promise_never_moves_deadline(db):
     now = datetime(2026, 11, 17, 12, 0)
     with connect(db) as c:
-        c.execute("INSERT INTO commitments (agent_id, content, due_at) VALUES (3, 'Write quiz questions', '2026-11-17 10:00')")
-    assert tick.check_due_promises(FakePromiseClient(invalid=True), now, db) == 0
+        c.execute("INSERT INTO commitments (agent_id, content, due_at) VALUES (3,'Write quiz questions','2026-11-17 10:00')")
+    client = FakePromiseClient(invalid=True)
+    assert tick.check_due_promises(client, now, db) == 1
+    assert client.calls == 0
     with connect(db) as c:
-        status, due = c.execute("SELECT status, due_at FROM commitments").fetchone()
-    assert status == "open" and due == "2026-11-18 12:00"
+        status, due, lapsed = c.execute('SELECT status,due_at,lapsed_at FROM commitments').fetchone()
+    assert status == 'open' and due == '2026-11-17 10:00' and lapsed
 
 
 def test_conversation_due_respects_gap(db):

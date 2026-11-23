@@ -20,6 +20,9 @@ def test_filters_and_triggered_kinds(db):
         store_extraction(c,cid,participants,Extraction(summary='s',per_agent={'Dez Whitworth':{'facts':[{'subject':'r','content':'A rumour','source':'claim'}],'commitments':[{'content':'Ring Tommy','to':'Tommy Shaw'}]}}),now)
         promise=c.execute('select id from commitments').fetchone()[0]
         store_extraction(c,cid,participants,Extraction(summary='s',per_agent={'Dez Whitworth':{'commitments':[{'content':'Ring Tommy tomorrow','replaces':promise}]}}),now)
+        c.execute("""UPDATE commitments SET kind='talk',target_json='{"person":"Tommy Shaw"}' WHERE id=?""", (promise,))
+        call = c.execute("INSERT INTO conversations(location,status,sim_at,agent_a_id,agent_b_id) VALUES ('phone','completed',?,1,3)", (now.strftime('%Y-%m-%d %H:%M'),)).lastrowid
+        c.execute("INSERT INTO messages(conversation_id,speaker_id,text,rationale,sim_time) VALUES (?,1,'Hello','Talk','now')", (call,))
         resolve_commitment(c,promise,'done','Called',now)
         other=c.execute("insert into commitments(agent_id,content) values (3,'Bring quiz')").lastrowid
         resolve_commitment(c,other,'broken','Forgot',now)

@@ -97,7 +97,7 @@ def test_extraction_is_stored_and_fed_back(db):
     assert "Bernie" in system
 
 
-def test_commitment_can_be_resolved(db):
+def test_conversation_completion_report_is_a_claim(db):
     first = Extraction(summary="s", per_agent={"Dez Whitworth": AgentExtraction(
         commitments=[CommitmentOut(content="Tell Jess her job is safe", to="Jess Hartley")])})
     run_conversation(FakeClient(extraction=first), 1, 4, turns=1, db_path=db)
@@ -108,7 +108,8 @@ def test_commitment_can_be_resolved(db):
     run_conversation(client, 1, 4, turns=1, db_path=db)
     assert f"id {cid} (Dez Whitworth)" in client.extraction_calls[0][0]["content"]
     with connect(db) as c:
-        assert c.execute("SELECT status FROM commitments WHERE id=?", (cid,)).fetchone()[0] == "done"
+        assert c.execute("SELECT status FROM commitments WHERE id=?", (cid,)).fetchone()[0] == "open"
+        assert c.execute("SELECT outcome FROM promise_claims WHERE commitment_id=?", (cid,)).fetchone()[0] == 'pending'
 
 
 def test_extraction_failure_falls_back_to_summary(db):

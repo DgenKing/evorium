@@ -52,7 +52,7 @@ class Fake:
 
 def test_phone_resolves_promise_and_location(db,monkeypatch):
     now=datetime(2026,11,16,8);a=agent(db,3)
-    with connect(db) as c:cid=c.execute("INSERT INTO commitments(agent_id,to_agent_id,content) VALUES (3,1,'Ring Dez')").lastrowid
+    with connect(db) as c:cid=c.execute("""INSERT INTO commitments(agent_id,to_agent_id,content,kind,target_json,made_at) VALUES (3,1,'Ring Dez','talk','{"person":"Dez Whitworth"}','2026-11-16 08:00')""").lastrowid
     p=plans.validate(proposal(action='phone',person='Dez Whitworth',hour=14,fulfils=cid),a,now,db)
     with connect(db) as c:plans.insert(c,p)
     monkeypatch.setattr(world,'now',lambda *args:now.replace(hour=14))

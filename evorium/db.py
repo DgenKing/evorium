@@ -198,6 +198,23 @@ MIGRATIONS = (
         "UPDATE agents SET account='owner' WHERE id=(SELECT min(id) FROM agents WHERE kind='player')",
         "CREATE UNIQUE INDEX agents_account ON agents(account) WHERE account IS NOT NULL",
     ),
+    # Migration 15: evidence-backed promises; keep the original table and status CHECK intact.
+    (
+        "ALTER TABLE commitments ADD COLUMN kind TEXT CHECK(kind IN ('action','visit','talk','tell','make','pay','conditional','vague'))",
+        "ALTER TABLE commitments ADD COLUMN target_json TEXT",
+        "ALTER TABLE commitments ADD COLUMN made_at TEXT",
+        "ALTER TABLE commitments ADD COLUMN retry_at TEXT",
+        "ALTER TABLE commitments ADD COLUMN claimed_at TEXT",
+        "ALTER TABLE commitments ADD COLUMN lapsed_at TEXT",
+        "UPDATE commitments SET made_at=(SELECT sim_at FROM conversations WHERE id=commitments.source_conversation_id)",
+        """CREATE TABLE promise_claims(id INTEGER PRIMARY KEY,
+            commitment_id INTEGER NOT NULL REFERENCES commitments(id),
+            agent_id INTEGER NOT NULL REFERENCES agents(id), said TEXT NOT NULL, sim_at TEXT NOT NULL,
+            source_conversation_id INTEGER REFERENCES conversations(id),
+            outcome TEXT NOT NULL DEFAULT 'pending' CHECK(outcome IN ('pending','supported','false')))""",
+        "CREATE INDEX promise_claims_commitment ON promise_claims(commitment_id,outcome)",
+        "CREATE INDEX commitments_due ON commitments(due_at) WHERE status='open' AND lapsed_at IS NULL",
+    ),
 )
 
 VISIBLE_IMPORTANCE = 3  # facts scored below this are kept in the database but never shown to characters

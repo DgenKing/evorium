@@ -212,7 +212,7 @@ def check(c, actor, key, args, now):
     if key == 'start_job_hunt' and s.get('jess.job_hunting'):
         raise ValueError('Jess is already looking for work.')
     if key == 'write_quiz_questions':
-        agreed = c.execute("SELECT 1 FROM facts WHERE agent_id=? AND lower(content) LIKE '%quiz%' UNION ALL SELECT 1 FROM commitments WHERE agent_id=? AND lower(content) LIKE '%quiz%'", (actor['id'], actor['id'])).fetchone()
+        agreed = c.execute("SELECT 1 FROM facts WHERE agent_id=? AND lower(content) LIKE '%quiz%' UNION ALL SELECT 1 FROM commitments WHERE agent_id=? AND status='open' AND lapsed_at IS NULL AND lower(content) LIKE '%quiz%'", (actor['id'], actor['id'])).fetchone()
         if s.get('pub.quiz', 0) == 0 and not agreed:
             raise ValueError('The quiz needs announcing or agreeing with Dez first.')
         if s.get('pub.quiz_questions_ready', 0) >= 60:

@@ -264,9 +264,9 @@ def test_migration_14_preserves_every_existing_row(api, tmp_path):
         for migration in MIGRATIONS[:13]:
             for statement in migration:
                 old.execute(statement)
-        tables = [r[0] for r in current.execute("SELECT name FROM sqlite_master WHERE type='table'")]
+        tables = [r[0] for r in old.execute("SELECT name FROM sqlite_master WHERE type='table'")]
         for table in tables:
-            columns = [r['name'] for r in current.execute(f'PRAGMA table_info({table})') if r['name'] != 'account']
+            columns = [r[1] for r in old.execute(f'PRAGMA table_info({table})')]
             cols = ','.join(columns)
             placeholders = ','.join('?' for _ in columns)
             old.executemany(f'INSERT INTO {table} ({cols}) VALUES ({placeholders})',
@@ -282,7 +282,7 @@ def test_migration_14_preserves_every_existing_row(api, tmp_path):
             columns = ','.join(r['name'] for r in old.execute(f'PRAGMA table_info({table})'))
             assert [tuple(r) for r in new.execute(f'SELECT {columns} FROM {table} ORDER BY rowid')] == [tuple(r) for r in old.execute(f'SELECT * FROM {table} ORDER BY rowid')]
         assert new.execute("SELECT id FROM agents WHERE account='owner'").fetchone()[0] == owner_id
-        assert new.execute('PRAGMA user_version').fetchone()[0] == 14
+        assert new.execute('PRAGMA user_version').fetchone()[0] == len(MIGRATIONS)
         assert new.execute('PRAGMA integrity_check').fetchone()[0] == 'ok'
         assert not new.execute('PRAGMA foreign_key_check').fetchall()
 

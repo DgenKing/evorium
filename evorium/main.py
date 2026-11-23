@@ -78,14 +78,13 @@ def _tick_loop():
             for change in tick.update_routines(now, DEFAULT_DB_PATH):
                 emit(f"[{world.describe(now)}] {change}")
             tick.deliver_events(now, DEFAULT_DB_PATH)
+            tick.check_due_promises(None, now, DEFAULT_DB_PATH)
             economy.maintain(now, DEFAULT_DB_PATH)
             player.maintenance(DeferredClient(DEFAULT_DB_PATH), now, DEFAULT_DB_PATH)
             if _state["auto"] and not backoff.paused():
                 try:
                     client = DeepSeekClient(DEFAULT_DB_PATH)
                     timeline.daily_digest(client, now, DEFAULT_DB_PATH)
-                    if backoff.paused():raise LLMError('DeepSeek calls are paused while the service recovers.')
-                    tick.check_due_promises(client, now, DEFAULT_DB_PATH)
                     if backoff.paused():raise LLMError('DeepSeek calls are paused while the service recovers.')
                     plans.daily(client,now,DEFAULT_DB_PATH)
                     if backoff.paused():raise LLMError('DeepSeek calls are paused while the service recovers.')
@@ -217,7 +216,7 @@ async def agents():
             memories = [dict(m) for m in connection.execute(
                 "SELECT content, created_at FROM memories WHERE agent_id=? ORDER BY id DESC LIMIT 3", (aid,))]
             resolved = [dict(c) for c in connection.execute(
-                "SELECT content, status, outcome FROM commitments WHERE agent_id=? AND status!='open' ORDER BY id DESC LIMIT 3", (aid,))]
+                "SELECT content, CASE WHEN lapsed_at IS NOT NULL THEN 'lapsed' ELSE status END AS status, outcome FROM commitments WHERE agent_id=? AND (status!='open' OR lapsed_at IS NOT NULL) ORDER BY id DESC LIMIT 3", (aid,))]
             today_action = connection.execute("SELECT result FROM actions WHERE agent_id=? AND status='done' AND substr(sim_at,1,10)=? AND key!='wait' ORDER BY id DESC LIMIT 1", (aid, now.strftime('%Y-%m-%d'))).fetchone()
             considering = connection.execute("SELECT result FROM actions WHERE agent_id=? AND status='considering' ORDER BY id DESC LIMIT 1", (aid,)).fetchone()
             out.append({"today_action": today_action[0] if today_action else None, "considering": considering[0] if considering else None, **dict(r), "in_pub": r["location"] == world.PUB, "facts": facts, "fact_counts": counts,

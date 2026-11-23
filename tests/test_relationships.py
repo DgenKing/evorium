@@ -27,6 +27,9 @@ def test_promise_effect_is_directed_and_idempotent(db,status,delta):
     with connect(db) as c:
         before=relationships.get(c,4,1)['trust'];reverse=relationships.get(c,1,4)['trust']
         cid=c.execute("insert into commitments(agent_id,to_agent_id,content) values (1,4,'Ring agent')").lastrowid
+        if status == 'done':
+            c.execute("""UPDATE commitments SET kind='action',target_json='{"key":"ring_northgate","args":{}}',made_at='2026-11-16 19:00' WHERE id=?""", (cid,))
+            c.execute("INSERT INTO actions(agent_id,key,args_json,reason,status,trigger,evidence,sim_at) VALUES (1,'ring_northgate','{}','Call','done','reaction','[]','2026-11-16 19:30')")
         resolve_commitment(c,cid,status,'Outcome.',datetime(2026,11,16,20))
         resolve_commitment(c,cid,status,'Outcome.',datetime(2026,11,16,20))
         assert relationships.get(c,4,1)['trust']==before+delta

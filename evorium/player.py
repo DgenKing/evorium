@@ -146,7 +146,7 @@ def resolve(promise_id,done,note,db_path=DEFAULT_DB_PATH):
         now=world.now(db_path)
         with connect(db_path) as c:
             me=row(c)
-            p=c.execute("SELECT * FROM commitments WHERE id=? AND agent_id=? AND status='open'",(promise_id,me['id'])).fetchone()
+            p=c.execute("SELECT * FROM commitments WHERE id=? AND agent_id=? AND status='open' AND lapsed_at IS NULL",(promise_id,me['id'])).fetchone()
             if not p:raise HTTPException(409,'That is not one of your open promises.')
             resolve_commitment(c,promise_id,'done' if done else 'broken',note.strip()[:300] or ('Done.' if done else "Didn't do it."),now)
     return state(db_path)
@@ -158,7 +158,7 @@ def maintenance(client,now,db_path=DEFAULT_DB_PATH,startup=False):
         with connect(db_path) as c:
             players = [dict(r) for r in c.execute("SELECT * FROM agents WHERE kind='player' AND account IS NOT NULL")]
             due=c.execute("""SELECT p.id FROM commitments p JOIN agents a ON a.id=p.agent_id
-                WHERE a.kind='player' AND p.status='open' AND p.due_at<?""",((now-timedelta(hours=24)).strftime(DUE_FMT),)).fetchall()
+                WHERE a.kind='player' AND p.status='open' AND p.lapsed_at IS NULL AND p.due_at<?""",((now-timedelta(hours=24)).strftime(DUE_FMT),)).fetchall()
             for p in due:resolve_commitment(c,p['id'],'broken','Never heard back.',now)
         for who in players:
             token=accounts.current.set(who['account'])

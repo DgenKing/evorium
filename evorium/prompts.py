@@ -95,14 +95,24 @@ For EACH of the two speakers, record:
 - "commitments": things that speaker promised to do AFTER this conversation and has not yet done. Write each as a
   short instruction ("Ring Northgate's agent", "Write forty quiz questions"). "to": who they promised, or null.
   Do NOT record: anything already done during the conversation (pouring or buying a drink, answering a question);
-  conditional or vague intentions ("I'd come if there was a quiz", "we should do that sometime"); ordinary parts
-  of their job.
+  ordinary parts of their job. Record conditional promises and vague promises with those explicit types.
   "due_hours": REQUIRED integer — how many hours from now ({sim_time}) it should be done by
   ("tonight" = 4, "first thing tomorrow" = 18, "tomorrow" = 24, "by Friday" = hours from now until Friday evening,
   no time mentioned or "keep an ear out" = 72).
   "replaces": if this is the same promise as one in the OPEN COMMITMENTS list, restated with more detail or a new
   deadline, give that id here (integer) so it is updated instead of duplicated; otherwise null. If an open
   commitment is merely mentioned again with nothing new, do not record it at all.
+  "kind" and "target": REQUIRED. Use only explicit, checkable targets; never guess:
+  action: {{"key":"allowed menu key","args":{{...}}}}; the owner must be allowed that action.
+  visit: {{"place":"pub|shop|street"}}, optionally "start_at"/"end_at" in YYYY-MM-DD HH:MM game time.
+  talk: {{"person":"full cast name"}} for a conversation, bending an ear or doing something together.
+  tell: {{"person":"full cast name","fact_id":123}} for passing a specific known fact (use a listed id).
+  make: {{"item":"quiz_questions","count":40}}; only Tommy and quiz questions are supported.
+  pay: {{"ask_id":123}} for an existing loan request or {{"offer_id":123}} for an existing ledger settlement;
+       repayment and off-ledger cash promises are vague.
+  conditional: {{"condition":"explicit condition text","trigger":{{"person":"full cast name","kind":"action","target":{{"key":"announce_quiz","args":{{}}}}}},"promise":{{"kind":"visit","target":{{"place":"pub"}}}}}}.
+       Use a demonstrable typed trigger and inner promise; otherwise vague. Never invent a trigger mapping.
+  vague: {{}} for research, unsupported making/paying, uncertain conditions or unknown targets.
 - "feeling": ALWAYS include this, for both speakers: {{"trust_change": 0, "warmth_change": 0, "reason": "one short sentence citing what the other person actually said or did in this conversation"}}.
   How this speaker now feels about the OTHER speaker. Integers from -2 to 2. Ordinary chat is 0. Kindness, honesty,
   help or praise earns +1 or +2; rudeness, lies, threats or crime cost -1; insults, slurs, intimidation or
@@ -112,10 +122,11 @@ For EACH of the two speakers, record:
 
 Also give:
 - "summary": one or two sentences summarising what happened, naming both speakers.
-- "commitments_done": ids (integers) from the OPEN COMMITMENTS list whose promised action has ACTUALLY BEEN CARRIED
-  OUT, as shown or reported in this conversation (the promise was to tell someone something and they have now told
-  them; the speaker says they made the call and what came of it). Agreeing to it again, discussing it, planning it,
-  or being reminded of it does NOT make it done. Never list an id you also gave as "replaces". Leave empty if unsure.
+- "commitments_done": ids of open promises whose OWNER claims completion in this conversation.
+  These are CLAIMS ONLY: the world checks database evidence. Never certify an off-screen action as an observed
+  fact merely because its owner says "I did it". Store the recipient's report as told and the owner's report as
+  claim. Repeating a promise or agreeing again is not a completion claim. Never list an id also in "replaces".
+
 
 KNOWN FACTS (ground truth; anything a speaker says beyond these about the world is a "claim"):
 {known_facts}
@@ -127,7 +138,7 @@ CONVERSATION:
 {transcript}
 
 Return JSON exactly like:
-{{"summary": "...", "per_agent": {{"{a_name}": {{"decision": null, "feeling": {{"trust_change": 0, "warmth_change": 0, "reason": "..."}}, "facts": [{{"subject": "...", "content": "...", "source": "told", "told_by": "{b_name}", "importance": 3}}], "commitments": [{{"content": "Ring the brewery about the late delivery", "to": "{b_name}", "due_hours": 24, "replaces": null}}], "new_people": []}}, "{b_name}": {{"decision": null, "feeling": {{...}}, "facts": [...], "commitments": [], "new_people": []}}}}, "commitments_done": []}}
+{{"summary": "...", "per_agent": {{"{a_name}": {{"decision": null, "feeling": {{"trust_change": 0, "warmth_change": 0, "reason": "..."}}, "facts": [{{"subject": "...", "content": "...", "source": "told", "told_by": "{b_name}", "importance": 3}}], "commitments": [{{"content": "Write forty quiz questions", "to": "{b_name}", "due_hours": 24, "replaces": null, "kind": "make", "target": {{"item": "quiz_questions", "count": 40}}}}], "new_people": []}}, "{b_name}": {{"decision": null, "feeling": {{...}}, "facts": [...], "commitments": [], "new_people": []}}}}, "commitments_done": []}}
 Keep it tight: at most 3 facts and 3 commitments per speaker, an empty facts list is fine. Never record trivia.
 The example values are illustrations only: record a commitment whenever a speaker says they will do something (e.g. "I'll ring them", "forty by Sunday, that's a promise"), and use an empty list only when nobody promised anything."""
 
@@ -136,7 +147,7 @@ def build_extraction_messages(a: dict, b: dict, transcript: list[dict], known_fa
                               open_commitments: list[dict], cast: list[str], sim_time: str) -> list[dict]:
     lines = "\n".join(f'{m["speaker_name"]}: {m["text"]}' for m in transcript) or "(no lines)"
     known = "\n".join(f"- {f}" for f in known_facts) or "- (none)"
-    opens = "\n".join(f"- id {c['id']} ({c['owner']}): {c['content']}" for c in open_commitments) or "- (none)"
+    opens = "\n".join(f"- id {c['id']} ({c['owner']}): {c['content']}; due {c.get('due_at')}; kind {c.get('kind')}; target {c.get('target_json')}; {c.get('progress', '')}" for c in open_commitments if not c.get("lapsed_at")) or "- (none)"
     prompt = EXTRACTION_TEMPLATE.format(
         a_name=a["name"], b_name=b["name"], location=a["location"], sim_time=sim_time,
         cast=", ".join(cast), known_facts=known, open_commitments=opens, transcript=lines,
@@ -156,7 +167,7 @@ It is now {sim_time}. You are {activity} ({location}).
 Some time ago you said you would: "{promise}"{to_clause}
 It was due by roughly {due}.
 
-Be honest and in character: did you actually do it? People like you sometimes do, sometimes put it off, sometimes
+Your answer is an unverified CLAIM and cannot complete the promise. Did you actually do it? People like you sometimes do, sometimes put it off, sometimes
 forget. Base it on your personality and mood ({mood}). If you did it, say briefly what happened and what you found
 out — but do NOT invent dramatic new facts (no new letters, offers, visitors or revelations); keep any result
 mundane and plausible. If you didn't, say why.

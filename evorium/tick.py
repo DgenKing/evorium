@@ -2,7 +2,7 @@
 
 - moves characters along their routines
 - delivers scheduled world events as observed facts
-- checks promises that have come due (one cheap model call each)
+- checks promises against database evidence (no model calls)
 - starts a conversation when it's time and two people are in the pub
 """
 
@@ -13,13 +13,9 @@ from pathlib import Path
 from evorium import world, timeline, places, economy
 from evorium.db import DEFAULT_DB_PATH, connect, npc_agents
 from evorium.events import emit
-from evorium.llm import InvalidProposal, LLMError
 from evorium.memory import DUE_FMT, resolve_commitment
-from evorium.models import PromiseCheck
-from evorium.prompts import build_promise_check_messages
 
 logger = logging.getLogger(__name__)
-PROMISE_CHECK_MAX_TOKENS = 200
 MAX_PROMISE_CHECKS_PER_TICK = 2
 DEFAULT_CONVERSATION_GAP_MIN = 20  # sim minutes between auto conversations
 
@@ -69,39 +65,40 @@ def deliver_events(now: datetime, db_path: str | Path = DEFAULT_DB_PATH) -> int:
 
 
 def check_due_promises(client, now: datetime, db_path: str | Path = DEFAULT_DB_PATH) -> int:
-    """Ask characters whether they kept promises that have come due. Bounded per tick."""
-    with connect(db_path) as connection:
-        due = [dict(r) for r in connection.execute(
-            """SELECT c.id, c.agent_id, c.content, c.due_at, t.name AS to_name
-               FROM commitments c JOIN agents owner ON owner.id=c.agent_id LEFT JOIN agents t ON t.id = c.to_agent_id
-               WHERE owner.kind='npc' AND c.status='open' AND c.due_at IS NOT NULL AND c.due_at <= ?
-               ORDER BY c.due_at LIMIT ?""", (now.strftime(DUE_FMT), MAX_PROMISE_CHECKS_PER_TICK))]
-        agents = {a["id"]: a for a in _agents(connection)}
+    """Resolve bounded due APC promises using game records, never a model's answer."""
+    from evorium.memory import lapse_commitment
+    from evorium.promise_evidence import evidence_for, effective_promise, had_chance, made_at, validate_target, _target
     handled = 0
-    for p in due:
-        agent = agents[p["agent_id"]]
-        loc, act = world.whereabouts(agent, now, db_path)
-        messages = build_promise_check_messages(agent, p, world.describe(now), loc, act)
-        try:
-            result = client.propose(agent["id"], messages, schema=PromiseCheck, max_tokens=PROMISE_CHECK_MAX_TOKENS)
-        except InvalidProposal:
-            result = None
-        except LLMError as exc:
-            emit(f"Promise check skipped ({exc}).", "error")
-            return handled
-        with connect(db_path) as connection:
-            if result is None:
-                # Can't ask — push the deadline back a day rather than guess.
-                later = (now + timedelta(days=1)).strftime(DUE_FMT)
-                connection.execute("UPDATE commitments SET due_at=? WHERE id=?", (later, p["id"]))
-                continue
-            status = "done" if result.done else "broken"
-            resolve_commitment(connection, p["id"], status, result.what_happened, now)
-            connection.execute("INSERT INTO facts (agent_id, subject, content, source, importance) VALUES (?, 'promise', ?, 'observed', 4)",
-                               (agent["id"], f"About my promise to {p['content'][0].lower() + p['content'][1:]}: {result.what_happened}"))
-            connection.execute("UPDATE agents SET mood=? WHERE id=?", (result.mood.lower(), agent["id"]))
-        emit(f"PROMISE {status.upper()} — {agent['name']}: \"{p['content']}\" → {result.what_happened}")
-        handled += 1
+    with connect(db_path) as c:
+        c.execute('BEGIN IMMEDIATE')
+        due = [dict(r) for r in c.execute(
+            """SELECT p.* FROM commitments p JOIN agents a ON a.id=p.agent_id
+            WHERE a.kind='npc' AND p.status='open' AND p.lapsed_at IS NULL AND p.due_at IS NOT NULL
+            AND coalesce(p.retry_at,p.due_at)<=? ORDER BY coalesce(p.retry_at,p.due_at),p.id LIMIT ?""",
+            (now.strftime(DUE_FMT), MAX_PROMISE_CHECKS_PER_TICK))]
+        for p in due:
+            # Use the scheduled deadline/retry, even if the heartbeat arrives late.
+            cutoff = p['retry_at'] or p['due_at']
+            p['evidence_until'] = cutoff
+            actor = dict(c.execute('SELECT * FROM agents WHERE id=?', (p['agent_id'],)).fetchone())
+            kind, _ = validate_target(c, actor, p['kind'], _target(p))
+            effective = effective_promise(c, p) if kind != 'vague' else p
+            if kind == 'vague' or not made_at(c, p):
+                lapse_commitment(c, p, now, 'This promise cannot be verified; no completion was established.')
+            elif effective is None:
+                lapse_commitment(c, p, now, 'The condition was not established by world records; no penalty.')
+            elif evidence_for(c, p):
+                resolve_commitment(c, p['id'], 'done', '', now, evidence_until=cutoff)
+            elif c.execute("SELECT 1 FROM promise_claims WHERE commitment_id=? AND outcome='pending' AND sim_at<=?", (p['id'], cutoff)).fetchone():
+                resolve_commitment(c, p['id'], 'broken', '', now, evidence_until=cutoff)
+            elif had_chance(c, effective, cutoff):
+                resolve_commitment(c, p['id'], 'broken', '', now, evidence_until=cutoff)
+            elif not p['retry_at']:
+                retry = (datetime.strptime(p['due_at'], DUE_FMT) + timedelta(days=1)).strftime(DUE_FMT)
+                c.execute('UPDATE commitments SET retry_at=? WHERE id=?', (retry, p['id']))
+            else:
+                lapse_commitment(c, p, now, 'No full hour of opportunity before the deadline or its retry; no penalty.')
+            handled += 1
     return handled
 
 

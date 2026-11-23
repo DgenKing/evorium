@@ -65,10 +65,10 @@ def _take_notes(client, db_path, conversation_id, a, b, transcript, sim_label):
     """Second model call: extract facts, commitments, people. Falls back to a plain summary."""
     with connect(db_path) as connection:
         cast = [r["name"] for r in connection.execute("SELECT name FROM agents WHERE kind='npc'")]
-        known = [f"{r['name']}: {r['content']}" for r in connection.execute(
-            """SELECT ag.name, f.content FROM facts f JOIN agents ag ON ag.id=f.agent_id
+        known = [f"fact id {r['id']} ({r['name']}): {r['content']}" for r in connection.execute(
+            """SELECT f.id, ag.name, f.content FROM facts f JOIN agents ag ON ag.id=f.agent_id
                WHERE f.agent_id IN (?, ?) AND f.source IN ('seed','observed') ORDER BY f.id""", (a["id"], b["id"]))]
-        opens = [{"id": c["id"], "owner": who["name"], "content": c["content"]}
+        opens = [{**c, "owner": who["name"]}
                  for who in (a, b) for c in open_commitments(connection, who["id"])]
     messages = build_extraction_messages(a, b, transcript, known, opens, cast, sim_label)
     try:

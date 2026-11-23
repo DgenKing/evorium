@@ -71,11 +71,13 @@ class CommitmentOut(BaseModel):
     content: str = Field(min_length=1, max_length=200)
     to: str | None = None
     due_hours: int | None = Field(default=None, ge=1, le=24 * 60)
+    kind: str = "vague"
+    target: dict = Field(default_factory=dict)
     replaces: int | None = None  # id of an open commitment this one restates with new detail or a new deadline
 
 
 class PromiseCheck(BaseModel):
-    """Answer to 'did you actually do what you promised?' asked by the world tick."""
+    """Legacy claim proposal. Never evidence of completion; the tick no longer calls it."""
     model_config = ConfigDict(extra="ignore", str_strip_whitespace=True)
     done: bool
     what_happened: str = Field(min_length=1, max_length=300)
@@ -174,7 +176,8 @@ def _normalise_extraction(data):
                 replaces = None
             commitments.append({"content": _clip(str(c["content"]), 200),
                                 "to": _clip(c.get("to"), 60) if c.get("to") else None, "due_hours": due,
-                                "replaces": replaces})
+                                "replaces": replaces, "kind": str(c.get("kind") or "vague"),
+                                "target": c.get("target") if isinstance(c.get("target"), dict) else {}})
         people = [{"name": _clip(str(p["name"]), 60), "description": _clip(str(p.get("description") or "mentioned in passing"), 200)}
                   for p in (ext.get("new_people") or [])[:3] if isinstance(p, dict) and p.get("name")]
         feeling = ext.get('feeling')

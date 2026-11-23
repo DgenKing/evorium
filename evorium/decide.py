@@ -3,7 +3,7 @@ import json
 from datetime import datetime, timedelta
 from evorium import actions, economy, relationships
 from evorium.db import DEFAULT_DB_PATH, connect
-from evorium.memory import DUE_FMT
+from evorium.memory import DUE_FMT, open_commitments
 from evorium.llm import LLMError
 from evorium.events import emit
 from evorium.configuration import load
@@ -38,6 +38,9 @@ Now: {now.strftime(DUE_FMT)}. Trigger: {r['reason']}.
 Situation: {json.dumps(economy.situation(c, actor, now))}
 Important facts with ids: {json.dumps(facts)}
 Relationships: {json.dumps(relations)}
+Open promises with ids, targets, progress and deadlines: {json.dumps(open_commitments(c, actor['id']))}
+Keep promises before their deadlines using a matching action (including tell and write_quiz_questions).
+A completion claim does not count as doing the work; visits/calls use the existing daily planner.
 Valid actions and argument schemas: {json.dumps(actions.candidates(c, actor, now))}
 Most days do nothing. wait is always valid. Big decisions require evidence and sleeping on it: propose the same choice again after twelve hours.
 Return JSON {{"action":"wait","args":{{}},"reason":"one sentence","evidence":[],"new_goal":null}}.'''
