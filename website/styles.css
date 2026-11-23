@@ -156,6 +156,11 @@ em { font-weight: inherit; color: var(--amber); }
 .development-badge { position: absolute; top: 24px; left: 24px; padding: 8px 14px; border: 1px solid rgb(232 165 72 / 65%); border-radius: 6px; color: var(--amber); background: rgb(13 14 17 / 80%); font-size: .75rem; letter-spacing: .12em; text-transform: uppercase; }
 .browser-visual figcaption { font-size: .75rem; color: var(--mist); margin-top: 20px; }
 .browser-visual figcaption span { color: var(--amber); padding-inline: 8px; }
+.news-list { list-style: none; padding: 0; margin: 56px 0 0; max-width: 860px; }
+.news-list li { display: grid; grid-template-columns: 150px 1fr; gap: 32px; border-top: 1px solid var(--divider); padding: 28px 0; }
+.news-list time { font-size: .75rem; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: var(--amber); padding-top: 3px; }
+.news-list h3 { font-family: var(--sans); font-weight: 500; font-size: 1rem; line-height: 1.5; }
+.news-list p { font-size: .9rem; color: var(--mist); margin-top: 8px; max-width: 620px; }
 .waitlist-section { min-height: 680px; display: flex; align-items: center; position: relative; isolation: isolate; overflow: hidden; padding-block: 120px; }
 .waitlist-section .section-background img { object-position: 70% center; }
 .waitlist-shade { z-index: -1; background: linear-gradient(90deg, rgb(13 14 17 / 96%) 5%, rgb(13 14 17 / 85%) 40%, rgb(13 14 17 / 18%) 85%), linear-gradient(var(--ink), transparent 25%, transparent 80%, var(--ink)); }
@@ -221,6 +226,7 @@ em { font-weight: inherit; color: var(--amber); }
   .footer-top nav { width: 100%; margin-left: 0; }
 }
 @media (max-width: 700px) {
+  .news-list li { grid-template-columns: 1fr; gap: 8px; }
   body { font-size: 17px; }
   .wrap { width: calc(100% - 40px); }
   .site-header { padding: 20px; min-height: 76px; }

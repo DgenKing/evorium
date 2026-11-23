@@ -8,6 +8,10 @@ before you finish, update `EVORIUM.md`:
 - update §2 (where it stands), §3 (how it works), §5 (running it), §6 (home server), §7 (3D game), §9 (known
   issues) and §10 (next steps) wherever they're affected.
 
+**Every new feature players would notice also gets a short entry on the website** (`website/index.html`,
+section "What's new", newest first): a date, a short headline and one or two plain sentences. Also fix any website
+text the feature makes out of date (e.g. the number of APCs). Keep it brief; it's a progress log, not a manual.
+
 **Don't create other Markdown files** (no new READMEs, notes or reports). Put it in `EVORIUM.md`. The only other
 `.md` files are `README.md` (a pointer), this file, `CLAUDE.md`, and `evorium/static/world3d/assets/LICENSES.md`.
 If nothing in `EVORIUM.md` needs changing, say so in your final message.

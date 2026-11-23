@@ -837,7 +837,8 @@ python3 -m http.server 8080 --bind 127.0.0.1 --directory website
 
 Images are generated, labelled concept art; full-size masters stay in the git-ignored `website/images/src/`.
 Some image filenames keep their original names (`unreal-hero`). The waitlist still uses the placeholder
-`hello@example.com`. Editing these files doesn't publish the site. Personal contact details remain deferred. The characters
+`hello@example.com`. Editing these files doesn't publish the site. Personal contact details remain deferred. A **"What's new"** section (nav link "What's new", before the waitlist) lists
+features newest first; see rule 12 in §15. The characters
 section is **"Meet the APCs"** (nav label "The APCs"), and the hero and share descriptions use "APC".
 
 **Briefing website changes** (the old `CODEX_PROMPT_WEBSITE.md`, merged here and deleted 20 Nov): describe it as
@@ -1124,6 +1125,17 @@ the key pool and open sign-ups.
 ---
 
 ## 14. History
+
+### 23 November 2026 — Website "What's new", promises in the guide
+
+- New standing rule (owner's request): every player-visible feature gets a short dated entry in a new
+  **"What's new"** section on the website (rule 12 in §15, and in `AGENTS.md`). First entries: evidence-checked
+  promises (23 Nov), named logins and the guide (21 Nov), eighteen APCs and the street (20 Nov), the 3D game (20 Nov).
+- Website copy brought up to date: "Eight" → "Eighteen" APCs (meta descriptions and the APCs intro, which notes
+  eight are shown), and the "They remember what matters" step now says their word gets checked. Checked at 1440 and
+  375 px.
+- `/guide` has a new **Promises** section: how to get one, how they're checked (done, broken, lie, retry, lapsed)
+  and the player's own Done / Didn't do it buttons.
 
 ### 23 November 2026 — Live test of promise evidence; restated-promise fix
 
@@ -1628,6 +1640,9 @@ Unreal from the project.
     within minutes, so only push finished work. GitHub account: DgenKing.
 11. **This is the only project document.** After every piece of work, add a dated entry to §14 and update §2,
     §3, §5–§7, §9 and §10 as needed. Don't create other Markdown docs. If nothing needs changing, say so.
+12. **Website "What's new":** every feature players would notice gets a short dated entry at the top of the
+    "What's new" section of `website/index.html` (headline plus one or two sentences), and any website text it
+    makes out of date is fixed. Bug fixes and internal changes don't need one.
 
 ---
 
