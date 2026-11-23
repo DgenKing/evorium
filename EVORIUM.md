@@ -521,6 +521,25 @@ machine’s local authentication settings. Schema changes are appended to `MIGRA
 SQLite's `user_version`). Each connection enforces foreign keys, commits on success, rolls back on failure and
 closes when finished.
 
+### Testing Grace in the game
+
+After normal deployment/restart, sign in as the owner’s Rob. In the dashboard, expand Grace’s card:
+her god-view case list should contain the unresolved Rob report sourced from Dez. Rob’s You panel should
+say “PCSO Grace Adeyemi wants a word”. If the case is absent, inspect the back-fill before provoking anyone
+again; the real G4 report has not yet been verified by this implementation session.
+
+Keep the clock at 1× and “Let them live” on. End any current chat, then use the dashboard places list/map
+to find Grace and enter her actual place. Her weekday street visits are around 10:00–10:20, 13:30–13:50
+and 16:00–16:20, then the shop around 13:50–14:00; she visits the Billet Friday/Saturday 22:45–23:15.
+When both are available, let the heartbeat start her conversation rather than clicking Send first.
+She approaches at most once per case per game day. Reply naturally (for example, own the threat and
+apologise), then press **End conversation** so ordinary notes can record her spoken decision.
+Check Rob’s outcome/learned facts, Grace’s case status, the serious timeline entry and Dez’s recently learned
+facts. Advice versus warning is Grace’s choice; no spoken outcome leaves `spoken_to` open until the
+three-game-day no-new-report timeout. These conversations change real memories; do not manufacture a
+new threat just to rerun the test. Automated fake-client cases can be rerun with
+`.venv/bin/python -m pytest tests/test_cases.py -q` without changing the live world.
+
 ### The smoke server (offline, fake replies)
 
 ```bash
@@ -1201,6 +1220,13 @@ the key pool and open sign-ups.
 ---
 
 ## 14. History
+
+### 23 November 2026 — In-game police follow-up test checklist
+
+- Added a manual verification checklist in §5: owner identity, back-filled case and notice, normal patrol
+  overlap, automatic opening, ending the chat for notes, and checking both sides’ knowledge and history.
+  Clarified that sanctions are Grace’s choice and repeated live tests change memories. No code or live state
+  changed; the existing temporary-world case suite is the repeatable offline option.
 
 ### 23 November 2026 — Grace follows up reports
 
