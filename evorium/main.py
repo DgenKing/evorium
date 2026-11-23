@@ -62,6 +62,8 @@ class _HidePolling(logging.Filter):
 
 logging.getLogger("uvicorn.access").addFilter(_HidePolling())
 STATIC = Path(__file__).resolve().parent / "static"
+# The public marketing site (website/) is served at / without a login; the game lives at /game and behind it.
+WEBSITE = Path(__file__).resolve().parent.parent / "website"
 _run_lock = threading.Lock()
 _last_error: dict = {"message": None}
 _state = {"auto": False, "tick_thread": None, "stop": threading.Event(), "conversations": 0,
@@ -163,6 +165,9 @@ ACCOUNTS = getattr(load(), 'ACCOUNTS', {})
 
 @app.middleware('http')
 async def dashboard_auth(request, call_next):
+    path = request.url.path
+    if path in ('/', '/styles.css') or path.startswith('/images/'):
+        return await call_next(request)   # the public website: no login, no account
     username, supplied = '', None
     try:
         scheme, encoded = request.headers.get('authorization', '').split(' ', 1)
@@ -187,6 +192,7 @@ async def dashboard_auth(request, call_next):
 
 
 app.mount("/static", StaticFiles(directory=STATIC), name="static")
+app.mount("/images", StaticFiles(directory=WEBSITE / "images"), name="website-images")
 
 
 class RunRequest(BaseModel):
@@ -209,6 +215,16 @@ async def world3d():
 
 
 @app.get("/")
+async def website():
+    return FileResponse(WEBSITE / "index.html")
+
+
+@app.get("/styles.css")
+async def website_styles():
+    return FileResponse(WEBSITE / "styles.css")
+
+
+@app.get("/game")
 async def index():
     return FileResponse(STATIC / "index.html")
 

@@ -9,9 +9,9 @@ test('menu lists exactly Dashboard, Map, 3D, Timeline and Guide (no Home)', () =
 });
 
 test('the current page is highlighted correctly', () => {
-  assert.equal(currentPage('/', ''), 'dashboard');
-  assert.equal(currentPage('/', '#dashboard'), 'dashboard');
-  assert.equal(currentPage('/', '#map'), 'map');
+  assert.equal(currentPage('/game', ''), 'dashboard');
+  assert.equal(currentPage('/game', '#dashboard'), 'dashboard');
+  assert.equal(currentPage('/game', '#map'), 'map');
   assert.equal(currentPage('/world3d', ''), '3d');
   assert.equal(currentPage('/timeline-page', ''), 'timeline');
   assert.equal(currentPage('/guide', ''), 'guide');

@@ -91,7 +91,7 @@ def test_login_precedence_casefold_and_sync_context(api):
 def test_first_static_request_provisions_once_even_concurrently(api):
     client, path, _ = api
     with ThreadPoolExecutor(max_workers=4) as pool:
-        assert list(pool.map(lambda _: client.get('/', auth=THOMAS).status_code, range(8))) == [200] * 8
+        assert list(pool.map(lambda _: client.get('/game', auth=THOMAS).status_code, range(8))) == [200] * 8
     with connect(path) as c:
         who = dict(c.execute("SELECT * FROM agents WHERE account='thomas'").fetchone())
         assert who['name'] == 'Thomas'

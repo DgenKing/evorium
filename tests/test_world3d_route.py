@@ -10,7 +10,7 @@ def test_world3d_page_and_local_assets():
     assert response.status_code == 200
     assert 'type="importmap"' in response.text
     assert '/static/world3d/js/main.js' in response.text
-    assert 'href="/"' in response.text
+    assert 'href="/game"' in response.text
     assert '>Home<' not in response.text
     root = Path(main.STATIC)
     for quality in ('low', 'high'):

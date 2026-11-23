@@ -4,8 +4,8 @@
 (() => {
   'use strict';
   const PAGES = [
-    {label: 'Dashboard', href: '/#dashboard', id: 'dashboard'},
-    {label: 'Map', href: '/#map', id: 'map'},
+    {label: 'Dashboard', href: '/game#dashboard', id: 'dashboard'},
+    {label: 'Map', href: '/game#map', id: 'map'},
     {label: '3D', href: '/world3d', id: '3d'},
     {label: 'Timeline', href: '/timeline-page', id: 'timeline'},
     {label: 'Guide', href: '/guide', id: 'guide'},

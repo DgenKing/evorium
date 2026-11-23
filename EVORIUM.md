@@ -432,7 +432,8 @@ collision-verified A* graph), bubbles, lighting and doors. `ambient.js` adds bro
   ledger, `boot_id`, `version` {commit, date, subject, modified}, `model_paused_until`), `/events`, `/conversations/latest`, `/conversations/{id}`,
   `/timeline` (filters `since`, `until`, `agent_id`, `min_importance`, `kind` = action/offer/arc; timestamps
   `YYYY-MM-DD HH:MM`), `/me` ({account, name}), `/player`, `/world/ledger`, `/actions?since=`, `/catchup`, `/world/scene`.
-- **Pages:** `/` (dashboard; `/#map` for the map), `/timeline-page`, `/world3d`, `/guide`.
+- **Pages:** `/` (the public website from `website/`, no login, with `/styles.css` and `/images/…`), `/game`
+  (dashboard; `/game#map` for the map), `/timeline-page`, `/world3d`, `/guide`. Everything except the website needs a login.
 - **Write:** `POST /conversations/run`, `/speed`, `/auto/start`, `/auto/stop`, `/director {enabled}`,
   `/player/profile {name, about}`, `/player/enter {place}`, `/player/leave`, `/player/say {to_agent_id, text}`,
   `/player/end`, `/player/promises/{id} {done, note}`, `/catchup/seen`, `/server/restart`.
@@ -528,7 +529,7 @@ cp -n config.example.py config.py      # then put your DeepSeek key in config.py
 uvicorn evorium.main:app --host 127.0.0.1 --port 8000
 ```
 
-- Open `http://127.0.0.1:8000`. Startup creates `evorium.sqlite3` and seeds the cast if it's absent;
+- Open `http://127.0.0.1:8000/game` (the website is at `/`). Startup creates `evorium.sqlite3` and seeds the cast if it's absent;
   restarting reuses the database. Existing saves migrate in place and are never reset. Migration 15 adds
   promise evidence fields/claims without rebuilding commitments; verified on a version-14 world copy.
 - **Stop:** Ctrl+C, or `pkill -f "uvicorn evorium.main:app"`. **Restart after code changes:** the "Restart
@@ -648,7 +649,8 @@ The real Evorium runs on the owner's always-on **HP ProDesk 405 G4 Mini** (Ryzen
 private. In commands below, `<server-user>`, `<server-address>`, `<project-dir>` and `<tunnel-domain>`
 are placeholders to fill in privately.
 
-- **Public access:** use the privately shared Cloudflare address (3D game at `/world3d`), then authenticate.
+- **Public access:** the Cloudflare address shows the public website at `/`; its Play button goes to `/game`
+  (login required), and the 3D game is at `/world3d`.
   The game listens on 127.0.0.1 only; the tunnel is the only way in from outside the G4, and the firewall has no
   rule for port 8000.
 - **Everything comes from GitHub.** Work on the main PC and push to `main`; the G4 updates itself.
@@ -992,7 +994,8 @@ python3 -m http.server 8080 --bind 127.0.0.1 --directory website
 
 Images are generated, labelled concept art; full-size masters stay in the git-ignored `website/images/src/`.
 Some image filenames keep their original names (`unreal-hero`). The waitlist still uses the placeholder
-`hello@example.com`. Editing these files doesn't publish the site. Personal contact details remain deferred. A **"What's new"** section (nav link "What's new", before the waitlist) lists
+`hello@example.com`. The game server serves it at `/` with no login (`main.py`: `/`, `/styles.css`, `/images/`), so pushing to `main`
+publishes it through the G4's auto-update. Its Play buttons (nav and hero) link to `/game`. Personal contact details remain deferred. A **"What's new"** section (nav link "What's new", before the waitlist) lists
 features newest first; see rule 12 in §15. The characters
 section is **"Meet the APCs"** (nav label "The APCs"), and the hero and share descriptions use "APC".
 
@@ -1306,6 +1309,19 @@ the key pool and open sign-ups.
 ---
 
 ## 14. History
+
+### 23 November 2026 — Website at `/`, game at `/game`
+
+- **What:** the existing `website/` is now served by the game server at `/` with no login (only `/`,
+  `/styles.css` and `/images/…` skip the login check); the dashboard moved from `/` to `/game`. The
+  website gained Play buttons (nav, mobile nav, hero) linking to `/game`, plus a "What's new" entry. The
+  wordmark links on the game pages and the burger menu's Dashboard/Map now point to `/game`. No new
+  dependency or server; the Cloudflare Tunnel still points to `localhost:8000`.
+- **Checks:** 394 Python tests and the Node nav/map/3D tests pass. New test: the website and its assets are
+  public, `/images/../` can't escape, and `/game`, `/world3d`, `/guide`, the API and `/static/` still need a
+  login. Offline smoke server: all 57 website images, `/game`, `/world3d`, timeline, guide, API and a
+  conversation run returned 200. The live G4 was not touched; it picks this up through auto-update.
+- **Note:** old bookmarks of `/#map` or `/` now land on the website; use `/game`.
 
 ### 23 November 2026 — Public access moved from ngrok to Cloudflare Tunnel
 
