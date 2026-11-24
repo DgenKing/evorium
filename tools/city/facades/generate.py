@@ -50,118 +50,125 @@ def _edge_road_distance(edge, road_lines):
     return min(distances, default=math.inf)
 
 
-def _bar(mesh: Mesh, a, b, y, width, depth, material):
-    """A slim horizontal sill/lintel strip parallel to a facade edge."""
-    length = math.hypot(b[0] - a[0], b[1] - a[1])
-    if length <= 0:
-        return
-    nx, nz = (b[1] - a[1]) / length * depth / 2, -(b[0] - a[0]) / length * depth / 2
-    p0 = (a[0], y, a[1]); p1 = (b[0], y, b[1])
-    mesh.quad((p0[0] + nx, p0[1], p0[2] + nz), (p1[0] + nx, p1[1], p1[2] + nz),
-              (p1[0] - nx, p1[1], p1[2] - nz), (p0[0] - nx, p0[1], p0[2] - nz), material)
+def _window_template(kind, wall, *, low=False):
+    """Repeat a full bay with masonry, a 12 cm reveal and a protected pane."""
+    mesh = Mesh()
+    tall = kind == "mill"
+    lo, hi, sill, head = -.18, .18, .22, .82 if tall else .74
+
+    def quad(x0, y0, x1, y1, z, material):
+        mesh.quad((x0,y0,z),(x1,y0,z),(x1,y1,z),(x0,y1,z),material)
+
+    if low:
+        mesh.shade = .93
+        quad(-.5,0,.5,1,0,wall or "brick")
+        mesh.shade = .77
+        quad(lo,sill,hi,head,.026,"glass")
+        mesh.shade = .9
+        quad(-.021,sill,.021,head,.037,"frame")
+        return mesh
+    if wall:
+        mesh.shade = .86
+        quad(-.5,0,.5,sill,0,wall)
+        mesh.shade = 1
+        for x0,y0,x1,y1 in ((-.5,sill,lo,head),(hi,sill,.5,head),(-.5,head,.5,1)):
+            quad(x0,y0,x1,y1,0,wall)
+        mesh.shade = .57
+        corners = [(lo,sill),(hi,sill),(hi,head),(lo,head)]
+        for a,b in zip(corners,corners[1:]+corners[:1]):
+            mesh.quad((*a,0),(*b,0),(*b,-.12),(*a,-.12),"reveal")
+    mesh.shade = .78
+    quad(lo,sill,hi,head,-.12,"glass")
+    mesh.shade = .9
+    quad(-.016,sill,.016,head,-.105,"frame")
+    quad(lo,(sill+head)/2-.017,hi,(sill+head)/2+.017,-.101,"frame")
+    quad(lo-.027,sill-.032,hi+.027,sill-.008,.025,"facade_detail")
+    if tall:
+        # Segmental lintel above the tall, flat-sided mill pane.
+        for index in range(3):
+            x0, x1 = -.20 + .4*index/3, -.20 + .4*(index+1)/3
+            y0, y1 = head+.025+.064*(1-(x0/.2)**2), head+.025+.064*(1-(x1/.2)**2)
+            mesh.quad((x0,y0,.015),(x1,y1,.015),(x1,y1+.027,.015),(x0,y0+.027,.015),"facade_detail")
+    else:
+        quad(lo-.027,head+.012,hi+.027,head+.043,.022,"facade_detail")
+    return mesh
 
 
 def add_facades(mesh: Mesh, building: dict[str, Any], levels: int | None = None,
-                roads: list[dict[str, Any]] | None = None) -> dict[str, Any]:
-    """Add type-specific windows, door/shopfront and small source-footprint details.
-
-    The nearest road-facing edge controls the shop entrance. Every placement is
-    derived from the OSM footprint, OSM identifier and staged road geometry.
-    """
-    rings = _poly_rings(building.get("geometry", {}))
-    if not rings:
-        return {"windows": 0, "details": 0, "door_edge": None}
-    ring = rings[0]
-    if len(ring) > 1 and ring[0] == ring[-1]:
-        ring = ring[:-1]
-    height = float(building.get("height_m", 8))
-    if len(ring) < 3 or height < 2.2:
-        return {"windows": 0, "details": 0, "door_edge": None}
+                roads: list[dict[str, Any]] | None = None, *, wall: str | None = None) -> dict[str, Any]:
+    """Build masonry between openings and place shared window modules in the reveals."""
+    height = float(building.get("wall_height", building.get("height_m", 8)))
+    base = float(building.get("base_y", 0))
     props = building.get("properties", {})
     kind = str(building.get("type", "other"))
-    is_shop = kind == "shop" or bool(props.get("shop"))
-    override_material = props.get("facade_material")
-    facade_material = override_material if override_material in {"brick", "stone", "concrete"} else "facade_detail"
-    floors = max(1, min(24, int(levels or building.get("levels") or round(height / 3.2))))
+    is_shop = kind == "shop" or props.get("building") in {"retail", "commercial"} or bool(props.get("shop"))
+    floors = max(1, min(15, int(levels or building.get("levels") or round(height / 3.2))))
     floor_h = height / floors
-    ident = str(building.get("id", props.get("osm_id", "building")))
-    phase = _stable_fraction(ident)
-    twice_area = sum(a[0]*b[1] - b[0]*a[1] for a, b in zip(ring, ring[1:] + ring[:1]))
-    outside = 1 if twice_area > 0 else -1
-    edges = []
-    for idx, (a, b) in enumerate(zip(ring, ring[1:] + ring[:1])):
-        dx, dz = float(b[0]) - float(a[0]), float(b[1]) - float(a[1])
-        length = math.hypot(dx, dz)
-        if length >= 2.2:
-            edges.append((length, a, b, dx, dz, idx))
-    if not edges:
-        return {"windows": 0, "details": 0, "door_edge": None}
     lines = _road_lines(roads)
-    road_distances = [(_edge_road_distance(edge[:5], lines), edge[5]) for edge in edges]
-    closest_distance, road_edge = min(road_distances, default=(math.inf, None))
-    # A distant road is not evidence for a road-facing door. The 12 m reach also
-    # accommodates opposite pavement widths in a narrow urban street.
-    door_edge = road_edge if is_shop and closest_distance <= 12.0 else None
-
     windows = details = 0
-    facade_material = "shopfront" if is_shop else "facade_detail"
-    for length, a, b, dx, dz, idx in edges:
-        ux, uz = dx / length, dz / length
-        bays = max(1, min(14, int(length / (2.0 if kind in {"mill_warehouse", "modern_flats"} else 3.0) + phase)))
-        for floor in range(floors):
-            y0 = float(building.get("base_y", 0)) + floor * floor_h
-            pane_height = min(1.8 if kind == "mill_warehouse" else 1.5, floor_h * .56)
-            sill_y = y0 + (0.72 if floor == 0 else floor_h * .2)
-            pane_y = sill_y + .08
-            for bay in range(bays):
-                center = (bay + .5) * length / bays
-                pane_width = min(1.35 if kind == "mill_warehouse" else 1.05, length / bays * .48)
-                start, end = center - pane_width / 2, center + pane_width / 2
-                # Keep every decorative pane just off the footprint wall to avoid z-fighting.
-                offset_x, offset_z = dz / length * .05 * outside, -dx / length * .05 * outside
-                p0 = (float(a[0]) + ux * start + offset_x, pane_y, float(a[1]) + uz * start + offset_z)
-                p1 = (float(a[0]) + ux * end + offset_x, pane_y, float(a[1]) + uz * end + offset_z)
-                mesh.quad(p0, p1, (p1[0], pane_y + pane_height, p1[2]), (p0[0], pane_y + pane_height, p0[2]), "glass")
-                # Stone sill and lintel on masonry types; shopfronts get a strong lintel only.
-                if not is_shop:
-                    _bar(mesh, (p0[0], p0[2]), (p1[0], p1[2]), pane_y - .055, .07, .05, facade_material)
-                    _bar(mesh, (p0[0], p0[2]), (p1[0], p1[2]), pane_y + pane_height + .045, .09, .06, facade_material)
-                    details += 2
-                elif floor == 0:
-                    _bar(mesh, (p0[0], p0[2]), (p1[0], p1[2]), pane_y + pane_height + .045, .1, .07, "shopfront")
-                    details += 1
-                windows += 1
-        if idx == door_edge and is_shop:
-            door_width, door_height = min(1.1, length * .2), min(2.15, floor_h * .86)
-            center = length * (.68 if phase > .5 else .32)
-            start, end = center - door_width / 2, center + door_width / 2
-            ox, oz = dz / length * .06 * outside, -dx / length * .06 * outside
-            base = float(building.get("base_y", 0))
-            p0 = (float(a[0]) + ux * start + ox, base, float(a[1]) + uz * start + oz)
-            p1 = (float(a[0]) + ux * end + ox, base, float(a[1]) + uz * end + oz)
-            mesh.quad(p0, p1, (p1[0], base + door_height, p1[2]), (p0[0], base + door_height, p0[2]), "shopfront")
-            # Door jambs and header make the entrance legible without text or branding.
-            _bar(mesh, (p0[0], p0[2]), (p1[0], p1[2]), base + door_height + .035, .08, .08, "shopfront")
-            details += 1
-
-    # A modest parapet follows terrace and warehouse roof edges, based only on the footprint.
-    if kind in {"terrace", "mill_warehouse"}:
-        top = float(building.get("base_y", 0)) + height
-        for length, a, b, dx, dz, _ in edges:
-            if length < 3:
+    entrance = None
+    pattern = "mill" if kind == "mill_warehouse" else "sash"
+    template = _window_template(pattern, wall)
+    template.low_detail = _window_template(pattern, wall, low=True)
+    template_name = f"{pattern}-window-{wall or 'plain'}"
+    for ring in _poly_rings(building.get("geometry", {})):
+        if ring[0] == ring[-1]:
+            ring = ring[:-1]
+        if len(ring) < 3:
+            continue
+        pairs = list(zip(ring, ring[1:] + ring[:1]))
+        outside = 1 if sum(a[0]*b[1] - b[0]*a[1] for a, b in pairs) > 0 else -1
+        edges = [(math.dist(a,b), a, b, b[0]-a[0], b[1]-a[1], i)
+                 for i,(a,b) in enumerate(pairs) if math.dist(a,b) > .01]
+        distances = {e[5]: _edge_road_distance(e[:5], lines) for e in edges if e[0] >= 2.2}
+        road_edge = min(distances, key=distances.get, default=None)
+        for length, a, b, dx, dz, idx in edges:
+            ux, uz = dx/length, dz/length
+            nx, nz = outside*uz, -outside*ux
+            def p(x, y, offset=0):
+                return a[0]+ux*x+nx*offset, base+y, a[1]+uz*x+nz*offset
+            def panel(x0, y0, x1, y1, material, offset=0):
+                if x1-x0 > .005 and y1-y0 > .005:
+                    mesh.quad(p(x0,y0,offset), p(x1,y0,offset), p(x1,y1,offset), p(x0,y1,offset), material)
+            decorated = length >= 2.2 and height >= 2.2 and (
+                wall is None or distances.get(idx, math.inf) <= 26 or length >= 14)
+            has_door = idx == road_edge and distances.get(idx, math.inf) <= 12
+            if not decorated:
+                if wall: panel(0,0,length,height,wall)
                 continue
-            ux, uz = dx / length, dz / length
-            offset_x, offset_z = dz / length * .05 * outside, -dx / length * .05 * outside
-            p0 = (float(a[0]) + offset_x, top - .12, float(a[1]) + offset_z)
-            p1 = (float(b[0]) + offset_x, top - .12, float(b[1]) + offset_z)
-            _bar(mesh, (p0[0], p0[2]), (p1[0], p1[2]), p0[1], .16, .12, facade_material)
+            bays = max(1, min(12, round(length / (3.2 if pattern == "mill" else 3.1))))
+            for floor in range(floors):
+                if is_shop and has_door and not floor and wall:
+                    panel(0,0,length,floor_h,wall)
+                    continue
+                for bay in range(bays):
+                    center = (bay+.5)*length/bays
+                    mesh.instance(template_name, template, p(center,floor*floor_h,0 if wall else .16),
+                                  math.atan2(nx,nz),(length/bays,floor_h,1))
+                    windows += 1
+                    details += 2
+            if has_door and (wall or is_shop):
+                center = length/2
+                if is_shop:
+                    panel(.16, .3, length-.16, min(2.45, floor_h*.79), "shopfront", .105)
+                    for step in (1,2,3):
+                        x = length*step/4
+                        panel(x-.035,.3,x+.035,min(2.45, floor_h*.79),"frame",.125)
+                    panel(.16,min(2.45, floor_h*.79),length-.16,min(2.76,floor_h*.96),"frame",.12)
+                panel(center-.48,0,center+.48,min(2.16,floor_h*.8),
+                      "shopfront" if is_shop else "frame",.14)
+                entrance = idx
+            if kind in {"terrace", "mill_warehouse", "modern_flats"}:
+                panel(0,height-.11,length,height+.035,"facade_detail",.03)
+                if kind in {"mill_warehouse","modern_flats"}:
+                    panel(0,height,length,height+.45,wall or "brick")
+                    panel(0,height+.37,length,height+.46,"facade_detail",.065)
+                details += 1
+        if kind in {"terrace","mill_warehouse"} and _stable_fraction(str(building["id"])) > .22:
+            cx = sum(float(p[0]) for p in ring)/len(ring)
+            cz = sum(float(p[1]) for p in ring)/len(ring)
+            r = .33
+            extrude_polygon(mesh, [[cx-r,cz-r],[cx+r,cz-r],[cx+r,cz+r],[cx-r,cz+r]], .8,
+                            base+float(building.get("height_m",height))-.2,wall or "brick","facade_detail")
             details += 1
-    # Stable chimney position from footprint centroid for older terraces and mills.
-    if kind in {"terrace", "mill_warehouse"} and phase > .22:
-        xs, zs = [float(p[0]) for p in ring], [float(p[1]) for p in ring]
-        cx, cz = sum(xs) / len(xs), sum(zs) / len(zs)
-        radius = .32 if kind == "terrace" else .55
-        half = radius / 2
-        extrude_polygon(mesh, [[cx-half, cz-half], [cx+half, cz-half], [cx+half, cz+half], [cx-half, cz+half]], .55, float(building.get("base_y", 0)) + height, facade_material, facade_material)
-        details += 1
-    return {"windows": windows, "details": details, "door_edge": door_edge}
+    return {"windows": windows, "details": details, "door_edge": entrance}

@@ -44,7 +44,7 @@ async function boot(){
  if(['head','body'].includes(params.get('cam'))){const selected=params.get('character')||'dez';for(const entry of lineup)entry.actor.root.visible=entry.model===`cast/${selected}.glb`;}
  }
  // Test cameras keep world state deterministic and use the public smoke snapshot.
- const cameras={street:[[-1,4.3,15],[-.5,1,-1]],pub:[[-4.5,2.2,-1.3],[-4.3,1.1,-6]],shop:[[6.4,2.2,-3.2],[2.5,1.2,-5.5]],cast:[[-6,2.3,-1],[-4,1.2,-5]],player:[[-4.62,2.5,5],[-4.62,1,0]]};
+ const cameras={kit:[[-3.4,7.0,19],[-.7,3.1,-1.5]],street:[[-1,4.3,15],[-.5,1,-1]],pub:[[-4.5,2.2,-1.3],[-4.3,1.1,-6]],shop:[[6.4,2.2,-3.2],[2.5,1.2,-5.5]],cast:[[-6,2.3,-1],[-4,1.2,-5]],player:[[-4.62,2.5,5],[-4.62,1,0]]};
  if(test){if(studio){if(['head','body'].includes(params.get('cam'))){const entry=lineup.find(e=>e.actor.root.visible);if(!entry)throw Error('Unknown cast close-up');const head=entry.actor.root.position.clone().add(new THREE.Vector3(0,entry.actor.height*(params.get('cam')==='head'?.87:.5),0));camera.position.copy(head).add(new THREE.Vector3(0,.05,params.get('cam')==='head'?1.2:3.1));camera.lookAt(head);}else{const distance=innerWidth/innerHeight<1?34:12;camera.position.set(0,2.4,distance);camera.lookAt(0,1,2);}}else{const c=cameras[params.get('cam')]||cameras.street;const cameraPoint=new THREE.Vector3().fromArray(c[0]),lookPoint=new THREE.Vector3().fromArray(c[1]);if(cityEnabled){cameraPoint.applyMatrix4(world.set.matrixWorld);lookPoint.applyMatrix4(world.set.matrixWorld);}camera.position.copy(cameraPoint);camera.lookAt(lookPoint);}}else {await request('/player/enter',{place:player.place});joined=player.place;await ui.initial();}
  if(ambientType||params.get('cam')==='ambient'){const z=(ambientType||params.get('focus'))==='fox'||params.get('debris')==='can'?1.65:1.1;const distance=innerWidth/innerHeight<1?3.8:3.2;camera.position.set(-.7,1.25,z+distance);camera.lookAt(-2.5,.30,z);player.position.set(-3.4,world.ground(-3.4,2.2),2.2);player.actor.root.position.copy(player.position);}
  let visibleTriangles=0,visibleDrawCalls=0;
@@ -53,7 +53,7 @@ async function boot(){
  function frame(now){requestAnimationFrame(frame);const wallDt=(now-last)/1000,dt=Math.min(wallDt,.05);last=now;elapsed+=wallDt;frames++;if(elapsed>1){fps=frames/elapsed;elapsed=0;frames=0;}
  if(document.hidden)return;
  const controls=input.sample();if(!test){player.update(dt,controls,follow.yaw);follow.update(dt,player.position,controls);doors();}else if(!studio)player.actor.animate('idle',dt);
- world.update(test?1/60:dt);if(!studio)actors.update(test?1/60:dt,camera);else for(const entry of lineup){entry.actor.animate(pose,1/60);entry.actor.mixer.setTime(Number(params.get('frame')||.5));entry.actor.ground(pose);entry.actor.label.visible=entry.actor.root.visible;}if(test){if(!studio){player.actor.mixer.setTime(.5);player.actor.ground();}player.actor.root.position.copy(player.position);if(!studio)for(const a of actors.people.values()){a.mixer.setTime(.5);a.ground();}}ambient?.update(dt,snapshot.daylight,document.hidden);visibleTriangles=0;visibleDrawCalls=0;scene.traverse(o=>{if(o.isMesh&&!o.userData.counted){o.userData.counted=true;o.onBeforeRender=(_renderer,_scene,_camera,geometry,_material,group)=>{visibleDrawCalls++;visibleTriangles+=(group?.count??geometry.index?.count??geometry.attributes.position.count)/3;};}});renderer.render(scene,camera);labels.render(scene,camera);
+ world.update(test?1/60:dt);if(!studio)actors.update(test?1/60:dt,camera);else for(const entry of lineup){entry.actor.animate(pose,1/60);entry.actor.mixer.setTime(Number(params.get('frame')||.5));entry.actor.ground(pose);entry.actor.label.visible=entry.actor.root.visible;}if(test){if(!studio){player.actor.mixer.setTime(.5);player.actor.ground();}player.actor.root.position.copy(player.position);if(!studio)for(const a of actors.people.values()){a.mixer.setTime(.5);a.ground();}}ambient?.update(dt,snapshot.daylight,document.hidden);visibleTriangles=0;visibleDrawCalls=0;scene.traverse(o=>{if(o.isMesh&&!o.userData.counted){o.userData.counted=true;o.onBeforeRender=(_renderer,_scene,_camera,geometry,_material,group)=>{visibleDrawCalls++;visibleTriangles+=(group?.count??geometry.index?.count??geometry.attributes.position.count)/3*(o.isInstancedMesh?o.count:1);};}});renderer.render(scene,camera);labels.render(scene,camera);
  const nearby=actors.nearestTalk(player);$('talk').hidden=!nearby||input.blocked;$('talk-hint').hidden=!nearby||input.blocked;if(nearby)$('talk-hint').textContent='Press E to talk to '+nearby.person.first;
  if(!test){const next=watchdog.update(dt,preset);if(next!==preset){preset=next;ambient?.setQuality(preset);world.weather.setQuality(preset);world.preset=presets[preset];world.sun.castShadow=!!presets[preset].shadows;applyPreset();ui.toast('Quality adjusted for smoother walking.');}}
  if(!$('debug').hidden)$('debug').textContent=JSON.stringify({...report(),lastPoll:net.lastPoll},null,2);
@@ -88,7 +88,7 @@ async function boot(){
     const dx=tx-player.position.x,dz=tz-player.position.z,d=Math.hypot(dx,dz);
     if(d<.15)break;
     player.update(1/60,{x:dx/d,y:dz/d,run:true},0);
-    if(player.position.y<-.5){failure='fell below ground';break;}
+    if(player.position.y<world.ground(player.position.x,player.position.z)-.5){failure='fell below ground';break;}
    }
    if(failure||step===limit){failure??='blocked';break;}
   }

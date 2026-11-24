@@ -104,7 +104,7 @@ and phone); it runs around the clock on the owner's HP G4 and is reachable over 
 | Dashboard | Character cards, live feed, usage/spend, controls, terrace card, **version** (git commit and date) and the **Restart server** button |
 | Map tab | 2D canvas of the pub, shop, empty unit and street; pixel sprites, bubbles, portrait popups |
 | 3D game | `/world3d`: Shuttle Street in Three.js, nine distinct MPFB models, third person, touch controls, chat and optional cosmetic street life; Ancoats city mode is opt-in at `?city=1` with a local review build |
-| City pipeline | Real Ancoats snapshot and repeatable opt-in build on `city-pipeline`. The build fits both package limits (§7, §10). |
+| City pipeline | Opt-in Ancoats review on `city-pipeline` with surveyed terrain, kit materials and instanced facades. Both package limits pass (§7, §10). |
 | Hosting | HP G4 home server, auto-updating from GitHub, nightly backups, public via a Cloudflare Tunnel; connection details kept private (§6) |
 | Model | DeepSeek `deepseek-flash`, JSON mode, temperature 0.8 (0.6 decisions, 0.2 structured calls) |
 | Cost | About $0.00015 per call; about $0.40 a day for the whole world at real speed with auto mode on |
@@ -802,36 +802,48 @@ loads `data/city.json`, `city.glb`, `city-collision.glb` and, when present, `cit
 Street at the transform in `tools/city/config.yaml`, joins its street exits to the generated walk graph, and shows
 OpenStreetMap and Environment Agency attribution. The local review build is available in this mode.
 
-From the repo root, run `tools/city/.venv/bin/python tools/city/build.py` after the §5 setup. The pinned
-24 Nov OSM snapshot has 800 elements and SHA-256
-`1735fbcc98e29e23679d66d7ca998a5d315e2d9579c04f19a20763c3af6add32`. The 400 × 300 m Cutting Room Square
-box clips to 156 buildings, 571 road/path features, 21 trees, 21 mapped props, 3 water features, 24 land-use
-features and no tagged shops. The height stage used 41 OSM level counts, 115 type defaults and no LiDAR.
-Shuttle Street sits on a straight Henry Street segment at local [4.9, 5.48] m and 41.8° yaw. The existing lane
-therefore lines up with the road, and the configured footprint excludes six overlapping buildings and local props.
-The city has 150 buildings and 212 generated props. The package report includes `city.json` and the existing
-Shuttle Street and cast assets. Low totals **7.738 MB** (37,617 added render triangles) and high totals
-**11.598 MB** (45,839 added render triangles). The export stages publish city GLBs only after checking the
-package. See `tools/city/build/budgets.json`. Low uses spatial cells and a shorter draw distance. High
-retains a separate window material for night glow.
+From the repo root, follow the §5 setup and run:
 
-All seven stages produced byte-identical output on repeated runs. The offline Chrome harness is
-`tools/web3d/screenshots.mjs --city --screens-only --city-walk`, with the fake smoke server on port 8011.
-It checks OSM attribution, frame limits, and one mapped section per named street. It also checks routes
-from both Shuttle Street exits to every named destination. The preview is `tools/city/build/preview.png`.
-The sampled frames stayed under 141,000 in-view triangles on low and 241,000 on high, compared with
-the 150,000 and 400,000 limits. Headless Chrome used SwiftShader on a desktop with a separate phone viewport
-profile. The screenshot reports include draw calls and measured FPS. The 30 FPS phone target still needs a
-check on physical hardware. Screenshots and measurements are in `tools/city/build/screenshots/`.
+```bash
+tools/city/.venv/bin/python tools/city/fetch.py --lidar
+tools/city/.venv/bin/python tools/city/fetch.py --tree
+tools/city/.venv/bin/python tools/city/build.py
+```
 
-**Manual 1 m LiDAR:** the scripted EA WCS request returned HTTP 404. Open the
-[Defra survey download map](https://environment.data.gov.uk/survey) from the 1 m composite
-[DSM dataset](https://www.data.gov.uk/dataset/cf3f1137-c12b-44a1-a835-e80fe4a60b92/lidar-composite-digital-surface-model-dsm-1m)
-and [DTM dataset](https://www.data.gov.uk/dataset/01b3ee39-da3f-47b6-83da-dc98e73a461f/lidar-composite-digital-terrain-model-dtm-1m).
-Select the last-return DSM and the DTM. Download each product for both 5 km tiles, SJ89 NW (E380000–385000,
-N395000–400000) and SJ89 NE (E385000–390000, N395000–400000). Unzip the GeoTIFFs, mosaic by product
-and clip to E384615–385015, N398490–398790 on the same 1 m EPSG:27700 grid. Save the two aligned files as
-`tools/city/raw/lidar_dsm.tif` and `tools/city/raw/lidar_dtm.tif`. Rerun the build.
+**EA terrain and heights.** The fetch command uses the cached ZIPs if present, or downloads tiles SJ89nw
+and SJ89ne from the [EA survey collections](https://environment.data.gov.uk/tiles/collections/survey).
+The exact URL suffixes are `/{lidar_composite_dtm|lidar_composite_first_return_dsm}/2022/1/{SJ8095|SJ8595}`.
+The script extracts the TIFFs, mosaics each product with Rasterio, and clips both to the OSM box plus 20 m
+(E384595–385035, N398470–398810). The aligned 1 m EPSG:27700 GeoTIFFs use nodata −9999 and stay at
+`tools/city/raw/lidar_dsm.tif` and `tools/city/raw/lidar_dtm.tif`. The build manifest records their hashes.
+The first-return DSM minus DTM gives 154 of the 156 heights. Two use type defaults. Interior sample relief
+guides terrace roof selection where enough samples survive the edge mask. Terrain uses the DTM in metres
+relative to the flat Shuttle Street block, with a blend around it.
+
+**OSM and placement.** The pinned 24 Nov snapshot has 800 elements and SHA-256
+`1735fbcc98e29e23679d66d7ca998a5d315e2d9579c04f19a20763c3af6add32`. The 400 × 300 m Cutting Room Square box
+contains 156 building footprints, 571 road/path features, 21 trees, 21 mapped props, 3 water features,
+24 land-use features and no tagged shops. Shuttle Street follows Henry Street at [4.9, 5.48] m and 41.8° yaw.
+Six overlapping footprints are removed. The generated scene has 150 buildings and 212 props.
+
+**Materials and facades.** Put the owner's raw kit at `tools/city/raw/kit/`. The generator reads its material
+manifest and embeds the selected brick, plaster, stone, slate, asphalt, setts and terrazzo maps as WebP.
+Low uses 48 px colour maps. High uses 128 px colour and 64 px normal and roughness maps. Texture repeats
+use metres, calibrated against the supplied FBX. Its 77 upper-glass panes measure about 0.50 × 1.38 m each.
+The generated bays use shared sash and taller mill window modules. High has 12 cm recesses and segmental
+mill lintels. Low uses lighter profiles. High and low share LiDAR terrain, 15 cm kerbs, generic shopfronts,
+roof silhouettes, baked vertex shade in reveals and near footprint contacts, and night window glow.
+The tree fetch pins the CC0 Kenney source mesh and palette. Windows and trees are instanced in the finished GLBs.
+
+**Export and verification.** Simplification was dropping one triangle from some window panes. The city export
+uses topology preserving Meshopt compression and checks that all 13,557 window instances per tier use complete
+two-triangle panes. Two full rebuilds produced identical city GLBs, manifests and package reports. Low totals
+**7.993 MB** and high **11.854 MB**, including Shuttle Street, cast and `city.json`. The package report is
+`tools/city/build/budgets.json`. Browser triangle measurements count each submitted instance and peaked at 143,598 low and 318,849 high. The offline
+Chrome harness checks the five named walks, routes and attribution on the fake smoke server on port 8011.
+Matched screenshots are under `tools/city/build/appearance-before/` and `appearance-after/`. The approximate
+kit reference angle is under `appearance-kit-angle/`. The headless recordings use SwiftShader and a desktop
+or phone viewport. Real-phone performance still needs a hardware check.
 
 ### Controls
 
@@ -1073,11 +1085,11 @@ streets, film grain, matching the game's portraits.
 
 ## 9. Known issues and open questions
 
-- **Ancoats review build (24 Nov):** the one EA LiDAR download attempt failed, so heights rely on OSM levels
-  and type defaults and the ground is flat. The route graph samples OSM road/path centerlines. Browser checks
-  exercise representative mapped sections and waypoint connections. Full coverage of every side path and
-  scheduled NPC transitions needs further playtesting. Baked AO, instanced windows, facade texture sheets
-  and the canal edge remain unfinished. Software-rendered headless metrics do not verify real-phone FPS.
+- **Ancoats review build (24 Nov):** terrain and most heights use EA LiDAR. The street is still made from
+  repeating facade bays. Ground floor interiors and individually modelled storefronts belong to the original
+  Shuttle Street kit. Mill windows use segmental lintels over rectangular panes. Low quality omits deep
+  recesses and the full sash detail. The ambient shading is a local vertex bake. The canal edge and detailed
+  side path and scheduled NPC coverage remain open. The phone FPS gate needs a physical device.
 
 - **Realism limits (23 Nov):** the fixed holiday table ends in 2027 and festive events are for Christmas 2026.
   Weather is cached model output for Ancoats, not a street rain sensor; outages older than six hours give no
@@ -1214,10 +1226,9 @@ streets, film grain, matching the game's portraits.
 modelled by hand and not invented by AI. Codex writes and fixes the scripts; the scripts make the city; the
 owner looks at screenshots at each gate. Same inputs always give the same city, so areas stay fixed once built.
 
-**Status (24 Nov):** the pinned real OSM snapshot builds the five-street area for the opt-in review.
-Geometry uses fallback heights and a flat collider, with a compact street graph joined to Shuttle Street.
-Download and sampled browser triangle budgets pass. The preview, local rebuild steps and LiDAR fallback
-are in §7. The owner review and real-phone performance gate remain open.
+**Status (24 Nov):** the five-street opt-in review now uses EA LiDAR for terrain and 154 building heights,
+the owner's kit textures and instanced facades, and Kenney CC0 trees. Rebuild and provenance are in §7.
+Both package and sampled triangle targets pass. The owner visual review and real-phone performance gate remain open.
 
 **How the work is split**
 
@@ -1273,8 +1284,8 @@ which the arcade also needs; travel between places in real time comes after Part
 **Effort:** roughly 2–3 weeks of Codex sessions for Parts 1–7, with reviews in between. Parts 1–3 (about 2–4
 sessions) are the cheap test of whether it's worth going on.
 
-**Next steps:** review the screenshots under `tools/city/build/screenshots/` and play the city on a real phone.
-Supply the matching LiDAR pair if available, then review remaining art and detailed route coverage (§9).
+**Next steps:** review the screenshots under `tools/city/build/appearance-after/` and play the city on a real phone.
+Review the remaining art and detailed route coverage (§9).
 
 ---
 
@@ -1445,6 +1456,16 @@ the key pool and open sign-ups.
 ---
 
 ## 14. History
+
+### 24 November 2026 — Shuttle Street materials across Ancoats
+
+- Rebuilt the city with 2022 EA first-return LiDAR, WebP maps from the kit, complete instanced sash panes,
+  roof profiles, kerbs, vertex ambient shading and Kenney CC0 trees. Added repeatable LiDAR and tree fetch steps.
+- In a reproduction with the old exporter, welding retained all 34,232 glass triangles. Enabling simplification
+  reduced the count to 15,404. The new topology preserving export validates both triangles on every pane.
+- Verified repeatable builds, 401 app tests, 17 city tests, Node checks and the five named city walks.
+  Package sizes and matched screenshots are in §7. Hardware performance and remaining art are in §9.
+
 
 ### 24 November 2026 — Real Ancoats review build
 

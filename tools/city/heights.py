@@ -20,7 +20,7 @@ def _geometry(feature):
     return shape(feature['geometry'])
 
 
-def raster_height(feature, dsm, dtm, origin=(0, 0)):
+def raster_height(feature, dsm, dtm, origin=(0, 0), *, with_roof=False):
     """Median positive surface-minus-ground sample in the footprint; None if unavailable."""
     import numpy as np
     from rasterio.mask import mask
@@ -38,9 +38,27 @@ def raster_height(feature, dsm, dtm, origin=(0, 0)):
         diff=np.asarray(a[0].filled(float('nan'))-b[0].filled(float('nan')))
         valid &= np.isfinite(diff) & (diff>1.5) & (diff<100)
         vals=diff[valid]
-        return float(np.median(vals)) if vals.size else None
+        if not vals.size:
+            return (None, None) if with_roof else None
+        height = float(np.median(vals))
+        # Erode the footprint mask to remove mixed edge pixels before estimating roof relief.
+        roof = None
+        if min(valid.shape) >= 5:
+            interior = valid[1:-1,1:-1].copy()
+            for rows, cols in ((slice(None,-2),slice(1,-1)),(slice(2,None),slice(1,-1)),
+                               (slice(1,-1),slice(None,-2)),(slice(1,-1),slice(2,None))):
+                interior &= valid[rows,cols]
+            roof_values = diff[1:-1,1:-1][interior]
+            if roof_values.size >= 20:
+                lo, hi = np.percentile(roof_values, [15,85])
+                relief = hi-lo
+                if relief < .55:
+                    roof = "flat"
+                elif 1.05 < relief < 3.6:
+                    roof = "gabled"
+        return (height, roof) if with_roof else height
     except (ValueError, IndexError):
-        return None
+        return (None, None) if with_roof else None
 
 
 def enrich(source, output, dsm_path=None, dtm_path=None, snapshot=None, overrides=None, origin=(0, 0)):
@@ -60,7 +78,7 @@ def enrich(source, output, dsm_path=None, dtm_path=None, snapshot=None, override
             p=f.get('properties',{})
             ident=str(f.get('id',f"{p.get('osm_type','way')}/{p.get('osm_id','unknown')}"))
             kind=p.get('building_type','other')
-            h=raster_height(f,dsm,dtm,origin) if dsm else None
+            h, roof = raster_height(f,dsm,dtm,origin,with_roof=True) if dsm else (None, None)
             source_name='lidar'
             levels=p.get('levels')
             if h is None and levels:
@@ -78,7 +96,7 @@ def enrich(source, output, dsm_path=None, dtm_path=None, snapshot=None, override
             counts[source_name]+=1
             buildings.append({'id':ident,
                               'geometry':f['geometry'],'height_m':round(float(h),2),'height_source':source_name,
-                              'levels':levels,'type':kind,'roof':p.get('roof','gabled'),'properties':p})
+                              'levels':levels,'type':kind,'roof':roof if kind == 'terrace' and roof else p.get('roof','gabled'),'properties':p})
     finally:
         if dsm:dsm.close();dtm.close()
     result={'schema_version':1,'snapshot':snapshot or 'unknown','height_counts':counts,'buildings':sorted(buildings,key=lambda b:b['id'])}

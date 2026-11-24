@@ -27,7 +27,48 @@ export class World{
  for(const light of this.lights)light.position.applyAxisAngle(new THREE.Vector3(0,1,0),yaw).add(this.festive.position);
  this.set.position.set(position[0],0,position[1]);this.set.rotation.y=yaw;
  this.debug.position.copy(this.set.position);this.debug.rotation.y=yaw;this.set.updateMatrixWorld(true);this.debug.updateMatrixWorld(true);
- if(assets.city?.scene){this.city=assets.city.scene;this.cityWindows=[];this.city.traverse(o=>{if(!o.isMesh)return;o.castShadow=true;o.receiveShadow=true;const materials=Array.isArray(o.material)?o.material:[o.material];const clones=materials.map(material=>{const clone=material.clone();if(/glass|window/i.test(material.name||'')){clone.emissive?.setHex(0xffb568);this.cityWindows.push(clone);}return clone;});o.material=Array.isArray(o.material)?clones:clones[0];});this.scene.add(this.city);}
+ if(assets.city?.scene){
+  this.city=assets.city.scene;this.cityWindows=[];
+  const cache=new Map();
+  this.city.traverse(o=>{
+   if(!o.isMesh)return;
+   o.castShadow=true;o.receiveShadow=true;
+   const bay=o.isInstancedMesh&&/window/.test(o.name);
+   const materialFor=material=>{
+    const key=material.uuid+(bay?'bay':'');
+    if(cache.has(key))return cache.get(key);
+    const clone=material.clone();
+    if(/glass/i.test(material.name||'')){
+     clone.emissive?.setHex(0xffb568);
+     this.cityWindows.push(clone);
+    }
+    if(bay&&clone.map){
+     // The model UVs use a nominal 3.1 × 3.2 m bay. Scale them with each bay
+     // so the world texture repeat remains constant as floors and plots vary.
+     clone.onBeforeCompile=shader=>{
+      shader.vertexShader=shader.vertexShader.replace('#include <uv_vertex>',`#include <uv_vertex>
+       #ifdef USE_INSTANCING
+       vec2 bayScale=vec2(length(instanceMatrix[0].xyz)/3.1,length(instanceMatrix[1].xyz)/3.2);
+       #ifdef USE_MAP
+        vMapUv *= bayScale;
+       #endif
+       #ifdef USE_NORMALMAP
+        vNormalMapUv *= bayScale;
+       #endif
+       #ifdef USE_ROUGHNESSMAP
+        vRoughnessMapUv *= bayScale;
+       #endif
+       #endif`);
+     };
+     clone.customProgramCacheKey=()=>'city-bay-uv';
+    }
+    cache.set(key,clone);
+    return clone;
+   };
+   o.material=Array.isArray(o.material)?o.material.map(materialFor):materialFor(o.material);
+  });
+  this.scene.add(this.city);
+ }
  if(assets.cityCollision?.scene){this.cityCollision=assets.cityCollision.scene;this.cityCollision.updateMatrixWorld(true);}const collisionRoot=new THREE.Group();collisionRoot.add(this.debug.clone(true));if(this.cityCollision)collisionRoot.add(this.cityCollision);collisionRoot.updateMatrixWorld(true);this.octree=new Octree().fromGraphNode(collisionRoot);
  if(assets.cityProps?.scene){this.cityProps=assets.cityProps.scene;this.cityProps.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true;}});this.scene.add(this.cityProps);}
  this.bounds=manifest.bounds||null;

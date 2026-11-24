@@ -3,7 +3,7 @@ import {spawn} from 'node:child_process';import fs from 'node:fs/promises';
 const base='http://127.0.0.1:8011';const smoke=await(await fetch(base+'/smoke/status')).json();if(!smoke.fake_models)throw Error('Fake smoke server required');
 const cityMode=process.argv.includes('--city'),night=process.argv.includes('--night'),grey=process.argv.includes('--grey');
 const cityWalk=process.argv.includes('--city-walk');
-const output=cityMode?'tools/city/build/screenshots':'tools/web3d/raw/screens';await fs.mkdir(output,{recursive:true});
+const output=process.argv.find(arg=>arg.startsWith('--output='))?.slice(9) || (cityMode?'tools/city/build/screenshots':'tools/web3d/raw/screens');await fs.mkdir(output,{recursive:true});
 if(cityMode)await fetch(base+'/smoke/at',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({at:night?'2026-11-24 23:00:00':'2026-11-24 12:00:00'})});
 const overviewCameras=new Map();
 let lines=[];

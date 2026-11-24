@@ -138,11 +138,31 @@ def _tree(mesh, x, z):
         mesh.triangle(bottom,q,p,"tree_leaves")
 
 
-def _mesh_for_props(props):
+def _kenney_tree(path):
+    import trimesh
+    from PIL import Image
+    from geometry.mesh import Mesh
+
+    source = next(iter(trimesh.load(path, force="scene", process=False).geometry.values()))
+    with Image.open(path.parent / "Textures/colormap.png") as palette:
+        palette = palette.convert("RGB")
+        mesh = Mesh()
+        for face in source.faces:
+            u,v = source.visual.uv[face].mean(axis=0)
+            rgb = palette.getpixel((min(palette.width-1,int(u*palette.width)),
+                                    min(palette.height-1,int((1-v)*palette.height))))
+            leaf = rgb[1] > rgb[0]
+            mesh.shade = min(1, max(.45, max(rgb)/185))
+            mesh.triangle(*source.vertices[face], "tree_leaves" if leaf else "tree_trunk")
+    return mesh
+
+
+def _mesh_for_props(props, terrain=None, tree_model=None):
     from geometry.mesh import Mesh
     mesh = Mesh()
     for prop in props:
         x, _, z = prop["position"]
+        begin = len(mesh.positions)
         yaw = float(prop["yaw"])
         kind = prop["type"]
         if kind == "lamp":
@@ -156,9 +176,17 @@ def _mesh_for_props(props):
             _box(mesh,x,z,.9,.35,.48,"bench",yaw)
             _box(mesh,x,z,.9,.08,.95,"bench_back",yaw)
         elif kind == "tree":
-            _tree(mesh,x,z)
+            if tree_model:
+                scale = 2.35 + .6*_stable_fraction(0, prop["id"], 1)
+                base = terrain(x,z) if terrain else 0
+                mesh.instance("kenney-tree", tree_model, (x,base,z), yaw, (scale,scale,scale))
+            else:
+                _tree(mesh,x,z)
         elif kind == "road_marking":
             _box(mesh,x,z,1.2,.12,.012,"road_marking",yaw)
+        if terrain:
+            base = terrain(x,z) + (.05 if kind == "road_marking" else 0)
+            mesh.positions[begin:] = [(px,y+base,pz) for px,y,pz in mesh.positions[begin:]]
     return mesh
 
 
@@ -180,7 +208,12 @@ def run(config, fixture=False):
             _to_shuttle_local(p["position"][::2], shuttle_center, yaw), size)]
     output = build / "props.json"
     output.write_text(json.dumps({"schema_version": 1, "props": props}, sort_keys=True, separators=(",", ":")) + "\n", encoding="utf-8")
-    mesh = _mesh_for_props(props)
+    from geometry.terrain import terrain_for
+    tree_path = root / "tools/city/raw/kenney-tree.glb"
+    tree = _kenney_tree(tree_path) if not fixture and tree_path.is_file() else None
+    if not fixture and not tree:
+        raise FileNotFoundError("Run tools/city/fetch.py --tree to fetch the Kenney tree")
+    mesh = _mesh_for_props(props, terrain_for(config,root,fixture), tree)
     for tier in ("low", "high"):
         from geometry.mesh import write_glb
         destination = root / config["outputs"]["static_dir"] / "assets" / tier / "city-props.glb"
@@ -188,7 +221,7 @@ def run(config, fixture=False):
         if props:
             if fixture:
                 write_glb(mesh, destination)
-            write_glb(mesh, raw_destination)
+            write_glb(mesh, raw_destination, tier=None if fixture else tier)
         else:
             if fixture:
                 destination.unlink(missing_ok=True)

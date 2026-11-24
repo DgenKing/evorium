@@ -8,6 +8,10 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import shutil
+import tempfile
+import zipfile
+from contextlib import ExitStack
 import json
 import sys
 import urllib.parse
@@ -25,12 +29,9 @@ OVERPASS_ENDPOINTS = (
     'https://maps.mail.ru/osm/tools/overpass/api/interpreter',
 )
 USER_AGENT = 'Evorium-city-build/1.0'
-EA_WCS = {
-    'dsm': ('https://environment.data.gov.uk/spatialdata/lidar-composite-digital-surface-model-last-return-dsm-1m/wcs',
-            '9ba4d5ac-d596-445a-9056-dae3ddec0178__Lidar_Composite_Elevation_DSM_1m'),
-    'dtm': ('https://environment.data.gov.uk/spatialdata/lidar-composite-digital-terrain-model-dtm-1m/wcs',
-            '13787b9a-26a4-4775-8523-806d13af58fc__Lidar_Composite_Elevation_DTM_1m'),
-}
+EA_TILE_URL = "https://environment.data.gov.uk/tiles/collections/survey"
+EA_PRODUCTS = {"dsm": "lidar_composite_first_return_dsm", "dtm": "lidar_composite_dtm"}
+EA_TILES = ("SJ8095", "SJ8595")
 
 
 def digest(path: Path) -> str:
@@ -42,29 +43,79 @@ def digest(path: Path) -> str:
 
 
 def download_lidar(config_path=CONFIG, *, opener=urllib.request.urlopen):
-    """Attempt one paired EA WCS download for the configured local-metre box."""
+    """Mosaic the cached (or downloaded) 2022 EA tiles on a 1 m BNG grid."""
+    import rasterio
+    from rasterio.merge import merge
+
     cfg = config_path if isinstance(config_path, dict) else yaml.safe_load(Path(config_path).read_text())
-    west, south, east, north = cfg['area']['bbox']
-    root = Path(__file__).resolve().parents[2]
-    raw_dir = root / 'tools/city/raw'
-    raw_dir.mkdir(parents=True, exist_ok=True)
-    staged = {}
-    for name, (service, coverage) in EA_WCS.items():
-        query = urllib.parse.urlencode({
-            'service': 'WCS', 'version': '2.0.1', 'request': 'GetCoverage',
-            'CoverageId': coverage, 'format': 'image/tiff',
-            'subset': [f'E({west},{east})', f'N({south},{north})'],
-        }, doseq=True)
-        request = urllib.request.Request(f'{service}?{query}', headers={'User-Agent': USER_AGENT})
-        with opener(request, timeout=240) as response:
+    west, south, east, north = cfg["area"]["bbox"]
+    bounds = (west - 20, south - 20, east + 20, north + 20)
+    raw = ROOT / "tools/city/raw"
+    raw.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(dir=raw, prefix="lidar-") as work:
+        work = Path(work)
+        for kind, product in EA_PRODUCTS.items():
+            with ExitStack() as stack:
+                sources = []
+                for tile in EA_TILES:
+                    archive = raw / f"{product}_{tile}.zip"
+                    if not archive.exists():
+                        request = urllib.request.Request(
+                            f"{EA_TILE_URL}/{product}/2022/1/{tile}",
+                            headers={"User-Agent": USER_AGENT},
+                        )
+                        download = work / archive.name
+                        with opener(request, timeout=240) as response, download.open("wb") as stream:
+                            shutil.copyfileobj(response, stream)
+                        with zipfile.ZipFile(download) as package:
+                            if not any(name.lower().endswith(".tif") for name in package.namelist()):
+                                raise ValueError(f"No elevation TIFF in {download.name}")
+                        download.replace(archive)
+                    with zipfile.ZipFile(archive) as package:
+                        members = [name for name in package.namelist() if name.lower().endswith(".tif")]
+                        for index, member in enumerate(sorted(members)):
+                            raster = work / f"{kind}-{tile}-{index}.tif"
+                            with package.open(member) as source, raster.open("wb") as stream:
+                                shutil.copyfileobj(source, stream)
+                            dataset = stack.enter_context(rasterio.open(raster))
+                            if dataset.crs.to_epsg() != 27700 or dataset.res != (1, 1):
+                                raise ValueError(f"Unexpected raster grid in {member}")
+                            sources.append(dataset)
+                if not sources:
+                    raise ValueError(f"No EA {kind} rasters found")
+                data, transform = merge(sources, bounds=bounds, res=(1, 1),
+                                        nodata=-9999, dtype="float32")
+                output = work / f"lidar_{kind}.tif"
+                with rasterio.open(output, "w", driver="GTiff", width=data.shape[2],
+                                   height=data.shape[1], count=1, dtype="float32", crs="EPSG:27700",
+                                   transform=transform, nodata=-9999, compress="deflate") as target:
+                    target.write(data)
+        for kind in EA_PRODUCTS:
+            (work / f"lidar_{kind}.tif").replace(raw / f"lidar_{kind}.tif")
+    return {kind: {"sha256": digest(raw / f"lidar_{kind}.tif")} for kind in EA_PRODUCTS}
+
+
+def download_tree(*, opener=urllib.request.urlopen):
+    """Fetch the two pinned CC0 Kenney Mini Arena tree source files."""
+    base = ("https://raw.githubusercontent.com/KenneyNL/Starter-Kit-Basic-Scene/main/"
+            "sample/Mini%20Arena/Models/GLB%20format/")
+    files = {
+        "tree.glb": ("kenney-tree.glb", "f8632c9758a78f60aa4ca68bf0e5ac972770167a5608e179293a12552d8fc2ef"),
+        "Textures/colormap.png": ("Textures/colormap.png", "cdc845e1c8704c69d87dbf872c9004b470fc838f4b2830fb7e4fc4a530c80e10"),
+    }
+    raw = ROOT / "tools/city/raw"
+    for name, (target, expected) in files.items():
+        path = raw / target
+        if path.is_file() and digest(path) == expected:
+            continue
+        request = urllib.request.Request(base+name, headers={"User-Agent": USER_AGENT})
+        with opener(request, timeout=60) as response:
             data = response.read()
-        if not data.startswith((b'II*\x00', b'MM\x00*')):
-            raise RuntimeError(f'EA {name.upper()} WCS did not return a GeoTIFF')
-        staged[name] = data
-    for name, data in staged.items():
-        (raw_dir / f'lidar_{name}.tif').write_bytes(data)
-    return {name: {'bytes': len(data), 'sha256': hashlib.sha256(data).hexdigest()}
-            for name, data in staged.items()}
+        if hashlib.sha256(data).hexdigest() != expected:
+            raise ValueError(f"Kenney source mismatch for {name}")
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(data)
+    return {target: expected for target, expected in files.values()}
 
 
 def write_preview(layers, bounds, destination):
@@ -221,15 +272,19 @@ def main():
     p.add_argument('--config', type=Path, default=CONFIG)
     p.add_argument('--refresh', action='store_true', help='download a new Overpass snapshot')
     p.add_argument('--fixture', action='store_true', help='use the committed offline test fixture')
-    p.add_argument('--lidar', action='store_true', help='attempt one paired EA DSM/DTM WCS download')
+    p.add_argument('--tree', action='store_true', help='fetch the pinned CC0 Kenney tree source')
+    p.add_argument('--lidar', action='store_true', help='download or use cached EA tiles and build the clipped DSM/DTM pair')
     args=p.parse_args()
     try:
+        if args.tree:
+            print(json.dumps(download_tree(), indent=2))
+            return
         if args.lidar:
             print(json.dumps(download_lidar(args.config), indent=2))
             return
         result=fetch(args.config,fixture=args.fixture,refresh=args.refresh)
     except Exception as exc:
-        print(f'OSM fetch failed: {exc}',file=sys.stderr)
+        print(f'City source fetch failed: {exc}',file=sys.stderr)
         raise SystemExit(1)
     print(json.dumps(result,indent=2))
 

@@ -33,6 +33,45 @@ def _triangles(path: Path) -> int:
     return total
 
 
+def _instance_measurement(path: Path) -> dict:
+    """Count submitted geometry and verify every facade pane is still a quad."""
+    gltf = _read_gltf(path)
+    accessors = gltf["accessors"]
+    materials = gltf.get("materials", [])
+    meshes = gltf.get("meshes", [])
+    raw = path.read_bytes()
+    bin_offset = 28 + struct.unpack_from("<I", raw, 12)[0]
+    windows = 0
+    triangles = 0
+    for node in gltf.get("nodes", []):
+        if "mesh" not in node:
+            continue
+        attrs = node.get("extensions", {}).get("EXT_mesh_gpu_instancing", {}).get("attributes")
+        count = accessors[attrs["TRANSLATION"]]["count"] if attrs else 1
+        panes = 0
+        for primitive in meshes[node["mesh"]]["primitives"]:
+            accessor = accessors[primitive["indices"]] if "indices" in primitive else accessors[primitive["attributes"]["POSITION"]]
+            triangles += accessor["count"] // 3 * count
+            if not attrs or "window" not in node.get("name", ""):
+                continue
+            if materials[primitive["material"]].get("name") not in {"glass", "M_UpperGlass"}:
+                continue
+            panes += 1
+            view = gltf["bufferViews"][accessor["bufferView"]]
+            if accessor["count"] != 6 or view.get("extensions"):
+                raise ValueError(f"Expected two intact pane triangles in {node['name']}")
+            offset = bin_offset + view.get("byteOffset", 0) + accessor.get("byteOffset", 0)
+            indices = struct.unpack_from("<6I", raw, offset)
+            a, b = set(indices[:3]), set(indices[3:])
+            if len(a) != 3 or len(b) != 3 or len(a | b) != 4 or len(a & b) != 2:
+                raise ValueError(f"Window pane is not a quad in {node['name']}")
+        if attrs and "window" in node.get("name", ""):
+            if panes != 1:
+                raise ValueError(f"Missing or duplicate pane in {node['name']}")
+            windows += count
+    return {"scene_triangles": triangles, "window_instances": windows}
+
+
 def _cli(root: Path) -> Path | None:
     candidates = (root / "tools/web3d/node_modules/@gltf-transform/cli/bin/cli.js",
                   root / "tools/city/node_modules/@gltf-transform/cli/bin/cli.js")
@@ -44,7 +83,6 @@ def _optimize(root: Path, path: Path, tier: str) -> bool:
     node = shutil.which("node")
     if cli is None or node is None:
         return False
-    ratio = "0.30" if tier == "low" else "0.45"
     with tempfile.NamedTemporaryFile(prefix="evorium-city-", suffix=".glb", dir=path.parent, delete=False) as tmp:
         temporary = Path(tmp.name)
     temporary.unlink()
@@ -52,11 +90,8 @@ def _optimize(root: Path, path: Path, tier: str) -> bool:
         command = [node, str(cli), "optimize", str(path), str(temporary), "--compress", "meshopt",
                    "--meshopt-level", "high", "--simplify", "false", "--weld", "true",
                    "--join", "true", "--join-meshes", "false", "--join-named", "false", "--instance", "false", "--texture-compress", "webp"]
-        if tier == "high" and path.name == "city.glb":
-            command.extend(("--palette", "false"))  # Retain the glass material for night lighting.
-        if "collision" not in path.name:
-            command[command.index("--simplify") + 1] = "true"
-            command.extend(("--simplify-ratio", ratio, "--simplify-error", "0.005"))
+        if path.name in {"city.glb", "city-props.glb"}:
+            command = [node, str(root / "tools/web3d/compress-city.mjs"), str(path), str(temporary)]
         result = subprocess.run(command, cwd=root, capture_output=True, text=True, check=False)
         if result.returncode:
             raise RuntimeError(f"gltf-transform failed for {path.name}: {result.stderr[-1500:]}")
@@ -101,7 +136,12 @@ def _export(config, fixture, root, static, build, raw, source_manifest, temp):
         if unoptimized and not fixture:
             raise RuntimeError("Meshopt is required for a real city export; run npm ci --prefix tools/web3d. "
                                f"Unoptimized {tier} files: {unoptimized}")
-        reports[tier] = _measure(directory, source_manifest)
+        measurement = reports[tier] = _measure(directory, source_manifest)
+        if not fixture:
+            measurements = [_instance_measurement(p) for p in sorted(directory.glob("city*.glb"))
+                            if "collision" not in p.name]
+            measurement.update({key: sum(item[key] for item in measurements)
+                                for key in ("scene_triangles", "window_instances")})
     data_dir = static / "data"
     base = json.loads((data_dir / "budgets.json").read_text(encoding="utf-8"))
     summary = {"schema_version": 1, "optimized": optimized, "tiers": reports,
@@ -117,7 +157,7 @@ def _export(config, fixture, root, static, build, raw, source_manifest, temp):
         section["city"] = measurement
         measurement["package_bytes"] = section["bytes"]
         measurement["package_megabytes"] = section["megabytes"]
-        measurement["package_triangles"] = section["triangles"]
+        measurement["package_triangles"] = base_triangles + measurement.get("scene_triangles", measurement["triangles"])
         limit = config.get("lod_budgets_bytes", {}).get(tier)
         if limit is not None and section["bytes"] > limit:
             summary.setdefault("over_budget", {}).setdefault("bytes", {})[tier] = section["bytes"] - limit

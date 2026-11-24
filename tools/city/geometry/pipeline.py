@@ -36,13 +36,17 @@ def _road_width(props: dict[str, Any]) -> float:
     if width is not None:
         return max(3.0, min(18.0, float(width)))
     kind = str(props.get("highway", props.get("road_type", "residential")))
+    if kind in {"footway", "path", "steps", "cycleway"}:
+        return 1.8
     return 7.0 if kind in {"primary", "secondary", "tertiary", "trunk"} else 5.0
 
 
 def _road_mesh(features: list[dict[str, Any]], exclude_center: tuple[float, float] | None = None,
-               exclude_yaw: float = 0.0, exclude_size: tuple[float, float] = (0.0, 0.0)) -> tuple[Mesh, dict[str, Any], list[dict[str, Any]]]:
+               exclude_yaw: float = 0.0, exclude_size: tuple[float, float] = (0.0, 0.0),
+               terrain=None) -> tuple[Mesh, dict[str, Any], list[dict[str, Any]]]:
     mesh, roads = Mesh(), []
-    def add_strip(a, b, half_width, material, walkable=False):
+    level = terrain or (lambda x, z: 0.0)
+    def add_strip(a, b, half_width, material, elevation=0):
         dx, dz = b[0] - a[0], b[1] - a[1]
         length = math.hypot(dx, dz)
         if length <= 1e-5:
@@ -50,8 +54,7 @@ def _road_mesh(features: list[dict[str, Any]], exclude_center: tuple[float, floa
         px, pz = -dz / length * half_width, dx / length * half_width
         corners = [(a[0] + px, a[1] + pz), (b[0] + px, b[1] + pz),
                    (b[0] - px, b[1] - pz), (a[0] - px, a[1] - pz)]
-        mesh.quad((corners[0][0], 0, corners[0][1]), (corners[1][0], 0, corners[1][1]),
-                  (corners[2][0], 0, corners[2][1]), (corners[3][0], 0, corners[3][1]), material)
+        mesh.quad(*[(x, level(x,z)+elevation, z) for x,z in corners], material)
     for feature in sorted(features, key=lambda f: str(f.get("id", f.get("properties", {}).get("osm_id", "")))):
         props = feature.get("properties", {})
         ident = str(feature.get("id", props.get("osm_id", "road")))
@@ -61,7 +64,7 @@ def _road_mesh(features: list[dict[str, Any]], exclude_center: tuple[float, floa
                 length = math.hypot(b[0] - a[0], b[1] - a[1])
                 crosses_cutout = (exclude_center is not None and min(exclude_size) > 0
                                   and _segment_hits_shuttle(a, b, exclude_center, exclude_yaw, exclude_size))
-                pieces = max(1, math.ceil(length / 1.25)) if crosses_cutout else 1
+                pieces = max(1, math.ceil(length / (1.25 if crosses_cutout else 16))) if crosses_cutout or terrain else 1
                 for part in range(pieces):
                     t0, t1 = part / pieces, (part + 1) / pieces
                     p0 = (a[0] + (b[0] - a[0]) * t0, a[1] + (b[1] - a[1]) * t0)
@@ -70,7 +73,15 @@ def _road_mesh(features: list[dict[str, Any]], exclude_center: tuple[float, floa
                         continue
                     # Roads are also walkable so a route graph can cross mapped streets
                     # instead of trapping characters on one pavement side.
-                    add_strip(p0, p1, width / 2, "asphalt", True)
+                    highway = props.get("highway")
+                    foot = highway in {"footway", "path", "steps"}
+                    cobbles = props.get("surface") in {"sett","cobblestone","paving_stones"} or props.get("name") == "Cutting Room Square"
+                    surface = "setts" if cobbles else "pavement" if foot else "asphalt"
+                    add_strip(p0, p1, width / 2, surface, .035 if terrain else 0)
+                    if highway in {"primary", "secondary", "tertiary"} and length > 7 and part % 2 == 0:
+                        end = tuple(a+(b-a)*.48 for a,b in zip(p0,p1))
+                        add_strip(p0, end, .045, "road_marking", .057)
+
                     roads.append({"id": ident, "start": list(p0), "end": list(p1), "width_m": width})
                     if props.get("highway") in {"footway", "path", "steps", "cycleway", "pedestrian"} or props.get("sidewalk:both") == "separate":
                         continue
@@ -87,18 +98,18 @@ def _road_mesh(features: list[dict[str, Any]], exclude_center: tuple[float, floa
                         inner_q = (p1[0] + nx * (width / 2) * sign, p1[1] + nz * (width / 2) * sign)
                         outer_p = (inner_p[0] + nx * .16 * sign, inner_p[1] + nz * .16 * sign)
                         outer_q = (inner_q[0] + nx * .16 * sign, inner_q[1] + nz * .16 * sign)
-                        mesh.quad((inner_p[0], .14, inner_p[1]), (inner_q[0], .14, inner_q[1]),
-                                  (outer_q[0], .14, outer_q[1]), (outer_p[0], .14, outer_p[1]), "kerb")
-                        mesh.quad((outer_p[0], 0, outer_p[1]), (outer_q[0], 0, outer_q[1]),
-                                  (outer_q[0], .14, outer_q[1]), (outer_p[0], .14, outer_p[1]), "kerb")
+                        mesh.quad((inner_p[0], level(*inner_p)+.15, inner_p[1]), (inner_q[0], level(*inner_q)+.15, inner_q[1]),
+                                  (outer_q[0], level(*outer_q)+.15, outer_q[1]), (outer_p[0], level(*outer_p)+.15, outer_p[1]), "kerb")
+                        mesh.quad((outer_p[0], level(*outer_p), outer_p[1]), (outer_q[0], level(*outer_q), outer_q[1]),
+                                  (outer_q[0], level(*outer_q)+.15, outer_q[1]), (outer_p[0], level(*outer_p)+.15, outer_p[1]), "kerb")
                         p = (p0[0] + nx * offset * sign, p0[1] + nz * offset * sign)
                         q = (p1[0] + nx * offset * sign, p1[1] + nz * offset * sign)
-                        add_strip(p, q, sidewalk / 2, "pavement", True)
+                        add_strip(p, q, sidewalk / 2, "pavement", .15)
     grouped = {}
     for road in roads:
         grouped.setdefault(road["id"], []).append(road)
-    centers, graph_edges, route_index = {}, set(), 0
-    for ident, segments in sorted(grouped.items()):
+    centers, graph_edges = {}, set()
+    for _, segments in sorted(grouped.items()):
         chains, points = [], []
         for item in segments:
             a, b = item["start"], item["end"]
@@ -117,12 +128,11 @@ def _road_mesh(features: list[dict[str, Any]], exclude_center: tuple[float, floa
                     sampled.append(b); length = 0.0
             if math.dist(sampled[-1], chain[-1]) > .01: sampled.append(chain[-1])
             names = []
-            for index, point in enumerate(sampled):
-                name = f"r{route_index}_{index}"
-                centers[name] = [round(point[0], 3), 0, round(point[1], 3)]
+            for point in sampled:
+                name = f"r{len(centers):x}"
+                centers[name] = [round(point[0], 2), 0, round(point[1], 2)]
                 names.append(name)
             graph_edges.update(tuple(sorted(pair)) for pair in zip(names, names[1:]))
-            route_index += 1
     # OSM ways often meet geometrically at junctions without sharing node ids.
     cell_size, buckets = 4.5, {}
     for name, point in sorted(centers.items()):
@@ -244,6 +254,9 @@ def run(config: dict[str, Any] | None = None, fixture: bool = False) -> dict[str
     project's config.yaml. Outputs remain in tools/city/build and static city assets.
     """
     from facades.generate import add_facades
+    from .finish import wall_material
+    from .roof import flat_roof, pitched_roof
+    from .terrain import terrain_for
     root = Path.cwd()
     if config is None:
         import yaml
@@ -266,15 +279,31 @@ def run(config: dict[str, Any] | None = None, fixture: bool = False) -> dict[str
     buildings = [b for b in all_buildings if not _overlaps_shuttle(b, shuttle_center, shuttle_yaw, shuttle_size)]
     removed_buildings = len(all_buildings) - len(buildings)
     road_features = _feature_collection(roads_path)
+    terrain = terrain_for(config, root, fixture)
     city_mesh = Mesh()
     for building in buildings:
         geometry = building.get("geometry", {})
         height = float(building.get("height_m", 8.0))
         base = float(building.get("base_y", 0.0))
-        for ring in _poly_rings(geometry):
-            extrude_polygon(city_mesh, ring, height, base, "facade", "roof")
-        add_facades(city_mesh, building, building.get("levels"), road_features)
-    road_mesh, navmesh, roads = _road_mesh(road_features, shuttle_center, shuttle_yaw, shuttle_size)
+        rings = _poly_rings(geometry)
+        if not rings:
+            continue
+        if terrain:
+            elevations = sorted(terrain(*p[:2]) for ring in rings for p in ring)
+            base = building["base_y"] = elevations[0] - .08
+            height += elevations[len(elevations)//2] - base
+            building["height_m"] = height
+        needs_pitch = not fixture and building.get("type") == "terrace" and building.get("roof") != "flat"
+        rise = min(2.2, height*.21) if needs_pitch else 0
+        building["wall_height"] = height - rise
+        wall = wall_material(building)
+        add_facades(city_mesh, building, building.get("levels"), road_features, wall=wall)
+        for ring in rings:
+            if rise:
+                pitched_roof(city_mesh, ring, base, height-rise, rise, wall)
+            else:
+                flat_roof(city_mesh, ring, base+height, "ground")
+    road_mesh, navmesh, roads = _road_mesh(road_features, shuttle_center, shuttle_yaw, shuttle_size, terrain)
     city_mesh.extend(road_mesh)
     bounds = config.get("area", {}).get("bbox", [0, 0, 0, 0])
     origin = config.get("area", {}).get("origin", [0, 0])
@@ -285,8 +314,33 @@ def run(config: dict[str, Any] | None = None, fixture: bool = False) -> dict[str
     # Keep the fallback terrain just under the road/building base plane. Detailed
     # roads and building bases remain visible at y=0; this prevents ground z-fighting
     # over finished floors and leaves the surface available across gaps.
-    ground.quad((min_x, ground_y, min_z), (min_x, ground_y, max_z),
-                (max_x, ground_y, max_z), (max_x, ground_y, min_z), "ground")
+    step = 13
+    nx = math.ceil((max_x-min_x)/step) if terrain else 1
+    nz = math.ceil((max_z-min_z)/step) if terrain else 1
+    if not nx or not nz:
+        nx = nz = 1
+    def vertex(ix, iz):
+        x = min_x + ix*(max_x-min_x)/nx
+        z = min_z + iz*(max_z-min_z)/nz
+        return x, (terrain(x,z)-.08 if terrain else ground_y), z
+    vertices = {(x,z):vertex(x,z) for x in range(nx+1) for z in range(nz+1)}
+    ground_shades = {}
+    if terrain:
+        from shapely.geometry import Point, Polygon
+        from shapely.strtree import STRtree
+
+        footprints = [Polygon(ring) for building in buildings for ring in _poly_rings(building["geometry"])]
+        if footprints:
+            tree = STRtree(footprints)
+            for key, (x,_,z) in vertices.items():
+                point = Point(x,z)
+                distance = point.distance(footprints[tree.nearest(point)])
+                ground_shades[key] = .72 + .28*min(1,distance/3)
+    for x in range(nx):
+        for z in range(nz):
+            keys = ((x,z),(x,z+1),(x+1,z+1),(x+1,z))
+            ground.quad(*(vertices[key] for key in keys),"ground",
+                        shades=[ground_shades.get(key,1) for key in keys])
     city_mesh.extend(ground)
     collision_mesh = Mesh()
     # Collisions use simplified building outlines; the city ground plane supports
@@ -314,8 +368,8 @@ def run(config: dict[str, Any] | None = None, fixture: bool = False) -> dict[str
     stage_dir = build_dir / "export-source"
     for tier in ("low", "high"):
         raw_dir = stage_dir / tier
-        chunk_size = 25.0 if tier == "low" else None
-        write_glb(city_mesh, raw_dir / "city.glb", chunk_size=chunk_size)
+        chunk_size = 50.0 if tier == "low" else None
+        write_glb(city_mesh, raw_dir / "city.glb", chunk_size=chunk_size, tier=None if fixture else tier)
         write_glb(collision_mesh, raw_dir / "city-collision.glb")
         if fixture:
             asset_dir = static_dir / "assets" / tier
