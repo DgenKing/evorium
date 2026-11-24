@@ -48,6 +48,10 @@ website/images/src/
 tools/web3d/raw/
 tools/web3d/node_modules/
 
+# City source downloads and generated intermediates.
+tools/city/raw/
+tools/city/build/
+
 # Home server runtime files
 last_update_tests.txt
 backups/
