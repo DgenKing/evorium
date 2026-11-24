@@ -3,18 +3,19 @@ area:
   name: Ancoats five streets
   crs: EPSG:27700
   # Approximate 400 m by 300 m box around Cutting Room Square; confirm against preview.
-  bbox: [384120, 398000, 384520, 398300]
-  origin: [384320, 398150]
+  bbox: [384615, 398490, 385015, 398790]
+  origin: [384815, 398640]
   ground_y: -0.1
 seed: 20261124
 snapshot_date: "2026-11-24"
 shuttle_street:
-  # Local x,z metres; adjusted after generated geometry preview.
-  position: [0, 0]
-  rotation_degrees: 0
-  replace_radius: 24
+  # Local street lane at z=1.5 aligns with the straight Henry Street segment.
+  position: [4.9, 5.48]
+  rotation_degrees: 41.8
+  # Local X/Z footprint from the shipped Shuttle Street GLB bounds (metres).
+  footprint_size: [35.1, 23.4]
 inputs:
-  osm: tools/city/raw/osm.geojson
+  osm: tools/city/raw/osm-overpass.json
   lidar_dsm: tools/city/raw/lidar_dsm.tif
   lidar_dtm: tools/city/raw/lidar_dtm.tif
 outputs:

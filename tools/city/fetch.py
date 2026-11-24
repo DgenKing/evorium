@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Fetch a dated OSM snapshot and prepare deterministic local-metre GeoJSON layers.
+"""Fetch OSM/LiDAR inputs and prepare deterministic local-metre GeoJSON layers.
 
-This is the only city script which makes network requests. Raw API responses stay
+This is the only city script which makes network requests. Raw responses stay
 under ignored tools/city/raw/; cleaned layers and the manifest stay in tools/city/build/.
 """
 from __future__ import annotations
@@ -19,7 +19,18 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[2]
 CONFIG = ROOT / 'tools/city/config.yaml'
-OVERPASS = 'https://overpass-api.de/api/interpreter'
+OVERPASS_ENDPOINTS = (
+    'https://overpass-api.de/api/interpreter',
+    'https://overpass.private.coffee/api/interpreter',
+    'https://maps.mail.ru/osm/tools/overpass/api/interpreter',
+)
+USER_AGENT = 'Evorium-city-build/1.0'
+EA_WCS = {
+    'dsm': ('https://environment.data.gov.uk/spatialdata/lidar-composite-digital-surface-model-last-return-dsm-1m/wcs',
+            '9ba4d5ac-d596-445a-9056-dae3ddec0178__Lidar_Composite_Elevation_DSM_1m'),
+    'dtm': ('https://environment.data.gov.uk/spatialdata/lidar-composite-digital-terrain-model-dtm-1m/wcs',
+            '13787b9a-26a4-4775-8523-806d13af58fc__Lidar_Composite_Elevation_DTM_1m'),
+}
 
 
 def digest(path: Path) -> str:
@@ -28,6 +39,32 @@ def digest(path: Path) -> str:
         for block in iter(lambda: f.read(1024 * 1024), b''):
             h.update(block)
     return h.hexdigest()
+
+
+def download_lidar(config_path=CONFIG, *, opener=urllib.request.urlopen):
+    """Attempt one paired EA WCS download for the configured local-metre box."""
+    cfg = config_path if isinstance(config_path, dict) else yaml.safe_load(Path(config_path).read_text())
+    west, south, east, north = cfg['area']['bbox']
+    root = Path(__file__).resolve().parents[2]
+    raw_dir = root / 'tools/city/raw'
+    raw_dir.mkdir(parents=True, exist_ok=True)
+    staged = {}
+    for name, (service, coverage) in EA_WCS.items():
+        query = urllib.parse.urlencode({
+            'service': 'WCS', 'version': '2.0.1', 'request': 'GetCoverage',
+            'CoverageId': coverage, 'format': 'image/tiff',
+            'subset': [f'E({west},{east})', f'N({south},{north})'],
+        }, doseq=True)
+        request = urllib.request.Request(f'{service}?{query}', headers={'User-Agent': USER_AGENT})
+        with opener(request, timeout=240) as response:
+            data = response.read()
+        if not data.startswith((b'II*\x00', b'MM\x00*')):
+            raise RuntimeError(f'EA {name.upper()} WCS did not return a GeoTIFF')
+        staged[name] = data
+    for name, data in staged.items():
+        (raw_dir / f'lidar_{name}.tif').write_bytes(data)
+    return {name: {'bytes': len(data), 'sha256': hashlib.sha256(data).hexdigest()}
+            for name, data in staged.items()}
 
 
 def write_preview(layers, bounds, destination):
@@ -68,11 +105,10 @@ def write_preview(layers, bounds, destination):
     image.save(destination,optimize=False)
 
 
-def query_for_bbox(bbox, snapshot_date=None):
+def query_for_bbox(bbox):
     """Build Overpass query using WGS84 bounds (south,west,north,east)."""
     s, w, n, e = bbox
-    date_clause = f'[date:"{snapshot_date}T00:00:00Z"]' if snapshot_date else ''
-    return f'''[out:json][timeout:180]{date_clause};(way["building"]({s},{w},{n},{e});way["highway"]({s},{w},{n},{e});way["shop"]({s},{w},{n},{e});way["landuse"]({s},{w},{n},{e});way["natural"]({s},{w},{n},{e});way["leisure"]({s},{w},{n},{e});way["waterway"]({s},{w},{n},{e});node["natural"="tree"]({s},{w},{n},{e});node["amenity"~"^(bench|waste_basket|street_lamp)$"]({s},{w},{n},{e});node["man_made"="street_lamp"]({s},{w},{n},{e});node["barrier"="bollard"]({s},{w},{n},{e});node["highway"="street_lamp"]({s},{w},{n},{e});node["highway"="crossing"]({s},{w},{n},{e}););out body geom;'''
+    return f'''[out:json][timeout:180];(way["building"]({s},{w},{n},{e});way["highway"]({s},{w},{n},{e});way["shop"]({s},{w},{n},{e});way["landuse"]({s},{w},{n},{e});way["natural"]({s},{w},{n},{e});way["leisure"]({s},{w},{n},{e});way["waterway"]({s},{w},{n},{e});node["natural"="tree"]({s},{w},{n},{e});node["amenity"~"^(bench|waste_basket|street_lamp)$"]({s},{w},{n},{e});node["man_made"="street_lamp"]({s},{w},{n},{e});node["barrier"="bollard"]({s},{w},{n},{e});node["highway"="street_lamp"]({s},{w},{n},{e});node["highway"="crossing"]({s},{w},{n},{e}););out body geom;'''
 
 
 def element_geometry(el):
@@ -109,14 +145,32 @@ def fetch(config_path=CONFIG, *, opener=urllib.request.urlopen, fixture=False, r
     build.mkdir(parents=True, exist_ok=True)
     raw_path = raw_dir / 'osm-overpass.json'
     if fixture:
-        raw_path.write_bytes((ROOT/'tools/city/tests/fixtures/osm.json').read_bytes())
+        raw_path = ROOT/'tools/city/tests/fixtures/osm.json'
     elif refresh or not raw_path.exists():
-        query = query_for_bbox((minlat, minlon, maxlat, maxlon), str(cfg.get('snapshot_date') or ''))
-        request = urllib.request.Request(OVERPASS, data=urllib.parse.urlencode({'data': query}).encode(),
-                                         headers={'User-Agent': 'Evorium city builder/1.0', 'Content-Type': 'application/x-www-form-urlencoded'})
-        # Keep a byte-identical source snapshot; no response is committed.
-        with opener(request, timeout=240) as response:
-            raw_path.write_bytes(response.read())
+        query = query_for_bbox((minlat, minlon, maxlat, maxlon))
+        body = urllib.parse.urlencode({'data': query}).encode()
+        headers = {'User-Agent': USER_AGENT, 'Content-Type': 'application/x-www-form-urlencoded'}
+        errors = []
+        # Public Overpass instances can be temporarily overloaded. All endpoints
+        # execute the same query; the fetched bytes are pinned by SHA-256.
+        for endpoint in OVERPASS_ENDPOINTS:
+            request = urllib.request.Request(endpoint, data=body, headers=headers)
+            try:
+                with opener(request, timeout=240) as response:
+                    response_bytes = response.read()
+                response_payload = json.loads(response_bytes)
+                if response_payload.get('remark'):
+                    raise RuntimeError(response_payload['remark'])
+                if not isinstance(response_payload.get('elements'), list):
+                    raise RuntimeError('Overpass response has no elements list')
+                if not response_payload['elements']:
+                    raise RuntimeError('Overpass returned no elements for the configured area')
+                raw_path.write_bytes(response_bytes)
+                break
+            except Exception as exc:
+                errors.append(f'{endpoint}: {exc}')
+        else:
+            raise RuntimeError('All Overpass endpoints failed: ' + '; '.join(errors))
     raw_bytes = raw_path.read_bytes()
     payload = json.loads(raw_bytes)
     to_local = Transformer.from_crs('EPSG:4326', cfg['area']['crs'], always_xy=True)
@@ -151,7 +205,7 @@ def fetch(config_path=CONFIG, *, opener=urllib.request.urlopen, fixture=False, r
     write_preview(layers, (west-origin_x,south-origin_y,east-origin_x,north-origin_y), build/'preview.png')
     manifest = {'schema_version':1,'source':'OpenStreetMap Overpass API','snapshot_date':str(cfg.get('snapshot_date') or date.today()),
                 'query_bbox_wgs84':[minlat,minlon,maxlat,maxlon], 'bbox_epsg27700':[west,south,east,north],
-                'origin_epsg27700':[origin_x,origin_y], 'raw_file':'tools/city/raw/osm-overpass.json',
+                'origin_epsg27700':[origin_x,origin_y], 'raw_file':str(raw_path.relative_to(ROOT)),
                 'raw_sha256':digest(raw_path),'counts':{k:len(v) for k,v in sorted(layers.items())}}
     (build/'manifest.json').write_text(json.dumps(manifest,sort_keys=True,indent=2)+'\n')
     return manifest
@@ -167,8 +221,12 @@ def main():
     p.add_argument('--config', type=Path, default=CONFIG)
     p.add_argument('--refresh', action='store_true', help='download a new Overpass snapshot')
     p.add_argument('--fixture', action='store_true', help='use the committed offline test fixture')
+    p.add_argument('--lidar', action='store_true', help='attempt one paired EA DSM/DTM WCS download')
     args=p.parse_args()
     try:
+        if args.lidar:
+            print(json.dumps(download_lidar(args.config), indent=2))
+            return
         result=fetch(args.config,fixture=args.fixture,refresh=args.refresh)
     except Exception as exc:
         print(f'OSM fetch failed: {exc}',file=sys.stderr)

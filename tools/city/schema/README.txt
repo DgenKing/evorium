@@ -11,11 +11,11 @@ height_source, levels, type, roof, properties}]}. Polygon coordinates are [x,z].
 props.json: {schema_version, props:[{id,type,position:[x,y,z],yaw,source}]}; deterministic
 procedural props use the configured seed combined with stable feature id.
 
-navmesh.json: {schema_version, vertices:[[x,y,z]], polygons:[[vertex_index,...]],
-portals:[{a,b,from,to,cost}]}; only walkable public surfaces are included.
+navmesh.json: {schema_version, graph:{nodes:{id:[x,y,z]},edges:[[id,id]]}}; the
+compact route graph samples public street centerlines and connects nearby junctions.
 
 city.json: {schema_version, snapshot, origin_epsg, origin, attribution, buildings,
-roads, props, navmesh, shuttle_street}. The manifest embeds the navmesh; rendered and
+roads, props, navmesh, shuttle_street}. The manifest embeds the compact route graph; rendered and
 collision meshes are city.glb and city-collision.glb under the selected quality tier.
 Geometry payloads are static and independent of runtime NPC/simulation data. IDs and
 output ordering are stable.

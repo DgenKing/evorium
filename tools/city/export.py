@@ -44,17 +44,19 @@ def _optimize(root: Path, path: Path, tier: str) -> bool:
     node = shutil.which("node")
     if cli is None or node is None:
         return False
-    ratio = "0.58" if tier == "low" else "0.88"
+    ratio = "0.30" if tier == "low" else "0.45"
     with tempfile.NamedTemporaryFile(prefix="evorium-city-", suffix=".glb", dir=path.parent, delete=False) as tmp:
         temporary = Path(tmp.name)
     temporary.unlink()
     try:
         command = [node, str(cli), "optimize", str(path), str(temporary), "--compress", "meshopt",
                    "--meshopt-level", "high", "--simplify", "false", "--weld", "true",
-                   "--texture-compress", "webp"]
+                   "--join", "true", "--join-meshes", "false", "--join-named", "false", "--instance", "false", "--texture-compress", "webp"]
+        if tier == "high" and path.name == "city.glb":
+            command.extend(("--palette", "false"))  # Retain the glass material for night lighting.
         if "collision" not in path.name:
             command[command.index("--simplify") + 1] = "true"
-            command.extend(("--simplify-ratio", ratio))
+            command.extend(("--simplify-ratio", ratio, "--simplify-error", "0.005"))
         result = subprocess.run(command, cwd=root, capture_output=True, text=True, check=False)
         if result.returncode:
             raise RuntimeError(f"gltf-transform failed for {path.name}: {result.stderr[-1500:]}")
@@ -64,28 +66,42 @@ def _optimize(root: Path, path: Path, tier: str) -> bool:
         temporary.unlink(missing_ok=True)
 
 
-def _measure(tier_dir: Path):
+def _measure(tier_dir: Path, city_json: Path):
     files = sorted(tier_dir.glob("city*.glb"))
     if not files:
         raise FileNotFoundError(f"No city GLBs in {tier_dir}; run geometry and props first")
-    return {"bytes": sum(p.stat().st_size for p in files),
+    manifest_bytes = city_json.stat().st_size
+    return {"bytes": sum(p.stat().st_size for p in files) + manifest_bytes,
             "triangles": sum(_triangles(p) for p in files if "collision" not in p.name),
-            "files": {p.name: {"bytes": p.stat().st_size, "triangles": _triangles(p)} for p in files}}
+            "files": {**{p.name: {"bytes": p.stat().st_size, "triangles": _triangles(p)} for p in files},
+                      "city.json": {"bytes": manifest_bytes, "triangles": 0}}}
 
 
 def run(config, fixture=False):
     root = Path.cwd()
     static = root / config["outputs"]["static_dir"]
+    build = root / config["outputs"]["build_dir"]
+    raw = build / "export-source"
+    if not fixture and not (raw / "city.json").is_file():
+        raise FileNotFoundError("Run geometry and props before exporting the city")
+    source_manifest = raw / "city.json" if raw.is_dir() else static / "data/city.json"
+    with tempfile.TemporaryDirectory(prefix="export-", dir=build) if raw.is_dir() else tempfile.TemporaryDirectory() as temp:
+        return _export(config, fixture, root, static, build, raw, source_manifest, Path(temp))
+
+
+def _export(config, fixture, root, static, build, raw, source_manifest, temp):
     reports = {}
     optimized = {}
     for tier in ("low", "high"):
-        directory = static / "assets" / tier
+        directory = temp / tier if raw.is_dir() else static / "assets" / tier
+        if raw.is_dir():
+            shutil.copytree(raw / tier, directory)
         optimized[tier] = {p.name: _optimize(root, p, tier) for p in sorted(directory.glob("city*.glb"))}
         unoptimized = sorted(name for name, done in optimized[tier].items() if not done)
         if unoptimized and not fixture:
             raise RuntimeError("Meshopt is required for a real city export; run npm ci --prefix tools/web3d. "
                                f"Unoptimized {tier} files: {unoptimized}")
-        reports[tier] = _measure(directory)
+        reports[tier] = _measure(directory, source_manifest)
     data_dir = static / "data"
     base = json.loads((data_dir / "budgets.json").read_text(encoding="utf-8"))
     summary = {"schema_version": 1, "optimized": optimized, "tiers": reports,
@@ -108,13 +124,20 @@ def run(config, fixture=False):
         triangle_limit = config.get("triangle_budgets", {}).get(tier)
         if triangle_limit is not None and measurement["triangles"] > triangle_limit:
             summary.setdefault("over_budget", {}).setdefault("triangles", {})[tier] = measurement["triangles"] - triangle_limit
-    build_report = root / config["outputs"]["build_dir"] / "budgets.json"
+    build_report = build / "budgets.json"
     build_report.parent.mkdir(parents=True, exist_ok=True)
     build_report.write_text(json.dumps(summary, sort_keys=True, indent=2) + "\n", encoding="utf-8")
     if summary.get("over_budget"):
         raise RuntimeError(f"City output exceeds the package download budget: {summary['over_budget']}")
-    if not fixture:
-        (data_dir / "budgets.json").write_text(json.dumps(base, indent=2) + "\n", encoding="utf-8")
+    if raw.is_dir():
+        for tier in ("low", "high"):
+            directory = static / "assets" / tier
+            directory.mkdir(parents=True, exist_ok=True)
+            for path in sorted((temp / tier).glob("city*.glb")):
+                shutil.copyfile(path, directory / path.name)
+            if not (temp / tier / "city-props.glb").exists():
+                (directory / "city-props.glb").unlink(missing_ok=True)
+        shutil.copyfile(source_manifest, data_dir / "city.json")
     return summary
 
 

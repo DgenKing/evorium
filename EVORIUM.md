@@ -103,8 +103,8 @@ and phone); it runs around the clock on the owner's HP G4 and is reachable over 
 | Navigation | ☰ burger menu top right on every page: Dashboard, Map, 3D, Timeline, Guide |
 | Dashboard | Character cards, live feed, usage/spend, controls, terrace card, **version** (git commit and date) and the **Restart server** button |
 | Map tab | 2D canvas of the pub, shop, empty unit and street; pixel sprites, bubbles, portrait popups |
-| 3D game | `/world3d`: Shuttle Street in Three.js, nine distinct MPFB models, third person, touch controls, chat and optional cosmetic street life; Ancoats city mode is opt-in at `?city=1` and awaits generated data assets |
-| City pipeline | Build scripts, schemas, offline fixtures and opt-in client wiring are on `city-pipeline`; no real snapshot or city assets have been generated yet (§7, §10) |
+| 3D game | `/world3d`: Shuttle Street in Three.js, nine distinct MPFB models, third person, touch controls, chat and optional cosmetic street life; Ancoats city mode is opt-in at `?city=1` with a local review build |
+| City pipeline | Real Ancoats snapshot and repeatable opt-in build on `city-pipeline`. The build fits both package limits (§7, §10). |
 | Hosting | HP G4 home server, auto-updating from GitHub, nightly backups, public via a Cloudflare Tunnel; connection details kept private (§6) |
 | Model | DeepSeek `deepseek-flash`, JSON mode, temperature 0.8 (0.6 decisions, 0.2 structured calls) |
 | Cost | About $0.00015 per call; about $0.40 a day for the whole world at real speed with auto mode on |
@@ -378,7 +378,7 @@ simple hulls, and animates the third-person player and NPCs. Individual MPFB mod
 retargeted clips; failed models use a logged Quaternius fallback. It polls `GET /world/scene` every 1.5 seconds
 (5 seconds after errors). That endpoint reads a consistent read-only SQLite snapshot and exposes public presence
 and dialogue only, with no model calls. Spot assignments live in Python; the browser handles walking (along a
-collision-verified A* graph; `?city=1` uses a generated road/pavement graph and heap-based A*), bubbles, lighting and doors. The city is static client-side geography and does not change simulation places or routines. `ambient.js` adds browser-local cosmetic street life with its own visible-tab clock, lazy animal loads and no collision in the player octree. Player actions use the existing `/player/*` and
+collision-verified A* graph. `?city=1` joins that graph to sampled OSM road/path centerlines and uses heap-based A*), bubbles, lighting and doors. The city is static client-side geography and does not change simulation places or routines. `ambient.js` adds browser-local cosmetic street life with its own visible-tab clock, lazy animal loads and no collision in the player octree. Player actions use the existing `/player/*` and
 `/catchup` endpoints. NPC rationale and private facts never appear in the player UI. Details in §7.
 
 ### Code map
@@ -553,11 +553,12 @@ tools/city/.venv/bin/python tools/city/build.py
 ```
 
 Use `build.py --stage fetch` (or choose `heights`, `geometry`, `facades`, `props`, `export` or `navmesh`) to run
-one stage. The fetch stage uses the
-dated Overpass snapshot; `--fixture` uses committed offline input. When LiDAR is not available, place matching
-1 m EPSG:27700 GeoTIFFs at `tools/city/raw/lidar_dsm.tif` and `tools/city/raw/lidar_dtm.tif`; otherwise heights
-fall back to OSM levels × 3.2 m, then per-type defaults. Raw files and intermediates stay ignored. The build
-must pass the total download and triangle budgets before city files should be committed or used with `?city=1`.
+one stage. The fetch stage reuses `tools/city/raw/osm-overpass.json`. Fresh queries use current Overpass data.
+The manifest records the snapshot date and SHA-256. For an isolated offline fixture build, point the config
+at separate build and static output directories and use `--fixture`. The G4 updater's default pytest collection
+is limited to `tests/`. Run the optional build tests with
+`tools/city/.venv/bin/python -m pytest -q tools/city/tests`.
+
 
 ### Settings (`config.py`, git-ignored)
 
@@ -670,7 +671,7 @@ private. In commands below, `<server-user>`, `<server-address>`, `<project-dir>`
 are placeholders to fill in privately.
 
 City data downloads, LiDAR processing and build tools stay on the main PC. The G4 receives only finished,
-budget-checked city assets in a reviewed code update; the current server and live world were not touched by this work.
+budget-checked city assets in a reviewed code update. The updater’s default pytest run collects only the app tests under `tests/`.
 
 - **Public access:** the Cloudflare address shows the public website at `/`; its Play button goes to `/game`
   (login required), and the 3D game is at `/world3d`.
@@ -799,15 +800,38 @@ ten animation clips and baked lighting are served by FastAPI. The EVORIUM wordma
 `/world3d` keeps the existing Shuttle Street scene unless opened as `/world3d?city=1`. City mode conditionally
 loads `data/city.json`, `city.glb`, `city-collision.glb` and, when present, `city-props.glb`; it places Shuttle
 Street at the transform in `tools/city/config.yaml`, joins its street exits to the generated walk graph, and shows
-OpenStreetMap and Environment Agency attribution. The static city assets are not present yet, so city mode is not
-ready to use in this checkout. Regular play does not fetch city files.
+OpenStreetMap and Environment Agency attribution. The local review build is available in this mode.
 
-The build is deterministic from a pinned input snapshot and seed. It writes local-metre intermediate GeoJSON,
-building heights/types, procedural facades and props, low/high GLBs, a collision mesh, a nav graph, previews and
-budget reports. The only network code is `tools/city/fetch.py`; `tools/city/raw/` and `tools/city/build/` are
-ignored. `tools/city/landmarks.yaml` supports per-OSM-ID height and facade-material overrides without adding
-geometry. The current scripts use flat ground fallback and procedural materials; LiDAR terrain, baked AO, shared
-texture sheets, instanced windows and canal-edge geometry remain unfinished. See §10 for the work status.
+From the repo root, run `tools/city/.venv/bin/python tools/city/build.py` after the §5 setup. The pinned
+24 Nov OSM snapshot has 800 elements and SHA-256
+`1735fbcc98e29e23679d66d7ca998a5d315e2d9579c04f19a20763c3af6add32`. The 400 × 300 m Cutting Room Square
+box clips to 156 buildings, 571 road/path features, 21 trees, 21 mapped props, 3 water features, 24 land-use
+features and no tagged shops. The height stage used 41 OSM level counts, 115 type defaults and no LiDAR.
+Shuttle Street sits on a straight Henry Street segment at local [4.9, 5.48] m and 41.8° yaw. The existing lane
+therefore lines up with the road, and the configured footprint excludes six overlapping buildings and local props.
+The city has 150 buildings and 212 generated props. The package report includes `city.json` and the existing
+Shuttle Street and cast assets. Low totals **7.738 MB** (37,617 added render triangles) and high totals
+**11.598 MB** (45,839 added render triangles). The export stages publish city GLBs only after checking the
+package. See `tools/city/build/budgets.json`. Low uses spatial cells and a shorter draw distance. High
+retains a separate window material for night glow.
+
+All seven stages produced byte-identical output on repeated runs. The offline Chrome harness is
+`tools/web3d/screenshots.mjs --city --screens-only --city-walk`, with the fake smoke server on port 8011.
+It checks OSM attribution, frame limits, and one mapped section per named street. It also checks routes
+from both Shuttle Street exits to every named destination. The preview is `tools/city/build/preview.png`.
+The sampled frames stayed under 141,000 in-view triangles on low and 241,000 on high, compared with
+the 150,000 and 400,000 limits. Headless Chrome used SwiftShader on a desktop with a separate phone viewport
+profile. The screenshot reports include draw calls and measured FPS. The 30 FPS phone target still needs a
+check on physical hardware. Screenshots and measurements are in `tools/city/build/screenshots/`.
+
+**Manual 1 m LiDAR:** the scripted EA WCS request returned HTTP 404. Open the
+[Defra survey download map](https://environment.data.gov.uk/survey) from the 1 m composite
+[DSM dataset](https://www.data.gov.uk/dataset/cf3f1137-c12b-44a1-a835-e80fe4a60b92/lidar-composite-digital-surface-model-dsm-1m)
+and [DTM dataset](https://www.data.gov.uk/dataset/01b3ee39-da3f-47b6-83da-dc98e73a461f/lidar-composite-digital-terrain-model-dtm-1m).
+Select the last-return DSM and the DTM. Download each product for both 5 km tiles, SJ89 NW (E380000–385000,
+N395000–400000) and SJ89 NE (E385000–390000, N395000–400000). Unzip the GeoTIFFs, mosaic by product
+and clip to E384615–385015, N398490–398790 on the same 1 m EPSG:27700 grid. Save the two aligned files as
+`tools/city/raw/lidar_dsm.tif` and `tools/city/raw/lidar_dtm.tif`. Rerun the build.
 
 ### Controls
 
@@ -1049,14 +1073,11 @@ streets, film grain, matching the game's portraits.
 
 ## 9. Known issues and open questions
 
-- **Real Manchester city build (24 Nov):** the `city-pipeline` branch has the staged builders, offline fixtures and
-  `?city=1` client path, but no real OSM snapshot or city GLBs were produced. This environment lacks the city
-  geospatial packages; run the optional build setup in §5 before fetching/building. Until reviewed assets exist,
-  `/world3d?city=1` reports that the generated manifest is missing. No real-world building/road counts, LiDAR
-  source counts, screenshots, Chrome triangle count or phone FPS are available. Baked AO, shared facade textures,
-  instanced windows and a canal-edge build remain unfinished. The full Python suite in this environment also hits
-  a pre-existing Starlette 0.35.1 / httpx 0.28.1 `TestClient` constructor mismatch; the focused city and 3D Node
-  checks pass.
+- **Ancoats review build (24 Nov):** the one EA LiDAR download attempt failed, so heights rely on OSM levels
+  and type defaults and the ground is flat. The route graph samples OSM road/path centerlines. Browser checks
+  exercise representative mapped sections and waypoint connections. Full coverage of every side path and
+  scheduled NPC transitions needs further playtesting. Baked AO, instanced windows, facade texture sheets
+  and the canal edge remain unfinished. Software-rendered headless metrics do not verify real-phone FPS.
 
 - **Realism limits (23 Nov):** the fixed holiday table ends in 2027 and festive events are for Christmas 2026.
   Weather is cached model output for Ancoats, not a street rain sensor; outages older than six hours give no
@@ -1193,12 +1214,10 @@ streets, film grain, matching the game's portraits.
 modelled by hand and not invented by AI. Codex writes and fixes the scripts; the scripts make the city; the
 owner looks at screenshots at each gate. Same inputs always give the same city, so areas stay fixed once built.
 
-**Status (24 Nov):** the `city-pipeline` branch now contains build config and schemas, dated OSM fetch and preview
-code, building classification/height fallbacks and landmark overrides, fixture-tested geometry/facades/props,
-budgeted Meshopt export, navmesh integration and the opt-in game loader. Offline checks cover deterministic
-fixtures and preserve the city-off path. No real OSM or LiDAR data was downloaded, so the five-street build itself,
-its city files, screenshots and in-world walkthrough remain to be completed and reviewed. The local environment
-lacks `pyproj`, Shapely and rasterio; no OSM request was made.
+**Status (24 Nov):** the pinned real OSM snapshot builds the five-street area for the opt-in review.
+Geometry uses fallback heights and a flat collider, with a compact street graph joined to Shuttle Street.
+Download and sampled browser triangle budgets pass. The preview, local rebuild steps and LiDAR fallback
+are in §7. The owner review and real-phone performance gate remain open.
 
 **How the work is split**
 
@@ -1223,7 +1242,7 @@ lacks `pyproj`, Shapely and rasterio; no OSM request was made.
   `.glb`/`.json` files, so the app's `requirements.txt` and auto-update are untouched.
 
 **Data (all free, licensed for this)**
-- OpenStreetMap (Geofabrik Greater Manchester extract, snapshot date pinned): roads, pavements, building
+- OpenStreetMap (Overpass snapshot pinned by SHA-256 and clipped to the box): roads, pavements, building
   footprints, shops, trees, water, land use. ODbL: the game must show "© OpenStreetMap contributors".
 - Environment Agency LiDAR (1 m surface and terrain models, Open Government Licence): real building heights
   (surface minus ground inside each footprint) and the ground level.
@@ -1254,10 +1273,8 @@ which the arcade also needs; travel between places in real time comes after Part
 **Effort:** roughly 2–3 weeks of Codex sessions for Parts 1–7, with reviews in between. Parts 1–3 (about 2–4
 sessions) are the cheap test of whether it's worth going on.
 
-**Next steps:** install the optional city build packages on the main PC, run `build.py --stage fetch`, inspect
-`tools/city/build/preview.png` and the pinned OSM manifest, supply matching LiDAR files if available, then run the
-full build. Review the resulting counts, height sources, GLB budgets, screenshots, city-mode Chrome checks and
-real-phone frame rate before treating Parts 1–7 as complete or pushing generated assets.
+**Next steps:** review the screenshots under `tools/city/build/screenshots/` and play the city on a real phone.
+Supply the matching LiDAR pair if available, then review remaining art and detailed route coverage (§9).
 
 ---
 
@@ -1429,6 +1446,16 @@ the key pool and open sign-ups.
 
 ## 14. History
 
+### 24 November 2026 — Real Ancoats review build
+
+- Built the pinned Cutting Room Square snapshot, placed Shuttle Street on Henry Street and excluded overlaps.
+  Removed the Overpass attic date clause after it caused resource failures. The EA WCS attempt returned 404.
+- Reduced road geometry, split the low render mesh into spatial cells, and kept export inputs for deterministic
+  rebuilds. Joined the compact graph and city collision to the existing street scene. Kept city-only
+  build tests out of the G4 updater's app test collection.
+- Project Python suite passed 401 tests. City Python suite passed 16 tests. Node checks passed.
+  Browser walking, asset and performance evidence is recorded in §7.
+
 ### 24 November 2026 — City pipeline implementation started
 
 - **What:** created the `city-pipeline` branch with build schemas/config, dated OSM fetch and manifest hashing,
@@ -1436,10 +1463,20 @@ the key pool and open sign-ups.
   Meshopt export and size/triangle gates, navmesh/client integration under `?city=1`, and an empty
   `landmarks.yaml` override file. No simulation, app runtime dependency, live data or G4 setting changed.
 - **Checks:** 23 focused Python city tests; compileall; city opt-in, Web3D, navigation and map Node checks pass.
-  The full Python suite is affected by the local Starlette/httpx TestClient mismatch (§9).
 - **Not built:** no real OSM/LiDAR snapshot or city GLBs because `pyproj`, Shapely and rasterio are absent here.
   Real counts, budget measurements on the five-street input, screenshots, Chrome in-view triangles and phone FPS
   remain outstanding. No assets were added to the website or static output.
+
+### 24 November 2026 — Ancoats area corrected; real fetch blocked
+
+- **What:** corrected the BNG box and local origin to cover the intended area around Cutting Room Square, updated
+  the offline OSM fixture to that location, and added a second Overpass endpoint fallback. Installed the isolated
+  city build environment. A live refresh failed at both endpoints (502/504); removed the stale raw snapshot and
+  preview from the earlier incorrect bbox so they cannot be reused accidentally. No city assets were generated.
+- **Why / learned:** the first bbox was southwest of the requested streets. Location checking identified the
+  correct center; the public Overpass services were unavailable during the dated fetch attempt, so real counts and
+  the real-area build remain unverified.
+- **Checks:** 23 focused Python city tests passed, as did city opt-in, Web3D, navigation and map Node checks.
 
 ### 24 November 2026 — Plan: real Manchester streets built by scripts
 

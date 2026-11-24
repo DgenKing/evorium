@@ -31,16 +31,30 @@ export function transformRoutes(data,position=[0,0],rotationDegrees=0){
 }
 export function buildCityRouteGraph(navmesh,waypoints,fallbackGraph={nodes:{},edges:[]}){
  const vertices=navmesh?.vertices||[],polygons=navmesh?.polygons||[];
- if(!vertices.length||!polygons.length)return fallbackGraph;
+ if(!navmesh?.graph&&(!vertices.length||!polygons.length))return fallbackGraph;
  let nodes={},edges=[],centres=[];
  if(navmesh.graph?.nodes&&navmesh.graph?.edges){nodes={...navmesh.graph.nodes};edges=navmesh.graph.edges.map(e=>[...e]);centres=Object.values(nodes);}
  else{for(let i=0;i<polygons.length;i++){const points=polygons[i].map(index=>vertices[index]).filter(Boolean);if(!points.length)continue;const centre=[0,1,2].map(axis=>points.reduce((sum,p)=>sum+p[axis],0)/points.length);nodes[`C${i}`]=centre;centres[i]=centre;}const edgeOwners=new Map();for(let i=0;i<polygons.length;i++){const poly=polygons[i];for(let j=0;j<poly.length;j++){const a=poly[j],b=poly[(j+1)%poly.length],key=a<b?`${a}:${b}`:`${b}:${a}`,owner=edgeOwners.get(key);if(owner!==undefined&&centres[owner]&&centres[i])edges.push([`C${owner}`,`C${i}`]);else edgeOwners.set(key,i);}}for(const portal of navmesh.portals||[]){const a=Number(portal.a),b=Number(portal.b);if(Number.isInteger(a)&&Number.isInteger(b)&&centres[a]&&centres[b])edges.push([`C${a}`,`C${b}`]);}}
- const endpoints={STREET_LEFT:fallbackGraph.nodes.STREET_LEFT,STREET_RIGHT:fallbackGraph.nodes.STREET_RIGHT,UPSTAIRS:fallbackGraph.nodes.UPSTAIRS};for(const [name,waypoint] of Object.entries(waypoints||{}))endpoints[name]=waypoint.position;
  const baseNodes=Object.entries(nodes);
- for(const [name,position] of Object.entries(endpoints)){if(!Array.isArray(position)||position.length<3)continue;nodes[name]=position;let best=null,bestDistance=Infinity;for(const [node,point] of baseNodes){const d=distance(position,point);if(d<bestDistance){best=node;bestDistance=d;}}if(best)edges.push([name,best]);}
- // The generated OSM road graph intentionally leaves a cutout for the fictional
- // Shuttle Street block; its two scene exits connect the generated city at both ends.
- if(nodes.STREET_LEFT&&nodes.STREET_RIGHT)edges.push(['STREET_LEFT','STREET_RIGHT']);
+ Object.assign(nodes,fallbackGraph.nodes);
+ edges.push(...fallbackGraph.edges);
+ if(nodes.STREET_LEFT&&nodes.STREET_RIGHT&&!fallbackGraph.edges.length)edges.push(["STREET_LEFT","STREET_RIGHT"]);
+ for(const name of ['STREET_LEFT','STREET_RIGHT']){
+  const exit=nodes[name];
+  if(!exit)continue;
+  let best=null,bestDistance=Infinity;
+  for(const [node,point] of baseNodes){
+   const d=distance(exit,point);
+   if(d<bestDistance){best=node;bestDistance=d;}
+  }
+  if(best)edges.push([name,best]);
+ }
+ for(const [name,waypoint] of Object.entries(waypoints||{})){
+  if(nodes[name])continue;
+  nodes[name]=waypoint.position;
+  const target=baseNodes.length?nearest({nodes:Object.fromEntries(baseNodes)},waypoint.position):null;
+  if(target)edges.push([name,target]);
+ }
  const unique=new Map();for(const [a,b] of edges){if(a===b||!nodes[a]||!nodes[b])continue;const key=a<b?`${a}\0${b}`:`${b}\0${a}`;unique.set(key,a<b?[a,b]:[b,a]);}
  const cleanEdges=[...unique.values()],neighbors=new Map(Object.keys(nodes).map(name=>[name,[]]));for(const [a,b] of cleanEdges){neighbors.get(a).push(b);neighbors.get(b).push(a);}return {nodes,edges:cleanEdges,neighbors};
 }

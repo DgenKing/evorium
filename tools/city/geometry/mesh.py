@@ -92,46 +92,31 @@ def extrude_polygon(mesh: Mesh, ring: Sequence[Sequence[float]], height: float, 
                       (points[c][0], top, points[c][1]), roof)
 
 
-def _pack_glb(mesh: Mesh) -> bytes:
-    if not mesh.positions:
-        mesh.triangle((0, 0, 0), (.001, 0, 0), (0, 0, .001))
-    packed_positions = b"".join(struct.pack("<3f", *p) for p in mesh.positions)
-    # Three unique vertices per face make normals correct at hard edges.
-    normals: list[tuple[float, float, float]] = []
-    for i in range(0, len(mesh.positions), 3):
-        a, b, c = mesh.positions[i:i + 3]
-        u = (b[0]-a[0], b[1]-a[1], b[2]-a[2]); v = (c[0]-a[0], c[1]-a[1], c[2]-a[2])
-        n = (u[1]*v[2]-u[2]*v[1], u[2]*v[0]-u[0]*v[2], u[0]*v[1]-u[1]*v[0])
-        length = math.sqrt(sum(t*t for t in n)) or 1
-        normals.extend([tuple(t/length for t in n)] * 3)
-    packed_normals = b"".join(struct.pack("<3f", *n) for n in normals)
-    # Keep indices local to each material primitive and use one shared index accessor.
-    all_indices = list(range(len(mesh.positions)))
-    packed_indices = b"".join(struct.pack("<I", i) for i in all_indices)
-    blobs = [packed_positions, packed_normals, packed_indices]
-    views, offset = [], 0
-    for blob, target in zip(blobs, (34962, 34962, 34963)):
-        pad = (-offset) % 4
-        offset += pad
-        views.append({"buffer": 0, "byteOffset": offset, "byteLength": len(blob), "target": target})
-        offset += len(blob)
-    binary = bytearray()
-    for blob in blobs:
-        binary.extend(b"\0" * ((-len(binary)) % 4)); binary.extend(blob)
-    mins = [min(p[i] for p in mesh.positions) for i in range(3)]
-    maxs = [max(p[i] for p in mesh.positions) for i in range(3)]
-    accessors = [
-        {"bufferView": 0, "componentType": 5126, "count": len(mesh.positions), "type": "VEC3", "min": mins, "max": maxs},
-        {"bufferView": 1, "componentType": 5126, "count": len(normals), "type": "VEC3"},
-        {"bufferView": 2, "componentType": 5125, "count": len(all_indices), "type": "SCALAR"},
-    ]
-    material_names = sorted(mesh.groups)
+def _split_mesh(mesh: Mesh, cell_size: float) -> list[Mesh]:
+    """Partition triangles into spatial cells so the renderer can frustum-cull them."""
+    cells: dict[tuple[int, int], Mesh] = {}
+    for material in sorted(mesh.groups):
+        indices = mesh.groups[material]
+        for i in range(0, len(indices), 3):
+            points = [mesh.positions[indices[j]] for j in range(i, i + 3)]
+            x = sum(point[0] for point in points) / 3
+            z = sum(point[2] for point in points) / 3
+            key = (math.floor(x / cell_size), math.floor(z / cell_size))
+            cells.setdefault(key, Mesh()).triangle(*points, material)
+    return [cells[key] for key in sorted(cells)]
+
+
+def _pack_glb(mesh: Mesh, chunk_size: float | None = None) -> bytes:
+    meshes = _split_mesh(mesh, chunk_size) if chunk_size else [mesh]
+    meshes = [m for m in meshes if m.positions]
+    if not meshes:
+        empty = Mesh(); empty.triangle((0, 0, 0), (.001, 0, 0), (0, 0, .001)); meshes = [empty]
+    material_names = sorted({name for m in meshes for name in m.groups})
     colors = {"asphalt": [0.16, 0.17, 0.18, 1], "pavement": [0.46, 0.45, 0.42, 1],
-              "kerb": [0.58, 0.56, 0.51, 1],
-              "glass": [0.10, 0.18, 0.22, 1], "shopfront": [0.22, 0.23, 0.21, 1],
-              "roof": [0.38, 0.36, 0.33, 1], "facade": [0.61, 0.57, 0.51, 1],
-              "brick": [0.46, 0.22, 0.17, 1], "stone": [0.65, 0.61, 0.54, 1],
-              "concrete": [0.49, 0.51, 0.52, 1],
+              "kerb": [0.58, 0.56, 0.51, 1], "glass": [0.10, 0.18, 0.22, 1],
+              "shopfront": [0.22, 0.23, 0.21, 1], "roof": [0.38, 0.36, 0.33, 1],
+              "facade": [0.61, 0.57, 0.51, 1], "brick": [0.46, 0.22, 0.17, 1],
+              "stone": [0.65, 0.61, 0.54, 1], "concrete": [0.49, 0.51, 0.52, 1],
               "lamp_post": [0.15, 0.17, 0.18, 1], "lamp_head": [0.95, 0.63, 0.28, 1],
               "street_bin": [0.20, 0.31, 0.27, 1], "bench": [0.31, 0.19, 0.12, 1],
               "bench_back": [0.35, 0.22, 0.14, 1], "bollard": [0.74, 0.67, 0.47, 1],
@@ -140,38 +125,47 @@ def _pack_glb(mesh: Mesh) -> bytes:
     materials = [{"name": n, "doubleSided": True, "pbrMetallicRoughness": {
         "baseColorFactor": colors.get(n, [0.55, 0.53, 0.49, 1]), "metallicFactor": 0, "roughnessFactor": 0.92}}
         for n in material_names]
-    primitives = [{"attributes": {"POSITION": 0, "NORMAL": 1}, "indices": 2, "material": i, "mode": 4} for i, _ in enumerate(material_names)]
-    # Mesh is duplicated by material in the common index accessor; each primitive's
-    # index list must refer to only its own triangles. Build a compact index buffer.
-    index_data = bytearray(); prims = []; cursor = 0
-    for mi, name in enumerate(material_names):
-        indices = mesh.groups[name]
-        start = len(index_data)
-        for index in indices:
-            index_data.extend(struct.pack("<I", index))
-        prims.append({"attributes": {"POSITION": 0, "NORMAL": 1}, "indices": len(accessors), "material": mi, "mode": 4})
-        accessors.append({"bufferView": 3, "byteOffset": start, "componentType": 5125, "count": len(indices), "type": "SCALAR"})
-        cursor += len(indices)
-    # Replace packed full index buffer with per-material indices.
-    blobs = [packed_positions, packed_normals, bytes(index_data)]
-    views, offset = [], 0
-    for blob, target in zip(blobs, (34962, 34962, 34963)):
-        offset += (-offset) % 4
-        views.append({"buffer": 0, "byteOffset": offset, "byteLength": len(blob), "target": target})
-        offset += len(blob)
-    accessors = accessors[:3] + [{"bufferView": 2, "byteOffset": sum(len(mesh.groups[k]) * 4 for k in material_names[:mi]),
-                                "componentType": 5125, "count": len(mesh.groups[name]), "type": "SCALAR"}
-                               for mi, name in enumerate(material_names)]
+    payload = bytearray(); views = []; accessors = []; gltf_meshes = []; nodes = []
+
+    def append_blob(data: bytes, target: int) -> int:
+        payload.extend(b"\0" * ((-len(payload)) % 4))
+        index = len(views)
+        views.append({"buffer": 0, "byteOffset": len(payload), "byteLength": len(data), "target": target})
+        payload.extend(data)
+        return index
+
+    for mesh_index, item in enumerate(meshes):
+        positions = item.positions
+        normals = []
+        for i in range(0, len(positions), 3):
+            a, b, c = positions[i:i + 3]
+            u = (b[0]-a[0], b[1]-a[1], b[2]-a[2]); v = (c[0]-a[0], c[1]-a[1], c[2]-a[2])
+            n = (u[1]*v[2]-u[2]*v[1], u[2]*v[0]-u[0]*v[2], u[0]*v[1]-u[1]*v[0])
+            length = math.sqrt(sum(t*t for t in n)) or 1
+            normals.extend([tuple(t/length for t in n)] * 3)
+        pos_view = append_blob(b"".join(struct.pack("<3f", *v) for v in positions), 34962)
+        normal_view = append_blob(b"".join(struct.pack("<3f", *v) for v in normals), 34962)
+        pos_accessor = len(accessors)
+        accessors.append({"bufferView": pos_view, "componentType": 5126, "count": len(positions), "type": "VEC3",
+                          "min": [min(v[i] for v in positions) for i in range(3)],
+                          "max": [max(v[i] for v in positions) for i in range(3)]})
+        normal_accessor = len(accessors)
+        accessors.append({"bufferView": normal_view, "componentType": 5126, "count": len(normals), "type": "VEC3"})
+        primitives = []
+        for material_index, name in enumerate(material_names):
+            indices = item.groups.get(name)
+            if not indices: continue
+            index_view = append_blob(b"".join(struct.pack("<I", v) for v in indices), 34963)
+            index_accessor = len(accessors)
+            accessors.append({"bufferView": index_view, "componentType": 5125, "count": len(indices), "type": "SCALAR"})
+            primitives.append({"attributes": {"POSITION": pos_accessor, "NORMAL": normal_accessor},
+                               "indices": index_accessor, "material": material_index, "mode": 4})
+        gltf_meshes.append({"primitives": primitives})
+        nodes.append({"name": f"city-cell-{mesh_index:03d}", "mesh": mesh_index})
     gltf = {"asset": {"version": "2.0", "generator": "Evorium deterministic city builder"},
-            "scene": 0, "scenes": [{"nodes": [0]}], "nodes": [{"mesh": 0}],
-            "meshes": [{"primitives": [{"attributes": {"POSITION": 0, "NORMAL": 1}, "indices": 3 + i, "material": i, "mode": 4}
-                                        for i, _ in enumerate(material_names)]}],
-            "materials": materials, "buffers": [{"byteLength": len(binary) + len(index_data)}],
-            "bufferViews": views, "accessors": accessors}
-    # Assemble true aligned payload with positions, normals, then grouped indices.
-    payload = bytearray(packed_positions); payload.extend(b"\0" * ((-len(payload)) % 4)); payload.extend(packed_normals)
-    payload.extend(b"\0" * ((-len(payload)) % 4)); payload.extend(index_data)
-    gltf["buffers"][0]["byteLength"] = len(payload)
+            "scene": 0, "scenes": [{"nodes": list(range(len(nodes)))}], "nodes": nodes,
+            "meshes": gltf_meshes, "materials": materials,
+            "buffers": [{"byteLength": len(payload)}], "bufferViews": views, "accessors": accessors}
     js = json.dumps(gltf, sort_keys=True, separators=(",", ":")).encode("utf-8")
     js += b" " * ((-len(js)) % 4)
     payload.extend(b"\0" * ((-len(payload)) % 4))
@@ -179,6 +173,6 @@ def _pack_glb(mesh: Mesh) -> bytes:
     return struct.pack("<4sII", b"glTF", 2, total) + struct.pack("<I4s", len(js), b"JSON") + js + struct.pack("<I4s", len(payload), b"BIN\0") + payload
 
 
-def write_glb(mesh: Mesh, path: str | Path) -> None:
+def write_glb(mesh: Mesh, path: str | Path, *, chunk_size: float | None = None) -> None:
     Path(path).parent.mkdir(parents=True, exist_ok=True)
-    Path(path).write_bytes(_pack_glb(mesh))
+    Path(path).write_bytes(_pack_glb(mesh, chunk_size))

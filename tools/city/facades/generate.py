@@ -86,6 +86,8 @@ def add_facades(mesh: Mesh, building: dict[str, Any], levels: int | None = None,
     floor_h = height / floors
     ident = str(building.get("id", props.get("osm_id", "building")))
     phase = _stable_fraction(ident)
+    twice_area = sum(a[0]*b[1] - b[0]*a[1] for a, b in zip(ring, ring[1:] + ring[:1]))
+    outside = 1 if twice_area > 0 else -1
     edges = []
     for idx, (a, b) in enumerate(zip(ring, ring[1:] + ring[:1])):
         dx, dz = float(b[0]) - float(a[0]), float(b[1]) - float(a[1])
@@ -116,7 +118,7 @@ def add_facades(mesh: Mesh, building: dict[str, Any], levels: int | None = None,
                 pane_width = min(1.35 if kind == "mill_warehouse" else 1.05, length / bays * .48)
                 start, end = center - pane_width / 2, center + pane_width / 2
                 # Keep every decorative pane just off the footprint wall to avoid z-fighting.
-                offset_x, offset_z = dz / length * .016, -dx / length * .016
+                offset_x, offset_z = dz / length * .05 * outside, -dx / length * .05 * outside
                 p0 = (float(a[0]) + ux * start + offset_x, pane_y, float(a[1]) + uz * start + offset_z)
                 p1 = (float(a[0]) + ux * end + offset_x, pane_y, float(a[1]) + uz * end + offset_z)
                 mesh.quad(p0, p1, (p1[0], pane_y + pane_height, p1[2]), (p0[0], pane_y + pane_height, p0[2]), "glass")
@@ -133,7 +135,7 @@ def add_facades(mesh: Mesh, building: dict[str, Any], levels: int | None = None,
             door_width, door_height = min(1.1, length * .2), min(2.15, floor_h * .86)
             center = length * (.68 if phase > .5 else .32)
             start, end = center - door_width / 2, center + door_width / 2
-            ox, oz = dz / length * .02, -dx / length * .02
+            ox, oz = dz / length * .06 * outside, -dx / length * .06 * outside
             base = float(building.get("base_y", 0))
             p0 = (float(a[0]) + ux * start + ox, base, float(a[1]) + uz * start + oz)
             p1 = (float(a[0]) + ux * end + ox, base, float(a[1]) + uz * end + oz)
@@ -149,7 +151,7 @@ def add_facades(mesh: Mesh, building: dict[str, Any], levels: int | None = None,
             if length < 3:
                 continue
             ux, uz = dx / length, dz / length
-            offset_x, offset_z = dz / length * .025, -dx / length * .025
+            offset_x, offset_z = dz / length * .05 * outside, -dx / length * .05 * outside
             p0 = (float(a[0]) + offset_x, top - .12, float(a[1]) + offset_z)
             p1 = (float(b[0]) + offset_x, top - .12, float(b[1]) + offset_z)
             _bar(mesh, (p0[0], p0[2]), (p1[0], p1[2]), p0[1], .16, .12, facade_material)

@@ -15,7 +15,7 @@ async function boot(){
  const selected=params.get('quality')||stored('quality','auto');let preset=presets[selected]?selected:detectQuality({touch:matchMedia('(pointer:coarse)').matches,width:innerWidth});
  const renderer=new THREE.WebGLRenderer({canvas,antialias:preset==='high',powerPreference:'high-performance'});renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1;
  if(selected==='auto')preset=detectQuality({touch:matchMedia('(pointer:coarse)').matches,width:innerWidth,maxTextureSize:renderer.capabilities.maxTextureSize,pixelRatio:devicePixelRatio});
- function applyPreset(){const p=presets[preset];renderer.setPixelRatio(Math.min(devicePixelRatio,p.pixelRatio));renderer.shadowMap.enabled=!!p.shadows;renderer.shadowMap.type=THREE.PCFSoftShadowMap;renderer.setSize(innerWidth,innerHeight);}
+ function applyPreset(){const p=presets[preset];if(cityEnabled){camera.far=p.shadows?110:45;camera.updateProjectionMatrix();}renderer.setPixelRatio(Math.min(devicePixelRatio,p.pixelRatio));renderer.shadowMap.enabled=!!p.shadows;renderer.shadowMap.type=THREE.PCFSoftShadowMap;renderer.setSize(innerWidth,innerHeight);}
  applyPreset();const labels=new CSS2DRenderer({element:$('labels')});labels.setSize(innerWidth,innerHeight);
  const data=await loadData(cityEnabled),assets=await loadAssets(presets[preset].assets,p=>{$('progress').value=p;},data.cast,cityEnabled);
  if(cityEnabled){const shuttle=data.city.shuttle_street||{};transformRoutes(data,shuttle.position||[0,0],shuttle.rotation_degrees||0);data.routes=buildCityRouteGraph(data.city.navmesh,data.waypoints,data.routes);}
@@ -45,7 +45,7 @@ async function boot(){
  }
  // Test cameras keep world state deterministic and use the public smoke snapshot.
  const cameras={street:[[-1,4.3,15],[-.5,1,-1]],pub:[[-4.5,2.2,-1.3],[-4.3,1.1,-6]],shop:[[6.4,2.2,-3.2],[2.5,1.2,-5.5]],cast:[[-6,2.3,-1],[-4,1.2,-5]],player:[[-4.62,2.5,5],[-4.62,1,0]]};
- if(test){if(studio){if(['head','body'].includes(params.get('cam'))){const entry=lineup.find(e=>e.actor.root.visible);if(!entry)throw Error('Unknown cast close-up');const head=entry.actor.root.position.clone().add(new THREE.Vector3(0,entry.actor.height*(params.get('cam')==='head'?.87:.5),0));camera.position.copy(head).add(new THREE.Vector3(0,.05,params.get('cam')==='head'?1.2:3.1));camera.lookAt(head);}else{const distance=innerWidth/innerHeight<1?34:12;camera.position.set(0,2.4,distance);camera.lookAt(0,1,2);}}else{const c=cameras[params.get('cam')]||cameras.street;camera.position.fromArray(c[0]);camera.lookAt(new THREE.Vector3().fromArray(c[1]));}}else {await request('/player/enter',{place:player.place});joined=player.place;await ui.initial();}
+ if(test){if(studio){if(['head','body'].includes(params.get('cam'))){const entry=lineup.find(e=>e.actor.root.visible);if(!entry)throw Error('Unknown cast close-up');const head=entry.actor.root.position.clone().add(new THREE.Vector3(0,entry.actor.height*(params.get('cam')==='head'?.87:.5),0));camera.position.copy(head).add(new THREE.Vector3(0,.05,params.get('cam')==='head'?1.2:3.1));camera.lookAt(head);}else{const distance=innerWidth/innerHeight<1?34:12;camera.position.set(0,2.4,distance);camera.lookAt(0,1,2);}}else{const c=cameras[params.get('cam')]||cameras.street;const cameraPoint=new THREE.Vector3().fromArray(c[0]),lookPoint=new THREE.Vector3().fromArray(c[1]);if(cityEnabled){cameraPoint.applyMatrix4(world.set.matrixWorld);lookPoint.applyMatrix4(world.set.matrixWorld);}camera.position.copy(cameraPoint);camera.lookAt(lookPoint);}}else {await request('/player/enter',{place:player.place});joined=player.place;await ui.initial();}
  if(ambientType||params.get('cam')==='ambient'){const z=(ambientType||params.get('focus'))==='fox'||params.get('debris')==='can'?1.65:1.1;const distance=innerWidth/innerHeight<1?3.8:3.2;camera.position.set(-.7,1.25,z+distance);camera.lookAt(-2.5,.30,z);player.position.set(-3.4,world.ground(-3.4,2.2),2.2);player.actor.root.position.copy(player.position);}
  let visibleTriangles=0,visibleDrawCalls=0;
  let last=performance.now(),fps=0,elapsed=0,frames=0;const watchdog=new Watchdog();
@@ -66,7 +66,7 @@ async function boot(){
  if(!studio&&params.get('ambient')!=='off'){try{const {createAmbient}=await import('./ambient.js');ambient=await createAmbient({scene,world,graph:data.routes,quality:preset,player,actors,enabled:$('street-life').checked,testType:ambientType,debris:params.get('debris')||'packet'});ambient.setEnabled($('street-life').checked);}catch(e){console.warn('Street life unavailable',e);window.__evoriumReport.errors.push('Street life: '+e.message);}}
  window.__evoriumAmbientReady=true;
  if(test){
- window.__evoriumTest={ambient,renderer,camera,scene,measureCast(){return lineup.map(({name,actor})=>{let minY=Infinity,maxY=-Infinity;actor.root.updateMatrixWorld(true);actor.body.traverse(o=>{if(!o.isMesh)return;if(o.isSkinnedMesh)o.skeleton.update();const p=new THREE.Vector3();for(let i=0;i<o.geometry.attributes.position.count;i++){o.getVertexPosition(i,p);p.applyMatrix4(o.matrixWorld);minY=Math.min(minY,p.y-actor.root.position.y);maxY=Math.max(maxY,p.y-actor.root.position.y);}});return{name,minY,maxY,height:actor.height};});},physics(){
+ window.__evoriumTest={ambient,renderer,camera,scene,world,measureCast(){return lineup.map(({name,actor})=>{let minY=Infinity,maxY=-Infinity;actor.root.updateMatrixWorld(true);actor.body.traverse(o=>{if(!o.isMesh)return;if(o.isSkinnedMesh)o.skeleton.update();const p=new THREE.Vector3();for(let i=0;i<o.geometry.attributes.position.count;i++){o.getVertexPosition(i,p);p.applyMatrix4(o.matrixWorld);minY=Math.min(minY,p.y-actor.root.position.y);maxY=Math.max(maxY,p.y-actor.root.position.y);}});return{name,minY,maxY,height:actor.height};});},physics(){
  const saved=player.position.clone(),open={...world.open};let maximum=0;
  player.position.set(1.08,.1,1.2);player.velocity.set(0,0,0);for(let i=0;i<30;i++)player.update(1/60,{x:0,y:0},0);
  const floor=player.position.y;player.update(1/60,{x:0,y:0,jump:true},0);for(let i=0;i<90;i++){player.update(1/60,{x:0,y:0},0);maximum=Math.max(maximum,player.position.y-floor);}if(maximum<.7||!player.grounded)throw Error('Jump/landing check failed');
@@ -75,6 +75,31 @@ async function boot(){
  world.open.pub=false;player.position.set(-4.62,.06,.9);player.velocity.set(0,0,0);for(let i=0;i<100;i++)player.update(1/60,{x:0,y:-1},0);if(player.position.z<.25)throw Error('Closed door crossed');
  const closedDoorZ=player.position.z;world.open=open;player.position.copy(saved);player.velocity.set(0,0,0);return{jumpHeight:maximum,wallX,cameraDistance,closedDoorZ};
  },calendar:decorations=>{snapshot.calendar={decorations};world.updateSnapshot(snapshot);return world.festive.visible;},weather:(reading,quality)=>{if(quality)world.weather.setQuality(quality);snapshot.weather=reading;world.updateSnapshot(snapshot);return {style:world.weather.style,particles:world.weather.object?.geometry.attributes.position.count||0};},refresh:async()=>{snapshot=await request('/world/scene');world.updateSnapshot(snapshot);await actors.sync(snapshot,true);return report();},
+ cityWalk(lines){
+ const saved=player.position.clone(),results=[];
+ for(const {name,points} of lines){
+  const [x,z]=points[0];
+  player.position.set(x,world.ground(x,z)+.06,z);player.velocity.set(0,0,0);
+  let failure=null;
+  for(const [tx,tz] of points.slice(1)){
+   const limit=Math.ceil(Math.hypot(tx-player.position.x,tz-player.position.z)*20)+100;
+   let step=0;
+   for(;step<limit;step++){
+    const dx=tx-player.position.x,dz=tz-player.position.z,d=Math.hypot(dx,dz);
+    if(d<.15)break;
+    player.update(1/60,{x:dx/d,y:dz/d,run:true},0);
+    if(player.position.y<-.5){failure='fell below ground';break;}
+   }
+   if(failure||step===limit){failure??='blocked';break;}
+  }
+  results.push({name,failure,position:player.position.toArray()});
+ }
+ player.position.copy(saved);player.velocity.set(0,0,0);
+ return results;
+ },
+ cityRoutes(){
+ return Object.keys(data.waypoints).filter(name=>!pathfind(data.routes,'STREET_LEFT',name).length||!pathfind(data.routes,'STREET_RIGHT',name).length);
+ },
  async movement(){
  const status=await request('/smoke/status');if(!status.fake_models)throw Error('Movement test requires verified offline smoke server');
  const events=[],results=[];player.position.set(-4.62,.06,1.5);player.place='street';joined='';await request('/player/leave',{});

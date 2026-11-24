@@ -173,21 +173,34 @@ def run(config, fixture=False):
     shuttle_center = tuple(map(float, shuttle.get("position", [0, 0])))
     replace_radius = float(shuttle.get("replace_radius", 0))
     props = generate_props(layers, int(config.get("seed", 0)), bounds, (shuttle_center, replace_radius))
+    if size := shuttle.get("footprint_size"):
+        from geometry.pipeline import _inside_rectangle, _to_shuttle_local
+        yaw = math.radians(shuttle.get("rotation_degrees", 0))
+        props = [p for p in props if not _inside_rectangle(
+            _to_shuttle_local(p["position"][::2], shuttle_center, yaw), size)]
     output = build / "props.json"
     output.write_text(json.dumps({"schema_version": 1, "props": props}, sort_keys=True, separators=(",", ":")) + "\n", encoding="utf-8")
     mesh = _mesh_for_props(props)
     for tier in ("low", "high"):
         from geometry.mesh import write_glb
         destination = root / config["outputs"]["static_dir"] / "assets" / tier / "city-props.glb"
+        raw_destination = build / "export-source" / tier / "city-props.glb"
         if props:
-            write_glb(mesh, destination)
+            if fixture:
+                write_glb(mesh, destination)
+            write_glb(mesh, raw_destination)
         else:
-            destination.unlink(missing_ok=True)
-    manifest_path = root / config["outputs"]["static_dir"] / "data/city.json"
-    if manifest_path.exists():
-        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-        manifest["props"] = len(props)
-        manifest_path.write_text(json.dumps(manifest, sort_keys=True, separators=(",", ":")) + "\n", encoding="utf-8")
+            if fixture:
+                destination.unlink(missing_ok=True)
+            raw_destination.unlink(missing_ok=True)
+    manifests = [build / "export-source/city.json"]
+    if fixture:
+        manifests.append(root / config["outputs"]["static_dir"] / "data/city.json")
+    for manifest_path in manifests:
+        if manifest_path.exists():
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            manifest["props"] = len(props)
+            manifest_path.write_text(json.dumps(manifest, sort_keys=True, separators=(",", ":")) + "\n", encoding="utf-8")
     return {"props": len(props), "types": {kind: sum(p["type"] == kind for p in props) for kind in sorted({p["type"] for p in props})}}
 
 

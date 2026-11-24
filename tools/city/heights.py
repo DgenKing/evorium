@@ -20,12 +20,13 @@ def _geometry(feature):
     return shape(feature['geometry'])
 
 
-def raster_height(feature, dsm, dtm):
+def raster_height(feature, dsm, dtm, origin=(0, 0)):
     """Median positive surface-minus-ground sample in the footprint; None if unavailable."""
     import numpy as np
     from rasterio.mask import mask
     from rasterio.warp import transform_geom
-    geom=_geometry(feature)
+    from shapely.affinity import translate
+    geom=translate(_geometry(feature), *origin)
     geom_dict=geom.__geo_interface__
     if str(dsm.crs) != 'EPSG:27700':
         geom_dict=transform_geom('EPSG:27700',dsm.crs,geom_dict)
@@ -42,7 +43,7 @@ def raster_height(feature, dsm, dtm):
         return None
 
 
-def enrich(source, output, dsm_path=None, dtm_path=None, snapshot=None, overrides=None):
+def enrich(source, output, dsm_path=None, dtm_path=None, snapshot=None, overrides=None, origin=(0, 0)):
     data=json.loads(Path(source).read_text())
     dsm=dtm=None
     if dsm_path and dtm_path and Path(dsm_path).exists() and Path(dtm_path).exists():
@@ -59,7 +60,7 @@ def enrich(source, output, dsm_path=None, dtm_path=None, snapshot=None, override
             p=f.get('properties',{})
             ident=str(f.get('id',f"{p.get('osm_type','way')}/{p.get('osm_id','unknown')}"))
             kind=p.get('building_type','other')
-            h=raster_height(f,dsm,dtm) if dsm else None
+            h=raster_height(f,dsm,dtm,origin) if dsm else None
             source_name='lidar'
             levels=p.get('levels')
             if h is None and levels:
@@ -95,7 +96,7 @@ def run(config, fixture=False):
     if landmark_config.get('schema_version') != 1:
         raise ValueError('Unsupported landmarks.yaml schema')
     result=enrich(build/'classified-buildings.geojson',build/'buildings.json',dsm,dtm,
-                  config.get('snapshot_date'),landmark_config.get('overrides',{}))
+                  config.get('snapshot_date'),landmark_config.get('overrides',{}), config['area']['origin'])
     manifest=build/'manifest.json'
     if manifest.exists():
         data=json.loads(manifest.read_text());data['height_counts']=result['height_counts']

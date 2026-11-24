@@ -27,7 +27,9 @@ def test_glb_triangle_count_and_measurement(tmp_path):
     low = tmp_path / "low"
     write_glb(low / "city.glb", 12)
     write_glb(low / "city-collision.glb", 20)
-    report = EXPORT._measure(low)
+    city_json = tmp_path / "city.json"
+    city_json.write_text("{}")
+    report = EXPORT._measure(low, city_json)
     assert report["triangles"] == 12
     assert report["files"]["city-collision.glb"]["triangles"] == 20
 
@@ -39,6 +41,7 @@ def test_fixture_export_report_does_not_rewrite_base_budget(tmp_path, monkeypatc
     for tier in ("low", "high"):
         write_glb(static / "assets" / tier / "city.glb", 3)
     (static / "data").mkdir(parents=True)
+    (static / "data/city.json").write_text("{}")
     original = {tier: {"bytes": 100, "triangles": 50} for tier in ("low", "high")}
     budget_path = static / "data/budgets.json"
     budget_path.write_text(json.dumps(original))
@@ -58,6 +61,7 @@ def test_over_budget_refuses_to_replace_static_budget(tmp_path, monkeypatch):
     for tier in ("low", "high"):
         write_glb(static / "assets" / tier / "city.glb", 4)
     (static / "data").mkdir(parents=True)
+    (static / "data/city.json").write_text("{}")
     original = {tier: {"bytes": 100, "triangles": 50} for tier in ("low", "high")}
     budget_path = static / "data/budgets.json"
     budget_path.write_text(json.dumps(original))
@@ -75,6 +79,7 @@ def test_triangle_cap_refuses_to_replace_static_budget(tmp_path, monkeypatch):
     for tier in ("low", "high"):
         write_glb(static / "assets" / tier / "city.glb", 4)
     (static / "data").mkdir(parents=True)
+    (static / "data/city.json").write_text("{}")
     original = {tier: {"bytes": 100, "triangles": 50} for tier in ("low", "high")}
     budget_path = static / "data/budgets.json"
     budget_path.write_text(json.dumps(original))

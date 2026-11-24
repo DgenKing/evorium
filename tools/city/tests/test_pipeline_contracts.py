@@ -105,7 +105,7 @@ def test_city_manifest_schema_supports_embedded_navmesh():
         "buildings": 2,
         "roads": 1,
         "props": 0,
-        "navmesh": {"schema_version": 1, "vertices": [], "polygons": [], "portals": []},
+        "navmesh": {"schema_version": 1, "graph": {"nodes": {}, "edges": []}},
         "render": "city.glb",
         "collision": "city-collision.glb",
         "shuttle_street": {"position": [0, 0], "rotation_degrees": 0},

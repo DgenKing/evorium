@@ -59,7 +59,6 @@ def test_fixture_pipeline_writes_city_assets_and_nav_graph(tmp_path):
     assert city["roads"] == 1
     assert city["shuttle_street"]["rotation_degrees"] == 90
     assert city["bounds"] == {"min": [-20, -15], "max": [20, 15]}
-    assert city["navmesh"]["polygons"]
     assert city["navmesh"]["graph"]["edges"]
     validate_navmesh(city["navmesh"])
     assert (static / "assets/low/city.glb").is_file()

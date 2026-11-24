@@ -16,8 +16,10 @@ def test_height_defaults_and_levels():
     h=module('heights')
     assert h.DEFAULT_HEIGHTS['other']==6.4
 
-def test_overpass_query_pins_snapshot_and_box():
+def test_overpass_query_uses_box_without_attic_date():
     f=module('fetch')
-    query=f.query_for_bbox((53.47,-2.23,53.48,-2.22),'2026-11-24')
-    assert '[date:"2026-11-24T00:00:00Z"]' in query
+    query=f.query_for_bbox((53.47,-2.23,53.48,-2.22))
+    assert '[date:' not in query
     assert '(53.47,-2.23,53.48,-2.22)' in query
+    assert f.USER_AGENT == 'Evorium-city-build/1.0'
+    assert 'https://maps.mail.ru/osm/tools/overpass/api/interpreter' in f.OVERPASS_ENDPOINTS

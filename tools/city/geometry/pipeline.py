@@ -40,8 +40,8 @@ def _road_width(props: dict[str, Any]) -> float:
 
 
 def _road_mesh(features: list[dict[str, Any]], exclude_center: tuple[float, float] | None = None,
-               exclude_radius: float = 0.0) -> tuple[Mesh, dict[str, Any], list[dict[str, Any]]]:
-    mesh, nav_vertices, nav_polygons, roads = Mesh(), [], [], []
+               exclude_yaw: float = 0.0, exclude_size: tuple[float, float] = (0.0, 0.0)) -> tuple[Mesh, dict[str, Any], list[dict[str, Any]]]:
+    mesh, roads = Mesh(), []
     def add_strip(a, b, half_width, material, walkable=False):
         dx, dz = b[0] - a[0], b[1] - a[1]
         length = math.hypot(dx, dz)
@@ -52,10 +52,6 @@ def _road_mesh(features: list[dict[str, Any]], exclude_center: tuple[float, floa
                    (b[0] - px, b[1] - pz), (a[0] - px, a[1] - pz)]
         mesh.quad((corners[0][0], 0, corners[0][1]), (corners[1][0], 0, corners[1][1]),
                   (corners[2][0], 0, corners[2][1]), (corners[3][0], 0, corners[3][1]), material)
-        if walkable:
-            i = len(nav_vertices)
-            nav_vertices.extend([[x, 0, z] for x, z in corners])
-            nav_polygons.extend([[i, i + 1, i + 2], [i, i + 2, i + 3]])
     for feature in sorted(features, key=lambda f: str(f.get("id", f.get("properties", {}).get("osm_id", "")))):
         props = feature.get("properties", {})
         ident = str(feature.get("id", props.get("osm_id", "road")))
@@ -63,16 +59,21 @@ def _road_mesh(features: list[dict[str, Any]], exclude_center: tuple[float, floa
         for line in _lines(feature.get("geometry", {})):
             for a, b in zip(line, line[1:]):
                 length = math.hypot(b[0] - a[0], b[1] - a[1])
-                pieces = max(1, math.ceil(length / 1.25))
+                crosses_cutout = (exclude_center is not None and min(exclude_size) > 0
+                                  and _segment_hits_shuttle(a, b, exclude_center, exclude_yaw, exclude_size))
+                pieces = max(1, math.ceil(length / 1.25)) if crosses_cutout else 1
                 for part in range(pieces):
                     t0, t1 = part / pieces, (part + 1) / pieces
                     p0 = (a[0] + (b[0] - a[0]) * t0, a[1] + (b[1] - a[1]) * t0)
                     p1 = (a[0] + (b[0] - a[0]) * t1, a[1] + (b[1] - a[1]) * t1)
-                    if exclude_center is not None and exclude_radius > 0 and _point_segment_distance(exclude_center, p0, p1) <= exclude_radius:
+                    if exclude_center is not None and min(exclude_size) > 0 and _segment_hits_shuttle(p0, p1, exclude_center, exclude_yaw, exclude_size):
                         continue
                     # Roads are also walkable so a route graph can cross mapped streets
                     # instead of trapping characters on one pavement side.
                     add_strip(p0, p1, width / 2, "asphalt", True)
+                    roads.append({"id": ident, "start": list(p0), "end": list(p1), "width_m": width})
+                    if props.get("highway") in {"footway", "path", "steps", "cycleway", "pedestrian"} or props.get("sidewalk:both") == "separate":
+                        continue
                     sidewalk = 1.6
                     offset = width / 2 + sidewalk / 2
                     dx, dz = p1[0] - p0[0], p1[1] - p0[1]
@@ -93,42 +94,47 @@ def _road_mesh(features: list[dict[str, Any]], exclude_center: tuple[float, floa
                         p = (p0[0] + nx * offset * sign, p0[1] + nz * offset * sign)
                         q = (p1[0] + nx * offset * sign, p1[1] + nz * offset * sign)
                         add_strip(p, q, sidewalk / 2, "pavement", True)
-                    roads.append({"id": ident, "start": list(p0), "end": list(p1), "width_m": width})
-    edge_polys: dict[tuple[tuple[float, float, float], tuple[float, float, float]], list[int]] = {}
-    for pi, polygon in enumerate(nav_polygons):
-        for j, idx in enumerate(polygon):
-            p = tuple(round(v, 3) for v in nav_vertices[idx])
-            q = tuple(round(v, 3) for v in nav_vertices[polygon[(j + 1) % len(polygon)]])
-            edge_polys.setdefault(tuple(sorted((p, q))), []).append(pi)
-    portals, graph_edges = [], []
-    for edge, owners in sorted(edge_polys.items()):
-        for j, first in enumerate(owners):
-            for second in owners[j + 1:]:
-                if first == second:
-                    continue
-                ca = [sum(nav_vertices[i][d] for i in nav_polygons[first]) / 3 for d in range(3)]
-                cb = [sum(nav_vertices[i][d] for i in nav_polygons[second]) / 3 for d in range(3)]
-                portals.append({"a": first, "b": second, "from": ca, "to": cb,
-                                "midpoint": [(edge[0][d] + edge[1][d]) / 2 for d in range(3)],
-                                "cost": round(math.dist(ca, cb), 4)})
-                graph_edges.append([f"t{first}", f"t{second}"])
-    centers = {f"t{i}": [sum(nav_vertices[j][d] for j in poly) / 3 for d in range(3)]
-               for i, poly in enumerate(nav_polygons)}
-    # OSM ways often meet geometrically at junctions without sharing vertex ids.
-    # Join nearby surface-triangle centers to bridge those source-way seams.
-    cell_size = 4.0
-    buckets: dict[tuple[int, int], list[str]] = {}
+    grouped = {}
+    for road in roads:
+        grouped.setdefault(road["id"], []).append(road)
+    centers, graph_edges, route_index = {}, set(), 0
+    for ident, segments in sorted(grouped.items()):
+        chains, points = [], []
+        for item in segments:
+            a, b = item["start"], item["end"]
+            if points and math.dist(points[-1], a) > .02:
+                chains.append(points); points = []
+            if not points: points.append(a)
+            steps = max(1, math.ceil(math.dist(a, b) / 4))
+            points.extend([a[0] + (b[0] - a[0]) * i / steps, a[1] + (b[1] - a[1]) * i / steps]
+                          for i in range(1, steps + 1))
+        if points: chains.append(points)
+        for chain in chains:
+            sampled, length = [chain[0]], 0.0
+            for a, b in zip(chain, chain[1:]):
+                length += math.dist(a, b)
+                if length >= 8.0:
+                    sampled.append(b); length = 0.0
+            if math.dist(sampled[-1], chain[-1]) > .01: sampled.append(chain[-1])
+            names = []
+            for index, point in enumerate(sampled):
+                name = f"r{route_index}_{index}"
+                centers[name] = [round(point[0], 3), 0, round(point[1], 3)]
+                names.append(name)
+            graph_edges.update(tuple(sorted(pair)) for pair in zip(names, names[1:]))
+            route_index += 1
+    # OSM ways often meet geometrically at junctions without sharing node ids.
+    cell_size, buckets = 4.5, {}
     for name, point in sorted(centers.items()):
         cell = (math.floor(point[0] / cell_size), math.floor(point[2] / cell_size))
         for cx in range(cell[0] - 1, cell[0] + 2):
             for cz in range(cell[1] - 1, cell[1] + 2):
                 for other in buckets.get((cx, cz), []):
-                    if math.dist(point, centers[other]) <= cell_size:
-                        graph_edges.append([name, other])
+                    if math.dist(point, centers[other]) <= 4.0:
+                        graph_edges.add(tuple(sorted((name, other))))
         buckets.setdefault(cell, []).append(name)
-    graph_edges = sorted({tuple(sorted(edge)) for edge in graph_edges})
-    nav = {"schema_version": 1, "vertices": nav_vertices, "polygons": nav_polygons,
-           "portals": portals, "graph": {"nodes": centers, "edges": [list(edge) for edge in graph_edges]}}
+    nav = {"schema_version": 1, "graph": {"nodes": centers,
+           "edges": [list(edge) for edge in sorted(graph_edges)]}}
     return mesh, nav, roads
 
 
@@ -162,19 +168,73 @@ def _point_segment_distance(point: tuple[float, float], a: list, b: list) -> flo
     return math.hypot(x - (ax + t * dx), z - (az + t * dz))
 
 
-def _overlaps_shuttle(building: dict[str, Any], center: tuple[float, float], radius: float) -> bool:
-    """Return true when any supplied footprint overlaps the configured circular cutout."""
-    if radius <= 0:
+def _to_shuttle_local(point, center, yaw):
+    dx, dz = float(point[0]) - center[0], float(point[1]) - center[1]
+    c, s = math.cos(yaw), math.sin(yaw)
+    return (dx * c - dz * s, dx * s + dz * c)
+
+
+def _inside_rectangle(point, size):
+    return abs(point[0]) <= size[0] / 2 and abs(point[1]) <= size[1] / 2
+
+
+def _segment_hits_rectangle(a, b, size):
+    """Liang–Barsky segment/rectangle intersection in Shuttle Street local space."""
+    x0, z0 = a; x1, z1 = b
+    dx, dz = x1 - x0, z1 - z0
+    hx, hz = size[0] / 2, size[1] / 2
+    t0, t1 = 0.0, 1.0
+    for p, q in ((-dx, x0 + hx), (dx, hx - x0), (-dz, z0 + hz), (dz, hz - z0)):
+        if p == 0:
+            if q < 0: return False
+            continue
+        t = q / p
+        if p < 0: t0 = max(t0, t)
+        else: t1 = min(t1, t)
+        if t0 > t1: return False
+    return True
+
+
+def _segment_hits_shuttle(a, b, center, yaw, size):
+    return _segment_hits_rectangle(_to_shuttle_local(a, center, yaw),
+                                   _to_shuttle_local(b, center, yaw), size)
+
+
+def _overlaps_shuttle(building: dict[str, Any], center: tuple[float, float],
+                      yaw: float, size: tuple[float, float]) -> bool:
+    """Return true when a building footprint intersects the rotated scene footprint."""
+    if min(size) <= 0:
         return False
     for ring in _poly_rings(building.get("geometry", {})):
         pts = ring[:-1] if len(ring) > 1 and ring[0] == ring[-1] else ring
         if not pts:
             continue
-        if _point_in_ring(center, pts) or any(math.dist(center, (float(p[0]), float(p[1]))) <= radius for p in pts):
+        local = [_to_shuttle_local(p, center, yaw) for p in pts]
+        if _point_in_ring((0.0, 0.0), local) or any(_inside_rectangle(p, size) for p in local):
             return True
-        if any(_point_segment_distance(center, a, b) <= radius for a, b in zip(pts, pts[1:] + pts[:1])):
+        if any(_segment_hits_rectangle(a, b, size) for a, b in zip(local, local[1:] + local[:1])):
             return True
     return False
+
+
+def _collision_ring(ring):
+    points = [tuple(map(float, p[:2])) for p in ring]
+    if len(points) > 1 and points[0] == points[-1]: points.pop()
+    changed = True
+    while changed and len(points) > 4:
+        changed = False
+        kept = []
+        for index, point in enumerate(points):
+            a, b = points[index - 1], points[(index + 1) % len(points)]
+            dx, dz = b[0] - a[0], b[1] - a[1]
+            denominator = math.hypot(dx, dz) or 1.0
+            distance = abs(dz * point[0] - dx * point[1] + b[0] * a[1] - b[1] * a[0]) / denominator
+            if distance < .65 and len(points) - (len(kept) + 1) >= 3:
+                changed = True
+            else:
+                kept.append(point)
+        points = kept
+    return points + [points[0]] if len(points) >= 3 else ring
 
 
 def run(config: dict[str, Any] | None = None, fixture: bool = False) -> dict[str, Any]:
@@ -197,8 +257,13 @@ def run(config: dict[str, Any] | None = None, fixture: bool = False) -> dict[str
     all_buildings = _load_buildings(buildings_path)
     shuttle = config.get("shuttle_street", {})
     shuttle_center = tuple(shuttle.get("position", [0.0, 0.0]))
-    replace_radius = float(shuttle.get("replace_radius", 0.0))
-    buildings = [b for b in all_buildings if not _overlaps_shuttle(b, shuttle_center, replace_radius)]
+    shuttle_yaw = math.radians(float(shuttle.get("rotation_degrees", 0.0)))
+    if "footprint_size" in shuttle:
+        shuttle_size = tuple(float(v) for v in shuttle["footprint_size"])
+    else:
+        radius = float(shuttle.get("replace_radius", 0.0))
+        shuttle_size = (radius * 2, radius * 2)
+    buildings = [b for b in all_buildings if not _overlaps_shuttle(b, shuttle_center, shuttle_yaw, shuttle_size)]
     removed_buildings = len(all_buildings) - len(buildings)
     road_features = _feature_collection(roads_path)
     city_mesh = Mesh()
@@ -209,7 +274,7 @@ def run(config: dict[str, Any] | None = None, fixture: bool = False) -> dict[str
         for ring in _poly_rings(geometry):
             extrude_polygon(city_mesh, ring, height, base, "facade", "roof")
         add_facades(city_mesh, building, building.get("levels"), road_features)
-    road_mesh, navmesh, roads = _road_mesh(road_features, shuttle_center, replace_radius)
+    road_mesh, navmesh, roads = _road_mesh(road_features, shuttle_center, shuttle_yaw, shuttle_size)
     city_mesh.extend(road_mesh)
     bounds = config.get("area", {}).get("bbox", [0, 0, 0, 0])
     origin = config.get("area", {}).get("origin", [0, 0])
@@ -220,16 +285,16 @@ def run(config: dict[str, Any] | None = None, fixture: bool = False) -> dict[str
     # Keep the fallback terrain just under the road/building base plane. Detailed
     # roads and building bases remain visible at y=0; this prevents ground z-fighting
     # over finished floors and leaves the surface available across gaps.
-    ground.quad((min_x, ground_y, min_z), (max_x, ground_y, min_z),
-                (max_x, ground_y, max_z), (min_x, ground_y, max_z), "ground")
+    ground.quad((min_x, ground_y, min_z), (min_x, ground_y, max_z),
+                (max_x, ground_y, max_z), (max_x, ground_y, min_z), "ground")
     city_mesh.extend(ground)
     collision_mesh = Mesh()
-    # Collision is intentionally lightweight and flat-sided; it excludes cosmetic props.
+    # Collisions use simplified building outlines; the city ground plane supports
+    # walking between buildings, so detailed road strips need no duplicate collider.
     for building in buildings:
         for ring in _poly_rings(building.get("geometry", {})):
-            extrude_polygon(collision_mesh, ring, float(building.get("height_m", 8.0)),
+            extrude_polygon(collision_mesh, _collision_ring(ring), float(building.get("height_m", 8.0)),
                             float(building.get("base_y", 0.0)), "collision", "collision")
-    collision_mesh.extend(road_mesh)
     collision_mesh.extend(ground)
     attribution = "© OpenStreetMap contributors; Environment Agency, Open Government Licence"
     manifest = {
@@ -246,13 +311,22 @@ def run(config: dict[str, Any] | None = None, fixture: bool = False) -> dict[str
         "shuttle_street": {"position": shuttle.get("position", [0, 0]),
                            "rotation_degrees": shuttle.get("rotation_degrees", 0)},
     }
+    stage_dir = build_dir / "export-source"
     for tier in ("low", "high"):
-        asset_dir = static_dir / "assets" / tier
-        write_glb(city_mesh, asset_dir / "city.glb")
-        write_glb(collision_mesh, asset_dir / "city-collision.glb")
-    static_dir.joinpath("data").mkdir(parents=True, exist_ok=True)
-    (static_dir / "data/city.json").write_text(json.dumps(manifest, sort_keys=True, separators=(",", ":")) + "\n")
+        raw_dir = stage_dir / tier
+        chunk_size = 25.0 if tier == "low" else None
+        write_glb(city_mesh, raw_dir / "city.glb", chunk_size=chunk_size)
+        write_glb(collision_mesh, raw_dir / "city-collision.glb")
+        if fixture:
+            asset_dir = static_dir / "assets" / tier
+            write_glb(city_mesh, asset_dir / "city.glb", chunk_size=chunk_size)
+            write_glb(collision_mesh, asset_dir / "city-collision.glb")
+    serialized = json.dumps(manifest, sort_keys=True, separators=(",", ":")) + "\n"
+    (stage_dir / "city.json").write_text(serialized)
+    if fixture:
+        static_dir.joinpath("data").mkdir(parents=True, exist_ok=True)
+        (static_dir / "data/city.json").write_text(serialized)
     return {"buildings": len(buildings), "removed_overlap": removed_buildings,
-            "roads": len(road_features), "nav_polygons": len(navmesh["polygons"]),
+            "roads": len(road_features), "route_nodes": len(navmesh["graph"]["nodes"]),
             "ground_bounds": {"min": [min_x, min_z], "max": [max_x, max_z], "y": ground_y},
             "manifest": manifest}

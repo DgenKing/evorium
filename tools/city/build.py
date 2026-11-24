@@ -48,7 +48,11 @@ def main(argv: list[str] | None = None) -> int:
         print(f"[{name}]", flush=True)
         result = run(config, fixture=args.fixture)
         if result is not None:
-            print(json.dumps(result, sort_keys=True, ensure_ascii=False))
+            summary = dict(result)
+            summary.pop("manifest", None)
+            if isinstance(summary.get("buildings"), list):
+                summary["buildings"] = len(summary["buildings"])
+            print(json.dumps(summary, sort_keys=True, ensure_ascii=False))
     return 0
 
 
