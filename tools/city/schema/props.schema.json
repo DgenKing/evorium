@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://evorium.invalid/city/props.schema.json",
+  "title": "Evorium city props",
+  "type": "object",
+  "required": ["schema_version", "props"],
+  "properties": {"schema_version": {"const": 1}, "props": {"type": "array", "items": {"type": "object", "required": ["id", "type", "position", "yaw", "source"], "properties": {
+    "id": {"type": "string"}, "type": {"enum": ["lamp", "bin", "bollard", "bench", "tree", "road_marking"]},
+    "position": {"$ref": "#/$defs/vec3"}, "yaw": {"type": "number"}, "source": {"type": "string"}
+  }} }},
+  "$defs": {"vec3": {"type": "array", "prefixItems": [{"type": "number"}, {"type": "number"}, {"type": "number"}], "minItems": 3, "maxItems": 3}},
+  "additionalProperties": false
+}

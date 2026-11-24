@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://evorium.invalid/city/city.schema.json",
+  "title": "Evorium city client manifest",
+  "type": "object",
+  "required": ["schema_version", "snapshot", "origin_epsg", "origin", "attribution", "buildings", "roads", "props", "navmesh", "shuttle_street"],
+  "properties": {
+    "schema_version": {"const": 1}, "snapshot": {"type": "string"}, "origin_epsg": {"const": "EPSG:27700"},
+    "origin": {"type": "array", "prefixItems": [{"type": "number"}, {"type": "number"}], "minItems": 2, "maxItems": 2},
+    "attribution": {"type": "array", "items": {"type": "string"}, "minItems": 1},
+    "buildings": {"type": "integer", "minimum": 0}, "roads": {"type": "integer", "minimum": 0},
+    "props": {"type": "integer", "minimum": 0}, "navmesh": {"type": "string"},
+    "render": {"type": "string"}, "collision": {"type": "string"},
+    "shuttle_street": {"type": "object", "required": ["position", "rotation_degrees"], "properties": {
+      "position": {"type": "array", "prefixItems": [{"type": "number"}, {"type": "number"}], "minItems": 2, "maxItems": 2},
+      "rotation_degrees": {"type": "number"}
+    }}
+  },
+  "additionalProperties": false
+}
