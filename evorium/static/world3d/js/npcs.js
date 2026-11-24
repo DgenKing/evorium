@@ -2,9 +2,9 @@ import * as THREE from 'three';
 import {clone} from 'three/addons/utils/SkeletonUtils.js';
 import {CSS2DObject} from 'three/addons/renderers/CSS2DRenderer.js';
 import {lookupCast} from './cast.js';
-import {nearest,pathfind,slotPosition,distance} from './graph.js';
+import {nearest,pathfind,pathfindFast,slotPosition,distance} from './graph.js';
 export class Actors{
- constructor(scene,assets,data,world){this.scene=scene;this.assets=assets;this.data=data;this.world=world;this.people=new Map();this.tags=true;}
+ constructor(scene,assets,data,world){this.scene=scene;this.assets=assets;this.data=data;this.world=world;this.people=new Map();this.tags=true;this.findPath=data.city?pathfindFast:pathfind;}
  async create(name){
  const config=lookupCast(this.data.cast,name),model=await this.assets.getCharacter(name);const source=model.fallback?(model.gltf.scenes.find(s=>s.name===config.body)||model.gltf.scene):model.gltf.scene;
  const body=clone(source),root=new THREE.Group();root.add(body);this.scene.add(root);
@@ -26,8 +26,8 @@ export class Actors{
  if(!a)continue;
  const changed=!a.person||a.person.waypoint!==p.waypoint||a.person.slot!==p.slot||a.person.visible!==p.visible;a.person=p;a.tag.textContent=p.first;
  if(p.line_at&&p.line_at!==a.lineAt){this.say(a,p.line||'');a.lineAt=p.line_at;}
- if(p.visible){const target=slotPosition(this.data.waypoints[p.waypoint],p.slot);target[1]=p.place==='pub'?0:p.place==='shop'?.055:this.world.ground(target[0],target[2]);if(test||snapshot.speed>10||distance(a.root.position.toArray(),target)>35){a.root.position.fromArray(target);a.route=[];}else if(changed||!a.target){a.route=pathfind(this.data.routes,nearest(this.data.routes,a.root.position.toArray()),p.waypoint).map(n=>this.data.routes.nodes[n]);a.route.push(target);}a.target=target;a.leaving=false;}
- else if(!a.leaving){const end=p.first==='Dez'?'UPSTAIRS':a.root.position.x<0?'STREET_LEFT':'STREET_RIGHT';a.route=pathfind(this.data.routes,nearest(this.data.routes,a.root.position.toArray()),end).map(n=>this.data.routes.nodes[n]);a.leaving=true;}
+ if(p.visible){const target=slotPosition(this.data.waypoints[p.waypoint],p.slot);target[1]=p.place==='pub'?0:p.place==='shop'?.055:this.world.ground(target[0],target[2]);if(test||snapshot.speed>10||distance(a.root.position.toArray(),target)>35){a.root.position.fromArray(target);a.route=[];}else if(changed||!a.target){a.route=this.findPath(this.data.routes,nearest(this.data.routes,a.root.position.toArray()),p.waypoint).map(n=>this.data.routes.nodes[n]);a.route.push(target);}a.target=target;a.leaving=false;}
+ else if(!a.leaving){const end=p.first==='Dez'?'UPSTAIRS':a.root.position.x<0?'STREET_LEFT':'STREET_RIGHT';a.route=this.findPath(this.data.routes,nearest(this.data.routes,a.root.position.toArray()),end).map(n=>this.data.routes.nodes[n]);a.leaving=true;}
  }
  for(const [id,a] of this.people)if(!ids.has(id)){this.scene.remove(a.root);a.label.element.remove();this.people.delete(id);}
  }

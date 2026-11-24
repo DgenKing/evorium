@@ -2,13 +2,14 @@ import * as THREE from 'three';
 import {CSS2DRenderer} from 'three/addons/renderers/CSS2DRenderer.js';
 import {loadAssets,loadData} from './assets.js';
 import {presets,detectQuality,Watchdog} from './quality.js';
-import {World} from './world.js';import {Input} from './input.js';import {FollowCamera} from './camera.js';import {Player} from './player.js';import {Actors} from './npcs.js';import {Network,request} from './net.js';import {UI,$} from './ui.js';import {pathfind,nearest,distance} from './graph.js';
+import {World} from './world.js';import {Input} from './input.js';import {FollowCamera} from './camera.js';import {Player} from './player.js';import {Actors} from './npcs.js';import {Network,request} from './net.js';import {UI,$} from './ui.js';import {pathfind,nearest,distance,transformRoutes,buildCityRouteGraph} from './graph.js';
 const params=new URLSearchParams(location.search),test=params.get('test')==='1';
 window.__evoriumReady=false;window.__evoriumReport={errors:[]};
 addEventListener('error',e=>window.__evoriumReport.errors.push(e.message||String(e.error||'Browser resource error')));addEventListener('unhandledrejection',e=>window.__evoriumReport.errors.push(String(e.reason)));
 function stored(key,fallback){try{return localStorage.getItem('evorium3d.'+key)||fallback;}catch{return fallback;}}
 function save(key,value){try{localStorage.setItem('evorium3d.'+key,value);}catch{}}
 async function boot(){
+ const cityEnabled=params.get('city')==='1';
  if(matchMedia('(pointer:coarse)').matches)$('controls').textContent='Left thumb move · Right drag look · Pinch zoom';
  const canvas=$('world'),scene=new THREE.Scene(),camera=new THREE.PerspectiveCamera(55,innerWidth/innerHeight,.08,150);
  const selected=params.get('quality')||stored('quality','auto');let preset=presets[selected]?selected:detectQuality({touch:matchMedia('(pointer:coarse)').matches,width:innerWidth});
@@ -16,8 +17,10 @@ async function boot(){
  if(selected==='auto')preset=detectQuality({touch:matchMedia('(pointer:coarse)').matches,width:innerWidth,maxTextureSize:renderer.capabilities.maxTextureSize,pixelRatio:devicePixelRatio});
  function applyPreset(){const p=presets[preset];renderer.setPixelRatio(Math.min(devicePixelRatio,p.pixelRatio));renderer.shadowMap.enabled=!!p.shadows;renderer.shadowMap.type=THREE.PCFSoftShadowMap;renderer.setSize(innerWidth,innerHeight);}
  applyPreset();const labels=new CSS2DRenderer({element:$('labels')});labels.setSize(innerWidth,innerHeight);
- const data=await loadData(),assets=await loadAssets(presets[preset].assets,p=>{$('progress').value=p;},data.cast);
- const world=new World(scene,assets,presets[preset]),actors=new Actors(scene,assets,data,world),player=new Player(await actors.create('player'),world),follow=new FollowCamera(camera,world);actors.player=player;
+ const data=await loadData(cityEnabled),assets=await loadAssets(presets[preset].assets,p=>{$('progress').value=p;},data.cast,cityEnabled);
+ if(cityEnabled){const shuttle=data.city.shuttle_street||{};transformRoutes(data,shuttle.position||[0,0],shuttle.rotation_degrees||0);data.routes=buildCityRouteGraph(data.city.navmesh,data.waypoints,data.routes);}
+ const world=new World(scene,assets,presets[preset]);if(cityEnabled)world.addCity(assets,data.city);
+ const actors=new Actors(scene,assets,data,world),player=new Player(await actors.create('player'),world),follow=new FollowCamera(camera,world);actors.player=player;if(cityEnabled){const t=world.cityTransform,c=Math.cos(t.yaw),s=Math.sin(t.yaw);player.position.set(t.x-4.62*c+2*s,player.position.y,t.z+4.62*s+2*c);player.actor.root.position.copy(player.position);}
  const input=new Input(canvas,async(action,event)=>{if(action==='KeyE'&&!input.blocked)await ui.chat(actors.nearestTalk(player));if(action==='KeyN'){actors.tags=!actors.tags;$('tags').checked=actors.tags;save('tags',actors.tags);}if(action==='KeyC')world.debug.visible=!world.debug.visible;if(action==='F1')$('debug').hidden=!$('debug').hidden;if(action==='Escape'){await ui.closeChat();$('settings').hidden=true;input.blocked=false;}$('card').hidden=action==='Escape'||$('card').hidden;if(action==='pick'&&!input.blocked){const ray=new THREE.Raycaster();ray.setFromCamera(new THREE.Vector2(event.clientX/innerWidth*2-1,1-event.clientY/innerHeight*2),camera);const candidates=[...actors.people.values()];for(const hit of ray.intersectObjects(candidates.map(a=>a.body),true)){const a=candidates.find(a=>{let n=hit.object;while(n){if(n===a.root)return true;n=n.parent;}return false;});if(a){ui.card(a.person);break;}}}});
  const ui=new UI(input,actors);actors.onSelect=p=>ui.card(p);actors.tags=stored('tags','true')!=='false';follow.invert=stored('invert','false')==='true';follow.sensitivity=Number(stored('sensitivity','1'));
  $('tags').checked=actors.tags;$('invert').checked=follow.invert;$('sensitivity').value=follow.sensitivity;$('quality').value=preset;
@@ -27,7 +30,7 @@ async function boot(){
  $('street-life').checked=stored('street-life','true')!=='false'&&params.get('ambient')!=='off';if(ambientType)$('street-life').checked=true;$('street-life').onchange=e=>{save('street-life',e.target.checked);ambient?.setEnabled(e.target.checked&&params.get('ambient')!=='off');};
  let snapshot=await request('/world/scene');world.updateSnapshot(snapshot);if(ambientType||params.get('cam')==='ambient'){world.target=(ambientType||params.get('focus'))==='fox'?.12:1;snapshot.daylight=world.target;}if(test)world.daylight=snapshot.daylight;await actors.sync(snapshot,test);const net=new Network(async s=>{snapshot=s;world.updateSnapshot(s);await actors.sync(s,false);await ui.pollPlayer();},text=>ui.banner(text));if(!test)net.poll();
  let joined=snapshot.player?.place||'',doorBusy=false;
- async function doors(){const target=player.place;if(target===joined||doorBusy)return;doorBusy=true;try{await request('/player/enter',{place:target});joined=target;}catch(e){ui.toast(e.message);player.position.set(target==='pub'?-4.62:5.92,.06,.9);player.velocity.set(0,0,0);}finally{doorBusy=false;}}
+ async function doors(){const target=player.place;if(target===joined||doorBusy)return;doorBusy=true;try{await request('/player/enter',{place:target});joined=target;}catch(e){ui.toast(e.message);let x=target==='pub'?-4.62:5.92,z=.9;if(cityEnabled){const t=world.cityTransform,c=Math.cos(t.yaw),s=Math.sin(t.yaw),localX=x;x=t.x+localX*c+z*s;z=t.z-localX*s+z*c;}player.position.set(x,.06,z);player.velocity.set(0,0,0);}finally{doorBusy=false;}}
  const studio=test&&['lineup','head','body'].includes(params.get('cam')),pose=data.clips[params.get('pose')]?params.get('pose'):'idle';let lineup=[];
  if(studio){
  world.set.visible=false;world.daylight=1;world.target=1;world.scene.fog.near=45;world.sun.position.set(-5,10,8);

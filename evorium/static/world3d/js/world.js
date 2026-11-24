@@ -20,9 +20,22 @@ export class World{
  this.wetMaterials=new Map();set.traverse(o=>{if(o.isMesh&&/road|pavement|sidewalk|ground/i.test(o.name)&&o.material.roughness!==undefined)this.wetMaterials.set(o.material,o.material.roughness);});
  this.materials=new Set();set.traverse(o=>{if(o.isMesh)this.materials.add(o.material);});this.glowing=[];set.traverse(o=>{if(o.isMesh&&/glass|lamp/i.test(o.name)){o.material=o.material.clone();this.glowing.push(o);}});
  }
+ addCity(assets,manifest){
+ const shuttle=manifest.shuttle_street||{},position=shuttle.position||[0,0],yaw=THREE.MathUtils.degToRad(shuttle.rotation_degrees||0);
+ this.cityTransform={x:position[0],z:position[1],yaw};
+ this.set.position.set(position[0],0,position[1]);this.set.rotation.y=yaw;
+ this.debug.position.copy(this.set.position);this.debug.rotation.y=yaw;this.set.updateMatrixWorld(true);this.debug.updateMatrixWorld(true);this.octree=new Octree().fromGraphNode(this.debug);
+ if(assets.city?.scene){this.city=assets.city.scene;this.city.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true;}});this.scene.add(this.city);}
+ if(assets.cityCollision?.scene){this.cityCollision=assets.cityCollision.scene;this.cityCollision.updateMatrixWorld(true);this.octree.addGraphNode(this.cityCollision);}
+ const c=Math.cos(yaw),s=Math.sin(yaw);
+ for(const box of Object.values(this.blockers)){const points=[];for(const x of [box.min.x,box.max.x])for(const z of [box.min.z,box.max.z])points.push([position[0]+x*c+z*s,position[1]-x*s+z*c]);box.min.x=Math.min(...points.map(p=>p[0]));box.max.x=Math.max(...points.map(p=>p[0]));box.min.z=Math.min(...points.map(p=>p[1]));box.max.z=Math.max(...points.map(p=>p[1]));}
+ this.bounds=manifest.bounds||null;
+ const attribution=Array.isArray(manifest.attribution)?manifest.attribution.join(' · '):String(manifest.attribution||'© OpenStreetMap contributors · Contains public sector information licensed under the Open Government Licence v3.0.');
+ const badge=document.createElement('div');badge.id='city-attribution';badge.textContent=attribution;document.body.append(badge);this.cityAttribution=badge;
+ }
  updateSnapshot(s){this.festive.visible=!!s.calendar?.decorations;this.weather.set(s.weather);for(const [material,roughness] of this.wetMaterials)material.roughness=this.weather.style.wet?.35:roughness;this.target=s.daylight;this.open={pub:s.pub_open,shop:s.shop_open};}
  update(dt){this.daylight=THREE.MathUtils.damp(this.daylight,this.target,.3,dt);const d=this.daylight,w=this.weather.style;this.weather.update(dt);this.hemi.intensity=.3+d*(w.dark?.9:1.3);this.sun.intensity=.1+d*(w.dark?.75:1.8);this.scene.fog.near=w.fog?8:25;this.scene.fog.far=w.fog?38:100;const sky=new THREE.Color(0x172535).lerp(new THREE.Color(0xaab7c2),d);if(w.dark)sky.lerp(new THREE.Color(0x6b7680),.35);this.scene.background.copy(sky);this.scene.fog.color.copy(sky);this.lights.forEach((l,i)=>{l.intensity=this.open[l.userData.place]&&(i<this.preset.lights)?12:0;});for(const material of this.materials)material.lightMapIntensity=.15+d*.5;for(const o of this.glowing){const place=/Pub|Billet/i.test(o.name)?'pub':'shop';o.material.emissive?.setHex(this.open[place]?0xffb568:0);o.material.emissiveIntensity=(1-d)*.4;}}
  ground(x,z){const hit=this.octree.rayIntersect(new THREE.Ray(new THREE.Vector3(x,3,z),new THREE.Vector3(0,-1,0)));return hit?.position.y??0;}
- place(p){if(p.z<-.3&&p.z>-10&&p.x>-9.1&&p.x<.1)return 'pub';if(p.z<-.3&&p.z>-10&&p.x>.3&&p.x<8.3)return 'shop';return 'street';}
+ place(p){let x=p.x,z=p.z;if(this.cityTransform){const t=this.cityTransform,dx=x-t.x,dz=z-t.z,c=Math.cos(t.yaw),s=Math.sin(t.yaw);x=dx*c-dz*s;z=dx*s+dz*c;}if(z<-.3&&z>-10&&x>-9.1&&x<.1)return 'pub';if(z<-.3&&z>-10&&x>.3&&x<8.3)return 'shop';return 'street';}
  cameraDistance(origin,direction,max){const hit=this.octree.rayIntersect(new THREE.Ray(origin,direction));return hit?Math.min(max,Math.max(.15,hit.distance-.18)):max;}
 }
