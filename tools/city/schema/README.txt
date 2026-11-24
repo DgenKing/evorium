@@ -15,5 +15,7 @@ navmesh.json: {schema_version, vertices:[[x,y,z]], polygons:[[vertex_index,...]]
 portals:[{a,b,from,to,cost}]}; only walkable public surfaces are included.
 
 city.json: {schema_version, snapshot, origin_epsg, origin, attribution, buildings,
-roads, props, navmesh, shuttle_street}. Geometry payloads are static and independent
-of runtime NPC/simulation data. IDs and output ordering are stable.
+roads, props, navmesh, shuttle_street}. The manifest embeds the navmesh; rendered and
+collision meshes are city.glb and city-collision.glb under the selected quality tier.
+Geometry payloads are static and independent of runtime NPC/simulation data. IDs and
+output ordering are stable.
