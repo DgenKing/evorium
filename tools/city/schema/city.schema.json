@@ -10,11 +10,15 @@
     "attribution": {"type": "array", "items": {"type": "string"}, "minItems": 1},
     "buildings": {"type": "integer", "minimum": 0}, "roads": {"type": "integer", "minimum": 0},
     "props": {"type": "integer", "minimum": 0}, "navmesh": {"$ref": "navmesh.schema.json"},
+    "bounds": {"type": "object", "required": ["min", "max"], "properties": {
+      "min": {"$ref": "#/$defs/vec2"}, "max": {"$ref": "#/$defs/vec2"}
+    }, "additionalProperties": false},
     "render": {"type": "string"}, "collision": {"type": "string"},
     "shuttle_street": {"type": "object", "required": ["position", "rotation_degrees"], "properties": {
       "position": {"type": "array", "prefixItems": [{"type": "number"}, {"type": "number"}], "minItems": 2, "maxItems": 2},
       "rotation_degrees": {"type": "number"}
     }}
   },
+  "$defs": {"vec2": {"type": "array", "prefixItems": [{"type": "number"}, {"type": "number"}], "minItems": 2, "maxItems": 2}},
   "additionalProperties": false
 }

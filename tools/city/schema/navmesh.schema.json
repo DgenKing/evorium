@@ -8,7 +8,11 @@
     "polygons": {"type": "array", "items": {"type": "array", "minItems": 3, "items": {"type": "integer", "minimum": 0}}},
     "portals": {"type": "array", "items": {"type": "object", "required": ["a", "b", "from", "to", "cost"], "properties": {
       "a": {"type": "integer", "minimum": 0}, "b": {"type": "integer", "minimum": 0}, "from": {"type": "integer", "minimum": 0}, "to": {"type": "integer", "minimum": 0}, "cost": {"type": "number", "minimum": 0}
-    }}}
+    }}},
+    "graph": {"type": "object", "required": ["nodes", "edges"], "properties": {
+      "nodes": {"type": "object", "additionalProperties": {"$ref": "#/$defs/vec3"}},
+      "edges": {"type": "array", "items": {"type": "array", "prefixItems": [{"type": "string"}, {"type": "string"}], "minItems": 2, "maxItems": 2}}
+    }, "additionalProperties": false}
   },
   "$defs": {"vec3": {"type": "array", "prefixItems": [{"type": "number"}, {"type": "number"}, {"type": "number"}], "minItems": 3, "maxItems": 3}},
   "additionalProperties": false
