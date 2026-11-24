@@ -38,6 +38,9 @@ export function buildCityRouteGraph(navmesh,waypoints,fallbackGraph={nodes:{},ed
  const endpoints={STREET_LEFT:fallbackGraph.nodes.STREET_LEFT,STREET_RIGHT:fallbackGraph.nodes.STREET_RIGHT,UPSTAIRS:fallbackGraph.nodes.UPSTAIRS};for(const [name,waypoint] of Object.entries(waypoints||{}))endpoints[name]=waypoint.position;
  const baseNodes=Object.entries(nodes);
  for(const [name,position] of Object.entries(endpoints)){if(!Array.isArray(position)||position.length<3)continue;nodes[name]=position;let best=null,bestDistance=Infinity;for(const [node,point] of baseNodes){const d=distance(position,point);if(d<bestDistance){best=node;bestDistance=d;}}if(best)edges.push([name,best]);}
+ // The generated OSM road graph intentionally leaves a cutout for the fictional
+ // Shuttle Street block; its two scene exits connect the generated city at both ends.
+ if(nodes.STREET_LEFT&&nodes.STREET_RIGHT)edges.push(['STREET_LEFT','STREET_RIGHT']);
  const unique=new Map();for(const [a,b] of edges){if(a===b||!nodes[a]||!nodes[b])continue;const key=a<b?`${a}\0${b}`:`${b}\0${a}`;unique.set(key,a<b?[a,b]:[b,a]);}
  const cleanEdges=[...unique.values()],neighbors=new Map(Object.keys(nodes).map(name=>[name,[]]));for(const [a,b] of cleanEdges){neighbors.get(a).push(b);neighbors.get(b).push(a);}return {nodes,edges:cleanEdges,neighbors};
 }

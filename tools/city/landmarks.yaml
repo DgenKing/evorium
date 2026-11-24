@@ -1,0 +1,8 @@
+schema_version: 1
+# Optional OSM feature overrides only. No geometry is created here.
+# Example:
+# overrides:
+#   way/123456:
+#     height_m: 18.0
+#     facade_material: brick
+overrides: {}

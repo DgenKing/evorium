@@ -5,8 +5,9 @@ area:
   # Approximate 400 m by 300 m box around Cutting Room Square; confirm against preview.
   bbox: [384120, 398000, 384520, 398300]
   origin: [384320, 398150]
+  ground_y: -0.1
 seed: 20261124
-snapshot_date: 2026-11-24
+snapshot_date: "2026-11-24"
 shuttle_street:
   # Local x,z metres; adjusted after generated geometry preview.
   position: [0, 0]
