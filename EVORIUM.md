@@ -895,7 +895,10 @@ which makes the APC available for nearby chat after arrival.
 The city scene adds a walkable arcade on the pinned OSM industrial footprint (way 1127565112, about 390 m²,
 5.1 m tall). The Gun Street doorway links to the city route graph. Its shell and machine bodies use the
 player collision octree. A rear partition preserves the older Billet interior where the two footprints
-overlap. A local mask removes overlapping kit backdrop fragments from the arcade volume.
+overlap. A local mask removes overlapping kit backdrop fragments from the arcade volume. The city build leaves
+this footprint out because it overlaps the Henry Street set, so `arcade.js` dresses the outside itself: the
+surveyed exterior walls get the city's `mill_brick` and the top gets its `roof` slate (1.24 m tiles, the
+mesh's average vertex tint), so it reads as one of the street's buildings. Inside keeps the arcade finish.
 The two rows of coin pushers, fruit machines, claw and air hockey are scenic props. Five playable spots
 use the stable waypoint and mesh IDs `cabinet-1` through `cabinet-4` and `pool-table`:
 
@@ -1619,6 +1622,14 @@ the key pool and open sign-ups.
 ---
 
 ## 14. History
+
+### 25 November 2026 — Arcade looks like a real Gun Street building
+
+- The arcade was drawn as a plain red box with a black top, so it looked like walls added to the street. The
+  footprint is the real OSM building (way 1127565112); the city build skips it because it overlaps the Henry
+  Street set. Its exterior walls now use the city's mill brick and it has the city's slate roof. The rear
+  partition facing the Billet and the interior are unchanged. Checked in Chrome from Gun Street, above and
+  Henry Street; Node tests pass.
 
 ### 25 November 2026 — Pool table prompt from any side
 

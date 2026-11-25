@@ -89,6 +89,61 @@ export function createArcade(world, data, layout, catalogue=[]) {
   if(solid) collision.add(mesh.clone());
  }
  surface(0,dark,true);surface(layout.height,material(0x21212b),false,true);
+ // Outside, the arcade is the real Gun Street building, not a new box: dress its exterior walls in the
+ // city's mill brick and give it the city's slate roof, at the city's own texture scale (1.24 m tiles).
+ function cityFinish(name,fallback){
+  let found=null;
+  world.city?.traverse(o=>{if(!found&&o.isMesh&&!o.isInstancedMesh)for(const m of [o.material].flat())if(m.name===name)found=[o,m];});
+  if(!found)return fallback;
+  // City meshes tint each building through vertex colours; use that mesh's average tint instead.
+  const [mesh,source]=found, finish=source.clone(), colors=mesh.geometry.attributes.color;
+  finish.vertexColors=false;
+  if(colors){
+   const tint=new THREE.Color(0,0,0);
+   for(let i=0;i<colors.count;i++)tint.r+=colors.getX(i),tint.g+=colors.getY(i),tint.b+=colors.getZ(i);
+   finish.color.setRGB(tint.r/colors.count,tint.g/colors.count,tint.b/colors.count);
+  }
+  return finish;
+ }
+ const millBrick=cityFinish('mill_brick',brick), slate=cityFinish('roof',material(0x3a3d44));
+ const inside=([x,z])=>{
+  let hit=false;
+  for(let i=0,j=outline.length-1;i<outline.length;j=i++){
+   const [ax,az]=outline[i],[bx,bz]=outline[j];
+   if((az>z)!==(bz>z)&&x<(bx-ax)*(z-az)/(bz-az)+ax)hit=!hit;
+  }
+  return hit;
+ };
+ function facade(a,b,y0=0,y1=layout.height){
+  const dx=b[0]-a[0],dz=b[1]-a[1],length=Math.hypot(dx,dz);
+  let nx=dz/length,nz=-dx/length;
+  if(inside([(a[0]+b[0])/2+nx*.3,(a[1]+b[1])/2+nz*.3])){nx=-nx;nz=-nz;}
+  const o=.125, p=[[a[0]+nx*o,y0,a[1]+nz*o],[b[0]+nx*o,y0,b[1]+nz*o],[b[0]+nx*o,y1,b[1]+nz*o],[a[0]+nx*o,y1,a[1]+nz*o]];
+  const uv=[[0,-y0],[length,-y0],[length,-y1],[0,-y1]].map(([u,v])=>[u/1.24,v/1.24]);
+  // Wind the quad so its front face looks outward.
+  const facing=(dx*0-dz*(y1-y0))*nx+(dx*(y1-y0))*nz>0;
+  const order=facing?[0,1,2,0,2,3]:[0,2,1,0,3,2];
+  const geometry=new THREE.BufferGeometry();
+  geometry.setAttribute('position',new THREE.Float32BufferAttribute(order.flatMap(i=>p[i]),3));
+  geometry.setAttribute('uv',new THREE.Float32BufferAttribute(order.flatMap(i=>uv[i]),2));
+  geometry.computeVertexNormals();
+  const mesh=new THREE.Mesh(geometry,millBrick);mesh.castShadow=mesh.receiveShadow=true;group.add(mesh);
+ }
+ // Only walls on the surveyed building edge face the street; the rear partition faces the Billet.
+ const edge=new Set(layout.outline.map((p,i,all)=>{const q=all[(i+1)%all.length];return [p+'|'+q,q+'|'+p];}).flat());
+ for(let i=0;i<outline.length;i++){
+  const a=outline[i],b=outline[(i+1)%outline.length];
+  if(!edge.has(a+'|'+b))continue;
+  if(i===layout.door_segment){facade(a,[1.45,0]);facade([1.45,0],[-1.45,0],2.25);facade([-1.45,0],b);}
+  else facade(a,b);
+ }
+ {
+  const shape=new THREE.Shape(outline.map(([x,z])=>new THREE.Vector2(x,-z)));
+  const geometry=new THREE.ShapeGeometry(shape), uv=geometry.attributes.uv;
+  for(let i=0;i<uv.count;i++)uv.setXY(i,uv.getX(i)/1.24,uv.getY(i)/1.24);
+  const roof=new THREE.Mesh(geometry,slate);
+  roof.rotation.x=-Math.PI/2;roof.position.y=layout.height+.02;roof.castShadow=roof.receiveShadow=true;group.add(roof);
+ }
  box(0,3.57,-.24,11.8,1.18,.33,metal);
  box(0,2.91,-.44,11.8,.04,.06,blue);
  box(0,4.23,-.44,11.8,.04,.06,pink);
