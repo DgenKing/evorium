@@ -1668,6 +1668,11 @@ the key pool and open sign-ups.
 
 ## 14. History
 
+### 25 November 2026 — Faster sprint
+
+- Shift-run is 25% faster: 4 → 5 m/s in `player.js` (walking stays 1.6 m/s). The run clip plays at 1.25× so
+  the feet keep up; only players use the run clip. Node tests pass.
+
 ### 25 November 2026 — Private player chat
 
 - Added face-to-face E and touch chat, an envelope for remote or offline contacts, clickable unread

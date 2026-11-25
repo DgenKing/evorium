@@ -11,7 +11,7 @@ export class Player{
  return false;
  }
  update(dt,input,yaw){
- const direction=new THREE.Vector3(input.x,0,input.y).applyAxisAngle(new THREE.Vector3(0,1,0),yaw);if(direction.length()>1)direction.normalize();const speed=input.run?4:1.6;this.velocity.x=direction.x*speed;this.velocity.z=direction.z*speed;if(input.jump&&this.grounded)this.velocity.y=5;this.wasGrounded=this.grounded;
+ const direction=new THREE.Vector3(input.x,0,input.y).applyAxisAngle(new THREE.Vector3(0,1,0),yaw);if(direction.length()>1)direction.normalize();const speed=input.run?5:1.6;this.velocity.x=direction.x*speed;this.velocity.z=direction.z*speed;if(input.jump&&this.grounded)this.velocity.y=5;this.wasGrounded=this.grounded;
  const substeps=5;
  for(let i=0;i<substeps;i++){const h=dt/substeps;this.velocity.y-=12*h;const old=this.position.clone();this.position.addScaledVector(this.velocity,h);this.setCollider();this.grounded=false;let result=this.world.octree.capsuleIntersect(this.collider);
  if(result){if(result.normal.y>.5){this.grounded=true;this.velocity.y=Math.max(0,this.velocity.y);}else if(this.wasGrounded&&direction.lengthSq()>0){const raised=this.collider.clone();raised.translate(new THREE.Vector3(0,.2,0));if(!this.world.octree.capsuleIntersect(raised)){this.position.y+=.2;result=null;}}

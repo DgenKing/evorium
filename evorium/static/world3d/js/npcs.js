@@ -22,7 +22,7 @@ export class Actors{
    translation.values[i+1]+=hip.position.y-reference.position.y;
    translation.values[i+2]+=hip.position.z-reference.position.z;
   }
-  actions[key]=mixer.clipAction(clip);
+  actions[key]=mixer.clipAction(clip);if(key==='run')actions[key].timeScale=1.25;
  }
  // Track only sole/foot vertices, not the full mesh, to keep planted clips on the floor.
  const bindY=body.position.y,soles=[];root.updateMatrixWorld(true);body.traverse(o=>{if(!o.isSkinnedMesh)return;const indices=[],v=new THREE.Vector3();for(let i=0;i<o.geometry.attributes.position.count;i++){v.fromBufferAttribute(o.geometry.attributes.position,i).applyMatrix4(o.matrixWorld);if(v.y<config.height*.16)indices.push(i);}if(indices.length)soles.push({mesh:o,indices});});
