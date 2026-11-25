@@ -84,7 +84,8 @@ export class World{
  const night=THREE.MathUtils.clamp((.45-d)/.3,0,1);this.hemi.intensity=.3+d*(w.dark?.9:1.3)+night*.3;this.hemi.color.setHex(0xbccfdf).lerp(new THREE.Color(0x7f95c6),night);this.sun.intensity=.1+d*(w.dark?.75:1.8)+night*(w.dark?.1:.35);this.sun.color.setHex(0xffefda).lerp(new THREE.Color(0x9fb3e2),night);
  this.night.update(dt,d,w,this.camera,this.preset.shadows?this.preset.lights:0);
  this.scene.fog.near=w.fog?8:25;this.scene.fog.far=w.fog?38:this.cityTransform&&!this.preset.shadows?42:100;const sky=new THREE.Color(0x1a2a42).lerp(new THREE.Color(0xaab7c2),d);if(w.dark)sky.lerp(new THREE.Color(0x6b7680),.35);this.scene.background.copy(sky);this.scene.fog.color.copy(sky);this.lights.forEach((l,i)=>{l.intensity=this.open[l.userData.place]&&(i<this.preset.lights)?12:0;});for(const material of this.materials)material.lightMapIntensity=.15+d*.5;for(const o of this.glowing){const place=/Pub|Billet/i.test(o.name)?'pub':'shop';o.material.emissive?.setHex(this.open[place]?0xffb568:0);o.material.emissiveIntensity=(1-d)*.9;}for(const material of this.cityWindows||[])material.emissiveIntensity=(1-d)*.35;}
- ground(x,z){const hit=this.octree.rayIntersect(new THREE.Ray(new THREE.Vector3(x,3,z),new THREE.Vector3(0,-1,0)));return hit?.position.y??0;}
+ groundHeight(x,z){const hit=this.octree.rayIntersect(new THREE.Ray(new THREE.Vector3(x,3,z),new THREE.Vector3(0,-1,0)));return hit?.position.y??null;}
+ ground(x,z){return this.groundHeight(x,z)??0;}
  publicPlace(p){
   if(!this.cityTransform)return null;
   for(const place of this.cityPlaces||[]){

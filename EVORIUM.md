@@ -875,11 +875,24 @@ street sets `player_place=street`; entering/leaving buildings updates that prese
 Open `/world3d`, or **3D** in the dashboard header. No build step or runtime Node: Three.js, the high/low assets,
 ten animation clips and baked lighting are served by FastAPI. The EVORIUM wordmark returns to `/`.
 
+### Player checkpoints and street names
+
+The 3D game resumes at the last position and facing saved for the signed-in account, across devices. It
+saves about every five seconds when the player moves and sends a final checkpoint when the page is hidden
+or left. The city and the original set (`?city=0`) remember separate positions. The client checks the
+saved spot against the map, route graph, collision and doors before entering that place in the simulation.
+First visits and unsafe checkpoints start at the Crooked Billet, just outside the door if the pub is shut.
+The arcade is a valid indoor checkpoint. Fixed test cameras ignore checkpoints.
+
+The 3D header shows a registered place name inside, or the OSM name of an open space or a street within
+15 metres outdoors. It falls back to Ancoats, Manchester. The city and the 2D map share the same local
+coordinates, including the outline of Cutting Room Square. The header truncates on narrow screens.
+
 ### Zoomable 2D Ancoats map
 
 `/game#map` starts with a north-up plan of the same five-street area. The exported `map2d.json` contains
 simplified OSM building footprints, road and pavement lines, street labels, open spaces and trees in city-local
-metres (84,799 bytes in the checked build); the Henry Street set footprint uses the city transform. A single
+metres (85,164 bytes in the checked build); the Henry Street set footprint uses the city transform. A single
 places registry links known APC locations and future OSM buildings to labels, occupant markers and zoom targets.
 Wheel, pinch, drag, double-click and the `+`/`−` controls navigate the overview; **Whole area** resets it. As the
 view reaches Henry Street, the existing pub/shop/street cutaway fades in at its real city position and rotation,
@@ -1637,6 +1650,15 @@ the key pool and open sign-ups.
 
 ## 14. History
 
+### 25 November 2026 — Resume in 3D and see where you are
+
+- Migration 20 adds per-account position and facing checkpoints for the city and the original set. The
+  3D client checks the checkpoint against the scene before joining the player to that place. Missing or
+  unsafe positions start at the Crooked Billet.
+- The 3D header uses the places registry and the existing OSM map export. The export now includes the
+  Cutting Room Square outline and identifies the building footprints replaced by the Henry Street set.
+- Rebased onto the budget pacer, dedicated cast and Grace follow-up fixes. Player checkpoints now follow
+  migration 19, which records budget usage.
 ### 25 November 2026 — Evening-weighted DeepSeek budget
 
 - Added UK wall-clock pacing for the G4's $0.15 cap. Migration 19 attributes usage while preserving

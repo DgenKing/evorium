@@ -128,12 +128,15 @@ def test_optimized_instanced_window_keeps_two_triangles(tmp_path):
         EXPORT._instance_measurement(path)
 
 
-def test_map2d_export_is_deterministic_and_below_150_kb(tmp_path):
+def test_map2d_export_is_deterministic_and_below_150_kb(tmp_path, monkeypatch):
+    monkeypatch.syspath_prepend(str(CITY))
     build=tmp_path/"build";static=tmp_path/"static";(build/"layers").mkdir(parents=True)
     fixtures={
         "buildings":[{"id":"way/9","properties":{"building":"commercial"},"geometry":{"type":"Polygon","coordinates":[[[1,2],[8,2],[8,9],[1,2]]]}}],
-        "roads":[{"id":"way/7","properties":{"highway":"residential","name":"Henry Street"},"geometry":{"type":"LineString","coordinates":[[0,0],[10,0]]}}],
-        "landuse":[{"id":"way/8","properties":{"name":"Cutting Room Square","leisure":"park"},"geometry":{"type":"Polygon","coordinates":[[[2,2],[9,2],[9,9],[2,2]]]}}],
+        "roads":[{"id":"way/7","properties":{"highway":"residential","name":"Henry Street"},"geometry":{"type":"LineString","coordinates":[[0,0],[10,0]]}},
+                 {"id":"way/8","properties":{"name":"Cutting Room Square","place":"square","highway":"pedestrian"},
+                  "geometry":{"type":"Polygon","coordinates":[[[2,2],[9,2],[9,9],[2,2]]]}}],
+        "landuse":[],
         "water":[],"trees":[{"id":"node/6","geometry":{"type":"Point","coordinates":[4,5]}}]
     }
     for name,features in fixtures.items():
@@ -145,3 +148,5 @@ def test_map2d_export_is_deterministic_and_below_150_kb(tmp_path):
     output=json.loads(raw)
     assert len(raw)<150_000 and output["buildings"][0]["id"]=="way/9"
     assert len(output["henry"]["shape"])==4 and output["roads"][0]["name"]=="Henry Street"
+    assert output["buildings"][0]["replaced_by_henry"]
+    assert [(space["name"], space["type"]) for space in output["open_spaces"]] == [("Cutting Room Square", "square")]

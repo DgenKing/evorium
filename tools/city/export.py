@@ -134,22 +134,33 @@ def _map2d_data(build: Path, config: dict):
         if g.get("type")=="Polygon": return c[:1]
         if g.get("type")=="MultiPolygon": return [poly[0] for poly in c if poly]
         return []
+    from geometry.pipeline import _overlaps_shuttle
+
+    shuttle=config.get("shuttle_street",{})
+    position=shuttle.get("position",[0,0]);yaw=math.radians(float(shuttle.get("rotation_degrees",0)))
+    sx,sz=(float(v) for v in shuttle.get("footprint_size",[35.1,23.4]))
     buildings=[]
     for f in sorted(load("buildings")["features"],key=lambda x:str(x.get("id",""))):
         shape=rings(f)
         if shape:
             props=f.get("properties",{})
-            buildings.append({"id":str(f.get("id", "")),"type":props.get("building", "yes"),"shape":simplify(shape[0],.6)})
+            building={"id":str(f.get("id", "")),"type":props.get("building", "yes"),"shape":simplify(shape[0],.6)}
+            if _overlaps_shuttle(f, position, yaw, (sx,sz)):
+                building["replaced_by_henry"]=True
+            buildings.append(building)
     roads=[]
+    spaces=[]
     for f in sorted(load("roads")["features"],key=lambda x:str(x.get("id",""))):
         g=f.get("geometry",{}); c=g.get("coordinates",[]); kind=g.get("type")
         lines=[c] if kind=="LineString" else c if kind=="MultiLineString" else []
         props=f.get("properties",{})
-        for i,line in enumerate(lines):
+        if props.get("place")=="square" and props.get("name"):
+            for shape in rings(f):
+                spaces.append({"id":str(f.get("id","")),"name":props["name"],"type":"square","shape":simplify(shape)})
+        for line in lines:
             if len(line)>1:
                 roads.append({"id":str(f.get("id","")),"type":props.get("highway","path"),"name":props.get("name",""),
                               "width":round(float(props.get("width_m", 5 if props.get("highway") not in {"footway","path","steps","cycleway"} else 1.8)),1),"line":simplify(line,1.5)})
-    spaces=[]
     for layer in ("landuse","water"):
         for f in sorted(load(layer)["features"],key=lambda x:str(x.get("id",""))):
             shape=rings(f)
@@ -159,9 +170,6 @@ def _map2d_data(build: Path, config: dict):
     for f in sorted(load("trees")["features"],key=lambda x:str(x.get("id",""))):
         c=f.get("geometry",{}).get("coordinates",[])
         if len(c)>=2 and isinstance(c[0],(int,float)): trees.append(point(c))
-    shuttle=config.get("shuttle_street",{})
-    position=shuttle.get("position",[0,0]);yaw=math.radians(float(shuttle.get("rotation_degrees",0)))
-    sx,sz=(float(v) for v in shuttle.get("footprint_size",[35.1,23.4]))
     footprint=[]
     for lx,lz in ((-sx/2,-sz/2),(sx/2,-sz/2),(sx/2,sz/2),(-sx/2,sz/2)):
         footprint.append([round(float(position[0])+lx*math.cos(yaw)+lz*math.sin(yaw),1),

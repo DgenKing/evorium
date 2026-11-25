@@ -19,7 +19,7 @@ from fastapi.responses import FileResponse, Response
 from evorium.configuration import load
 from pydantic import BaseModel, Field
 
-from evorium import arcade_games, pacing, greetings
+from evorium import arcade_games, greetings, pacing, player_position
 from evorium import accounts, scene, economy, actions, decide, backoff, tick, world, timeline, player, relationships, places, plans, director
 from evorium.db import DEFAULT_DB_PATH, VISIBLE_IMPORTANCE, connect, init_db, npc_agents
 from evorium.events import emit, since
@@ -533,6 +533,18 @@ def me():
 @app.get('/player')
 def player_state():
     return player.state(DEFAULT_DB_PATH)
+
+@app.get('/player/position')
+def load_player_position(map: player_position.MapName, response: Response):
+    response.headers['Cache-Control'] = 'private, no-store'
+    return player_position.load(map, DEFAULT_DB_PATH)
+
+
+@app.post('/player/position', status_code=204)
+def save_player_position(position: player_position.Position):
+    player_position.save(position, DEFAULT_DB_PATH)
+    return Response(status_code=204)
+
 
 @app.post('/player/profile')
 def player_profile(req: ProfileRequest):

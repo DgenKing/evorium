@@ -262,6 +262,12 @@ MIGRATIONS = (
         "CREATE INDEX llm_calls_created_at ON llm_calls(created_at)",
         "CREATE INDEX llm_calls_conversation ON llm_calls(conversation_id)",
     ),
+    # Migration 20: last 3D position and facing, separately for each account and map.
+    ("""CREATE TABLE player_positions (
+        account TEXT NOT NULL, map TEXT NOT NULL CHECK(map IN ('city', 'kit')),
+        x REAL NOT NULL, y REAL NOT NULL, z REAL NOT NULL, yaw REAL NOT NULL,
+        PRIMARY KEY(account, map)
+    )""",),
 )
 
 VISIBLE_IMPORTANCE = 3  # facts scored below this are kept in the database but never shown to characters
