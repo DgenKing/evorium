@@ -1628,6 +1628,12 @@ the key pool and open sign-ups.
 
 ## 14. History
 
+### 25 November 2026 — Grace's "wants a word" clears once she's spoken to you
+
+- The banner stayed up after talking to Grace because it showed for any case not yet closed, including
+  `spoken_to` cases waiting for her decision (up to 3 days). It now shows only while the case is `open`. Her
+  once-a-day follow-up until the case closes is unchanged. Test added; 427 Python tests pass.
+
 ### 25 November 2026 — Dedicated cast rebased onto main
 
 - Kept the owner's new portraits for Norman and Maxine and replaced their borrowed models with

@@ -256,3 +256,15 @@ def test_upgrade_15_preserves_world_and_foreign_keys(tmp_path):
         assert [tuple(r) for r in c.execute('SELECT * FROM facts')] == before
         assert not c.execute('PRAGMA foreign_key_check').fetchall()
         assert c.execute('PRAGMA integrity_check').fetchone()[0] == 'ok'
+
+
+def test_notice_stops_once_grace_has_spoken(db):
+    fake = Fake()
+    report(db)
+    cases.maintain(NOW, db)
+    player.enter(fake, 'street', db)
+    assert 'wants a word' in player.state(db)['police']['notice']
+    assert cases.approach(fake, NOW, db)
+    player.close(fake, db)
+    assert get_case(db)['status'] == 'spoken_to'
+    assert not player.state(db)['police']['notice']

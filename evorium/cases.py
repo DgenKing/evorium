@@ -165,7 +165,8 @@ def priority(c, ids, now):
 
 def player_view(c, player_id):
     rows = [dict(r) for r in c.execute('SELECT id,status,outcome FROM cases WHERE subject_id=? ORDER BY id DESC', (player_id,))]
-    return {'notice': 'PCSO Grace Adeyemi wants a word' if any(r['status'] != 'closed' for r in rows) else '',
+    # Only until she has actually spoken to them; after that the case waits for her decision quietly.
+    return {'notice': 'PCSO Grace Adeyemi wants a word' if any(r['status'] == 'open' for r in rows) else '',
             'outcomes': [r['outcome'].replace('_', ' ') for r in rows if r['outcome']]}
 
 
