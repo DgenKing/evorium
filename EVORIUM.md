@@ -739,6 +739,17 @@ configuration or world data. A restricted, git-ignored history bundle is retaine
 
 A sudoers rule lets the configured service account run `systemctl restart evorium` only, for the updater.
 
+**No home-network access (25 Nov).** Root-owned systemd drop-ins stop Evorium reaching the LAN while keeping the
+internet: `evorium.service.d/network.conf` and `evorium-update.service.d/network.conf` set
+`IPAddressAllow=localhost` and `IPAddressDeny=10.0.0.0/8 172.16.0.0/12 192.168.0.0/16 169.254.0.0/16 100.64.0.0/10
+224.0.0.0/4 255.255.255.255/32 ::/0` (all IPv6 except `::1` too, because LAN devices can have public IPv6
+addresses); `evorium-backup.service.d/network.conf` sets `PrivateNetwork=yes`. DNS works because the G4 uses the
+local resolver `127.0.0.53`; if that ever changes to a LAN or VPN DNS server, Evorium's lookups will fail.
+Cloudflare Tunnel, SSH, Remote Desktop, the VPN and other accounts' services are separate units and unaffected.
+Check: `systemctl show evorium -p IPAddressDeny`. Undo: delete the three `.d` folders, `daemon-reload`, restart.
+Still to do: replace the updater's sudo restart with a no-privilege restart and delete the sudoers rule; make the
+code folder read-only to the game; further systemd hardening (see 25 Nov in §14).
+
 ### Everyday commands (on the G4)
 
 | What | Command |
@@ -1456,6 +1467,21 @@ the key pool and open sign-ups.
 ---
 
 ## 14. History
+
+### 25 November 2026 — G4 hardening: Evorium cut off from the home network
+
+- **What:** the owner hardened the G4, which also hosts business data under a separate admin account. Already
+  done by the owner: Docker and spare firewall rules removed, SSH/RDP limited to the main PC, UPnP off, `newuser`
+  out of the sudo group, `/home/userai` at 700. This session: reviewed the remaining sudo rule and added systemd
+  network restrictions (§6) so Evorium, its updater and its backup can't reach the LAN, while internet access
+  (DeepSeek, Open-Meteo, GitHub, PyPI) and Cloudflare keep working. Verified `active` after restart.
+- **Sudo rule findings:** only `deploy/auto_update.sh` uses it (restart after an update and on rollback); the
+  dashboard Restart button uses `os.execv` and needs no privileges. Low escalation risk (one fixed command,
+  service runs as `newuser`). Safer replacement planned: the updater stops the game's main PID (owned by
+  `newuser`) and systemd's `Restart=always` brings it back, then the sudoers file is deleted.
+- **Next hardening, not done yet:** move the database and log to a data folder and make the code read-only to the
+  game (`ProtectSystem=strict`, `ProtectHome=tmpfs`, bind mounts); standard systemd protections; memory/CPU limits;
+  Cloudflare Access in front of `/game`.
 
 ### 24 November 2026 — Shuttle Street materials across Ancoats
 
