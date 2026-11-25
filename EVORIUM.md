@@ -1004,7 +1004,7 @@ the loaded assets); choosing a preset reloads the matching asset set. Override w
 
 - The kit scene's Crooked Billet and Patel's News, exported from `Ancoats.blend`, with 44 collision
   hulls and 15 waypoints converted to three.js space (x, z, −y).
-- The original 18 APCs have portrait files. Norman and Maxine use the existing fallbacks. The dashboard and map share the full-name portrait map; 3D character cards
+- All 20 APCs have portrait files (Norman and Maxine added 25 Nov). The dashboard and map share the full-name portrait map; 3D character cards
   use the same files via each APC's first name (with Mohammed displayed as Mo).
 - Other logged-in players with a place set appear with their own names, using Rob’s player body and
   the existing waypoint walking. They have no portrait or E/touch talk prompt; player-to-player chat is
@@ -1232,8 +1232,7 @@ streets, film grain, matching the game's portraits.
 - **Arcade cast (25 Nov):** Norman and Maxine first used the shared Quaternius fallback body, which reads as
   an unclothed mannequin in play. Until they get their own models they borrow clothed ones: Norman uses
   `cast/tommy.glb` (with his night tie) and Maxine `cast/brenda.glb`. Blender's MPFB extension could not
-  initialise in the isolated build profile. APCs with no cast.json entry still use the player model. Neither character
-  has a portrait yet, so their website cards use initials.
+  initialise in the isolated build profile. APCs with no cast.json entry still use the player model. Both now have portraits (static/portraits and website/images).
 
 
 - **Ancoats city (25 Nov):** `/world3d` now defaults to Blossom, Henry, Hood, Jersey and Murray streets;
@@ -1627,6 +1626,13 @@ the key pool and open sign-ups.
 ---
 
 ## 14. History
+
+### 25 November 2026 — Portraits for Norman and Maxine
+
+- Added the owner's ChatGPT portraits, resized to 256 × 256: `static/portraits/norman.png` and `maxine.png`
+  (dashboard, 2D map and 3D cards via the portrait map) and `website/images/char-norman` / `char-maxine` (.jpg and
+  .webp), replacing the initials on the website. The portrait test now covers all 20 APCs; 426 Python and all
+  Node tests pass.
 
 ### 25 November 2026 — Norman and Maxine dressed
 

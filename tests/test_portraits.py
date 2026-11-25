@@ -6,11 +6,9 @@ from evorium.scene import PORTRAITS, first_name
 from evorium.seed import CHARACTERS
 
 
-def test_original_cast_portraits_and_new_arcade_fallbacks():
+def test_every_apc_has_a_portrait():
     names = [character[0] for character in CHARACTERS]
     assert len(names) == 20
-    assert set(names[-2:]) == {"Norman Pilling", "Maxine Stott"}
-    names = names[:-2]
 
     index = Path("evorium/static/index.html").read_text(encoding="utf-8")
     match = re.search(r"const portraits = \{(.*?)\n\};", index, re.S)
