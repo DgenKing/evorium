@@ -1626,6 +1626,15 @@ the key pool and open sign-ups.
 
 ## 14. History
 
+### 25 November 2026 — Local 3D tooling
+
+- Verified Playwright MCP against a fresh scratch copy on port 8765. Verified Three.js DevTools MCP through
+  its localhost proxy using the live scene tree and camera. The test page also exposes
+  `window.__evoriumTest` for direct inspection.
+- Added the §15 workflow and the AGENTS.md pointer. The console showed a favicon 404 and a Three.js
+  bounding-sphere NaN diagnostic on the ready low quality scene. No runtime code changed.
+
+
 ### 25 November 2026 — Arcade staff know exactly what's on the floor
 
 - An APC had told the owner about a game the arcade doesn't have. `arcade_games.floor_guide()` now builds the
@@ -2579,6 +2588,30 @@ Unreal from the project.
 12. **Website "What's new":** every feature players would notice gets a short dated entry at the top of the
     "What's new" section of `website/index.html` (headline plus one or two sentences), and any website text it
     makes out of date is fixed. Bug fixes and internal changes don't need one.
+
+### 3D tooling
+
+- For changes to the map, buildings, interiors, lighting, textures, characters or animation, inspect the
+  live scene for positions, sizes and materials. Point Three.js DevTools MCP at the local server with
+  `set_dev_url`, open the page through its localhost proxy in Playwright, and use the scene and object
+  inspection tools. For direct inspection in Playwright, `/world3d?test=1&city=1` exposes
+  `window.__evoriumTest` with the scene, camera and world.
+- Verify the changed page visually with Playwright MCP. Prepare a disposable copy of the world with auto
+  mode off and run it locally. Never use the G4 or point this server at the real `evorium.sqlite3`.
+  Keep passwords out of MCP config.
+
+  ```bash
+  EVORIUM_DB_PATH=/tmp/evorium-review/world-copy.sqlite3 EVORIUM_LOG_FILE= \
+    .venv/bin/uvicorn evorium.main:app --host 127.0.0.1 --port 8765
+  ```
+
+- Take one or two screenshots for a normal job. Use before and after views for big visual changes. Check
+  mobile when the UI or controls change. Measure performance when adding geometry, lights or textures.
+  Check the browser console for errors on the changed page.
+- Treat changes in the browser as experiments. Put the fix in the source or the city build and recheck
+  it once. If a tool is unavailable, say so in one line and carry on.
+- Keep to one job. Run only the touched tests while working, then run the full suite once within its
+  time limit.
 
 ---
 

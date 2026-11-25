@@ -1,6 +1,7 @@
 # Instructions for any AI working on Evorium (Codex, Claude, others)
 
 **`EVORIUM.md` is the only project document.** Read it first, and follow its rules in §15.
+For 3D work, follow [§15 3D tooling](EVORIUM.md#3d-tooling).
 
 After **every** piece of work (feature, fix, setting change, investigation with a finding, plan or prompt),
 before you finish, update `EVORIUM.md`:
