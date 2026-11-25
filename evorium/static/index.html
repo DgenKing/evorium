@@ -164,7 +164,12 @@ function log(s){ const d=document.createElement('div'); d.textContent=new Date()
 function esc(s){ return String(s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 const portraits = {
   'Dez Whitworth': 'dez', 'Chloe Barlow': 'chloe', 'Tommy Shaw': 'tommy',
-  'Jess Hartley': 'jess', 'Raj Patel': 'raj'
+  'Jess Hartley': 'jess', 'Raj Patel': 'raj',
+  'Simon Ferris': 'simon', 'Brenda Ashworth': 'brenda', 'Mohammed "Mo" Iqbal': 'mo',
+  'Peggy Coyle': 'peggy', 'Liam Byrne': 'liam', 'Anjali Patel': 'anjali',
+  'Pete Lomax': 'pete', 'Hannah Kerr': 'hannah', 'Gary Walsh': 'gary',
+  'Kirsty Doyle': 'kirsty', 'Grace Adeyemi': 'grace', 'Barry Hughes': 'barry',
+  'Ronnie Clegg': 'ronnie'
 };
 function avatar(name, small=false){
   const portrait = portraits[name];

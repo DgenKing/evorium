@@ -84,7 +84,7 @@ and phone); it runs around the clock on the owner's HP G4 and is reachable over 
 
 | Area | State |
 |---|---|
-| Characters | 18 APCs + one player per account (existing owner Rob retained; friends created at first login) + 1 system ("World") row |
+| Characters | 18 APCs, all with portraits + one player per account (existing owner Rob retained; friends created at first login) + 1 system ("World") row |
 | Places | Billet normally 09:00–24:00; Patel's normally Mon–Sat 07:00–19:00; festive/bank-holiday hours apply (§4); street always |
 | Clock | Real UK time × speed multiplier (0 = paused, 1 = real, up to 600×+) |
 | Conversations | 4/6 lines; automatic pairs capped at two per game day, with quiet-APC priority and at least three hours of shared free time per normal week |
@@ -102,13 +102,13 @@ and phone); it runs around the clock on the owner's HP G4 and is reachable over 
 | Timeline | Permanent record + daily digest, at `/timeline-page` |
 | Navigation | ☰ burger menu top right on every page: Dashboard, Map, 3D, Timeline, Guide |
 | Dashboard | Character cards, live feed, usage/spend, controls, terrace card, **version** (git commit and date) and the **Restart server** button |
-| Map tab | 2D canvas of the pub, shop, empty unit and street; pixel sprites, bubbles, portrait popups |
+| Map tab | 2D canvas of the pub, shop, empty unit and street; pixel sprites, bubbles and portrait popups for all APCs |
 | 3D game | `/world3d`: five real Ancoats streets by default, with the original kit scene available at `?city=0`; Three.js, nine distinct MPFB models, third person, touch controls, chat, street life and night lighting |
 | City pipeline | Five-street Ancoats city generated from surveyed terrain, kit materials and instanced facades; both package limits pass (§7, §10). |
 | Hosting | HP G4 home server, auto-updating from GitHub, nightly backups, public via a Cloudflare Tunnel; connection details kept private (§6) |
 | Model | DeepSeek `deepseek-flash`, JSON mode, temperature 0.8 (0.6 decisions, 0.2 structured calls) |
 | Cost | About $0.00015 per call; about $0.40 a day for the whole world at real speed with auto mode on |
-| Tests | 403 Python tests + 18 city tests + Node map/navigation/city/night tests + Web3D Node checks and offline Chrome checks, all fake/offline |
+| Tests | 404 Python tests + 18 city tests + Node map/navigation/city/night tests + Web3D Node checks and offline Chrome checks, all fake/offline |
 
 ### Tech stack and dependencies
 
@@ -410,7 +410,7 @@ collision-verified A* graph. `?city=1` joins that graph to sampled OSM road/path
 | `evorium/arcs.py` | Story endings and follow-on arcs |
 | `evorium/catchup.py` | "While you were away" |
 | `evorium/backoff.py` | Shared pause when DeepSeek is failing |
-| `evorium/scene.py` | Read-only `/world/scene` snapshot for the 3D game |
+| `evorium/scene.py` | Read-only `/world/scene` snapshot and first-name portrait URLs for the 3D game |
 | `evorium/director.py` | Stall/loop detection and validated nudges |
 | `evorium/timeline.py` | Permanent record and daily digest |
 | `evorium/accounts.py` | Request identity, account-owned players and per-account settings |
@@ -607,7 +607,7 @@ when accessing the game remotely. `GET /me` reports the current canonical accoun
 ### Tests
 
 ```bash
-timeout 120 .venv/bin/python -m pytest -q -x        # 403 tests
+timeout 120 .venv/bin/python -m pytest -q -x        # 404 tests
 for f in tests/*.test.cjs tests/*.test.mjs; do timeout 120 node "$f"; done
 timeout 120 bash tools/web3d/run_checks.sh       # 3D: smoke server + 20 headless screenshots and movement checks
 ```
@@ -890,6 +890,8 @@ the loaded assets); choosing a preset reloads the matching asset set. Override w
 
 - The kit scene's Crooked Billet and Patel's News, exported from `Ancoats.blend`, with 44 collision
   hulls and 15 waypoints converted to three.js space (x, z, −y).
+- All 18 APCs have portrait files. The dashboard and map share the full-name portrait map; 3D character cards
+  use the same files via each APC's first name (with Mohammed displayed as Mo).
 - Other logged-in players with a place set appear with their own names, using Rob’s player body and
   the existing waypoint walking. They have no portrait or E/touch talk prompt; player-to-player chat is
   not part of accounts v1. The 2D map likewise shows other named players, including on the street.
@@ -1212,10 +1214,9 @@ streets, film grain, matching the game's portraits.
 - **Restart button** requires authentication when access control is enabled (as configured on the G4).
 - **Spend recorded before 19 Nov is overstated** by about $0.09 (old pricing).
 - **Security to-dos:** review the G4 access controls.
-- **Full pytest run in this sandbox timed out** at 120 seconds on 25 Nov 2026 without output; the suite normally
-  completes in about nine seconds. The migration test file passes alone (2 tests). A combined targeted run of
-  that file and `test_auth.py` did not return a summary. Do not retry the full run here; the owner reviewer should
-  run it.
+- **Full pytest run in this sandbox timed out** at 120 seconds without output on both the Henry Street and
+  portrait changes; the suite normally completes in about nine seconds. Each change's focused test passes alone.
+  Do not retry the full run here; the owner reviewer should run it.
 
 ---
 
@@ -1258,8 +1259,7 @@ streets, film grain, matching the game's portraits.
 5. **Barring and bigger relationship swings** once the owner has finished provoking-tests.
 6. **An inspector:** free Python health checks (no promises today, loops, no decisions, failure spikes, cost) plus
    one cheap daily AI review that reports, never fixes.
-7. Install the friend's eight new portraits (add `simon.png`, `brenda.png`, `mo.png` and register them in the
-   `portraits` map in `index.html`); decide on daytime pub visitors; run `evorium.rescore --apply` once.
+7. Decide on daytime pub visitors; run `evorium.rescore --apply` once.
 8. Then a small online test with 5–10 friends, before planning for large numbers.
 
 ### Plan: real Manchester streets (city pipeline, implementation in progress 24 Nov)
@@ -1499,6 +1499,17 @@ the key pool and open sign-ups.
 ---
 
 ## 14. History
+
+### 25 November 2026 — Portraits for every APC
+
+- **What:** installed optimised 256 × 256 RGB PNG portraits for the thirteen APCs who were missing one, and
+  registered all eighteen full names for dashboard avatars and map popups. The 3D scene already resolves those
+  same files by first name, including Mo's alias. Added a regression test for the full-name map and all files.
+- **Why / learned:** the map popup already shares the dashboard's portrait lookup, and `scene.py` derives its
+  portrait URL from the first name, so the new assets make each APC visible across all three views without
+  changing those lookup paths.
+- **Checks:** portrait coverage test passed (1/1). The full Python suite timed out at 120 seconds with no output
+  and was not retried. No screenshot was needed. No push.
 
 ### 25 November 2026 — Shuttle Street renamed Henry Street
 
