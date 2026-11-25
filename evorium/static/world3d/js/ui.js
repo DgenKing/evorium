@@ -6,7 +6,7 @@ export class UI{
  const viewport=()=>{if(window.visualViewport)$('chat').style.bottom=Math.max(12,innerHeight-visualViewport.height-visualViewport.offsetTop+12)+'px';};window.visualViewport?.addEventListener('resize',viewport);viewport();
  }
  banner(text){$('connection').textContent=text;$('connection').hidden=!text;}
- toast(text){$('toast').textContent=text;$('toast').hidden=false;clearTimeout(this.toastTimer);this.toastTimer=setTimeout(()=>$('toast').hidden=true,5500);}
+ toast(text){$('toast').textContent=text;$('toast').hidden=false;clearTimeout(this.toastTimer);this.toastTimer=setTimeout(()=>$('toast').hidden=true,Math.max(5500,text.length*60));}
  card(p){$('card').hidden=false;$('card-name').textContent=p.first;$('card-detail').textContent=[p.activity,p.mood].filter(Boolean).join(' · ');$('portrait').hidden=!p.portrait;if(p.portrait)$('portrait').src=p.portrait;}
  async chat(actor){if(!actor||actor.person.kind==='player'||this.busy)return;this.target=actor;actor.chatting=true;this.input.blocked=true;this.input.reset();$('chat').hidden=false;$('chat-name').textContent=actor.person.first;$('chat-log').replaceChildren();try{const state=await request('/player');for(const m of state.conversation?.messages||[])this.line(m.speaker_name,m.text);}catch(e){this.toast(e.message);}$('message').focus();}
  line(name,text){const line=document.createElement('p'),label=document.createElement('strong');label.textContent=name+': ';line.append(label,document.createTextNode(text));$('chat-log').append(line);line.scrollIntoView({block:'nearest'});}

@@ -50,7 +50,17 @@ export class ArcadeGames {
   if(this.active)this.best.textContent=formatBest(this.active.game,this.bests[this.active.game.slug]);
  }
 
+ welcome() {
+  const games=[...this.arcade.games.values()].sort((a,b)=>a.placement.localeCompare(b.placement)).map(g=>g.title);
+  return 'Gun Street Amusements. You can play '+games.join(', ')+
+   '. Walk up to a machine or the pool table and press E (tap Play on a phone). Esc leaves a game.';
+ }
+
  updateHint(game) {
+  // Say what's playable once each time the player walks in.
+  const inside=this.arcade.contains(this.player.position);
+  if(inside&&!this.inside&&!this.input.blocked)this.toast(this.welcome());
+  this.inside=inside;
   this.hint.hidden=this.play.hidden=!game||this.input.blocked;
   if(!this.hint.hidden){
    const text=game.title+' · E to play · '+formatBest(game,this.bests[game.slug]);

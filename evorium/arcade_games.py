@@ -98,3 +98,24 @@ def save_score(db_path, slug, score):
             ON CONFLICT(account,slug) DO UPDATE SET score=excluded.score,fact_id=excluded.fact_id""",
                   (account, slug, score, fact_id))
     return {'best': score, 'improved': True}
+
+
+SCENERY = 'coin pushers, fruit machines (the old one is Mr. Peel), a claw crane and an air hockey table'
+
+
+def floor_guide():
+    """The arcade's complete contents and how players use them, built from the catalogue."""
+    spots = {}
+    for game in GAMES.values():
+        spots[game['placement']] = game['title']   # a later entry for the same spot takes it
+    cabinets = [f"{title} (cabinet {spot[-1]})" for spot, title in sorted(spots.items()) if spot.startswith('cabinet-')]
+    pool = [f"{spots['pool-table']} (the pool table)"] if 'pool-table' in spots else []
+    return ("GUN STREET AMUSEMENTS, WHAT IS ACTUALLY HERE (the complete list; nothing else exists):\n"
+            f"- Games people can play: {', '.join(cabinets + pool)}.\n"
+            "- How to play: walk right up to the machine or the pool table until 'E to play' shows, then press E "
+            "(on a phone, tap Play). The game fills the screen; Esc or Exit comes back out. Each machine shows "
+            "your personal best, and Norman writes new bests in his notebook.\n"
+            f"- Also on the floor, for looking at only (people can't play them): {SCENERY}.\n"
+            "- The change booth is just inside the door; the stairs at the back go up to Norman's flat.\n"
+            "- If someone asks about a game or machine that isn't listed here, say plainly that you haven't got it. "
+            "Never invent games, prizes, tournaments or machines.")

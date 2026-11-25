@@ -82,3 +82,19 @@ def test_append_only_migration_preserves_world(monkeypatch, tmp_path):
         assert c.execute('SELECT mood FROM agents WHERE name=?', (NORMAN,)).fetchone()[0] == 'saved mood'
         assert c.execute('SELECT count(*) FROM arcade_scores').fetchone()[0] == 0
         assert c.execute('PRAGMA foreign_key_check').fetchall() == []
+
+
+def test_floor_guide_lists_exactly_the_catalogue():
+    from evorium import arcade_games
+    guide = arcade_games.floor_guide()
+    for game in arcade_games.GAMES.values():
+        assert game['title'] in guide
+    assert 'press E' in guide and "haven't got it" in guide
+
+
+def test_arcade_staff_and_visitors_get_the_floor_guide():
+    from evorium.memory import _arcade_guide
+    from evorium.place_registry import REGISTRY
+    assert 'WHAT IS ACTUALLY HERE' in _arcade_guide({'name': 'Norman Pilling', 'location': 'home'})
+    assert 'WHAT IS ACTUALLY HERE' in _arcade_guide({'name': 'Dez Kowalski', 'location': REGISTRY['arcade']})
+    assert _arcade_guide({'name': 'Dez Kowalski', 'location': REGISTRY['pub']}) == ''

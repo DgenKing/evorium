@@ -104,7 +104,7 @@ def knowledge_for_prompt(connection: sqlite3.Connection, speaker: dict, listener
     from evorium import weather,calendar_uk,bad_days
     return {
         "situation": situation(connection, speaker, now) + followup_line(connection, speaker, listener),
-        "environment": weather.prompt_line(weather.read(connection,now))+"\n"+(calendar_uk.context(now)+" "+bad_days.prompt(bad_days.records(connection,now).get(str(sid),{}),now)).strip(),
+        "environment": weather.prompt_line(weather.read(connection,now))+"\n"+(calendar_uk.context(now)+" "+bad_days.prompt(bad_days.records(connection,now).get(str(sid),{}),now)).strip()+_arcade_guide(speaker),
         "plans": [f"{p['start_at']}: {p['action']} {p['place'] or ''} [{p['status']}] — {p['outcome'] or p['reason']}" for p in today(connection,sid,now)],
         "relationship": [relationships.describe(rel), *reasons],
         "broken_promises": broken,
@@ -120,6 +120,15 @@ def knowledge_for_prompt(connection: sqlite3.Connection, speaker: dict, listener
         "recent": [r["content"] for r in recent],
         "covered_today": covered_today(connection, sid, now),
     }
+
+
+def _arcade_guide(speaker) -> str:
+    """Staff and anyone in the arcade get its exact contents, so nobody invents a game."""
+    from evorium import arcade, arcade_games
+    from evorium.place_registry import REGISTRY
+    if speaker.get('location') == REGISTRY['arcade'] or speaker.get('name') in arcade.STAFF:
+        return "\n" + arcade_games.floor_guide()
+    return ""
 
 
 def covered_today(connection: sqlite3.Connection, agent_id: int, now) -> list[str]:

@@ -910,6 +910,9 @@ use the stable waypoint and mesh IDs `cabinet-1` through `cabinet-4` and `pool-t
 | Cabinet 4 | 1941 — Sky Assault | Highest points |
 | Pool table | Evorium Pool | Most balls potted in a finished rack |
 
+Walking in shows a welcome toast listing the playable games and how to start one. Norman, Maxine and anyone
+talking inside the arcade get `arcade_games.floor_guide()` in their prompt: the playable games from the
+catalogue, how to play, the look-only machines, and an instruction to say a game they haven't got isn't there.
 Walk up and press **E** or tap **Play**. The full-screen game pauses 3D movement. **Exit** or **Esc** closes
 the frame. The games retain their own controls. A validated personal best is shown at its machine and in
 the game header. Norman's notebook keeps one observed fact per account and game.
@@ -1622,6 +1625,15 @@ the key pool and open sign-ups.
 ---
 
 ## 14. History
+
+### 25 November 2026 — Arcade staff know exactly what's on the floor
+
+- An APC had told the owner about a game the arcade doesn't have. `arcade_games.floor_guide()` now builds the
+  complete list from `games.json` (playable games with their cabinets, how to play, look-only machines, and
+  "say you haven't got it" for anything else). It goes into the prompt for Norman and Maxine wherever they are
+  and for anyone talking inside the arcade, about 200 extra input tokens only there. Walking in shows a welcome
+  toast with the games and controls; long toasts now stay up longer. Two tests added; 426 Python and all Node
+  tests pass.
 
 ### 25 November 2026 — Arcade looks like a real Gun Street building
 
