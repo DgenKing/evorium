@@ -102,13 +102,13 @@ and phone); it runs around the clock on the owner's HP G4 and is reachable over 
 | Timeline | Permanent record + daily digest, at `/timeline-page` |
 | Navigation | ☰ burger menu top right on every page: Dashboard, Map, 3D, Timeline, Guide |
 | Dashboard | Character cards, live feed, usage/spend, controls, terrace card, **version** (git commit and date) and the **Restart server** button |
-| Map tab | 2D canvas of the pub, shop, empty unit and street; pixel sprites, bubbles and portrait popups for all APCs |
+| Map tab | Zoomable, draggable north-up map of the five Ancoats streets; place-linked APC/player markers and the existing pub/shop/street cutaway, pixel sprites, bubbles and portrait popups |
 | 3D game | `/world3d`: five real Ancoats streets by default, with the original kit scene available at `?city=0`; Three.js, nine distinct MPFB models, third person, touch controls, chat, street life and night lighting |
 | City pipeline | Five-street Ancoats city generated from surveyed terrain, kit materials and instanced facades; both package limits pass (§7, §10). |
 | Hosting | HP G4 home server, auto-updating from GitHub, nightly backups, public via a Cloudflare Tunnel; connection details kept private (§6) |
 | Model | DeepSeek `deepseek-flash`, JSON mode, temperature 0.8 (0.6 decisions, 0.2 structured calls) |
 | Cost | About $0.00015 per call; about $0.40 a day for the whole world at real speed with auto mode on |
-| Tests | 404 Python tests + 18 city tests + Node map/navigation/city/night tests + Web3D Node checks and offline Chrome checks, all fake/offline |
+| Tests | 404 Python tests + 19 city tests + Node map/navigation/city/night tests + Web3D Node checks and offline Chrome checks, all fake/offline |
 
 ### Tech stack and dependencies
 
@@ -439,6 +439,8 @@ collision-verified A* graph. `?city=1` joins that graph to sampled OSM road/path
   `YYYY-MM-DD HH:MM`), `/me` ({account, name}), `/player`, `/world/ledger`, `/actions?since=`, `/catchup`, `/world/scene`.
 - **Pages:** `/` (the public website from `website/`, no login, with `/styles.css` and `/images/…`), `/game`
   (dashboard; `/game#map` for the map), `/timeline-page`, `/world3d`, `/guide`. Everything except the website needs a login.
+- The map loads deterministic local-metre `world3d/data/map2d.json` once at startup. Its place registry connects
+  saved locations to Henry Street or an OSM building id and draws registered occupants at those anchors.
 - **Write:** `POST /conversations/run`, `/speed`, `/auto/start`, `/auto/stop`, `/director {enabled}`,
   `/player/profile {name, about}`, `/player/enter {place}`, `/player/leave`, `/player/say {to_agent_id, text}`,
   `/player/end`, `/player/promises/{id} {done, note}`, `/catchup/seen`, `/server/restart`.
@@ -560,7 +562,8 @@ tools/city/.venv/bin/python tools/city/build.py
 ```
 
 Use `build.py --stage fetch` (or choose `heights`, `geometry`, `facades`, `props`, `export` or `navmesh`) to run
-one stage. The fetch stage reuses `tools/city/raw/osm-overpass.json`. Fresh queries use current Overpass data.
+one stage. The `export` stage also writes simplified `map2d.json` overview geometry. The fetch stage reuses
+`tools/city/raw/osm-overpass.json`. Fresh queries use current Overpass data.
 The manifest records the snapshot date and SHA-256. For an isolated offline fixture build, point the config
 at separate build and static output directories and use `--fixture`. The G4 updater's default pytest collection
 is limited to `tests/`. Run the optional build tests with
@@ -676,7 +679,7 @@ private. In commands below, `<server-user>`, `<server-address>`, `<project-dir>`
 are placeholders to fill in privately.
 
 City data downloads, LiDAR processing and build tools stay on the main PC. The G4 receives only finished,
-budget-checked city assets in a reviewed code update. The updater’s default pytest run collects only the app tests under `tests/`.
+budget-checked city assets and the small static 2D overview export in a reviewed code update. The updater’s default pytest run collects only the app tests under `tests/`.
 
 - **Public access:** the Cloudflare address shows the public website at `/`; its Play button goes to `/game`
   (login required), and the 3D game is at `/world3d`.
@@ -810,6 +813,16 @@ street sets `player_place=street`; entering/leaving buildings updates that prese
 
 Open `/world3d`, or **3D** in the dashboard header. No build step or runtime Node: Three.js, the high/low assets,
 ten animation clips and baked lighting are served by FastAPI. The EVORIUM wordmark returns to `/`.
+
+### Zoomable 2D Ancoats map
+
+`/game#map` starts with a north-up plan of the same five-street area. The exported `map2d.json` contains
+simplified OSM building footprints, road and pavement lines, street labels, open spaces and trees in city-local
+metres (84,799 bytes in the checked build); the Henry Street set footprint uses the city transform. A single
+places registry links known APC locations and future OSM buildings to labels, occupant markers and zoom targets.
+Wheel, pinch, drag, double-click and the `+`/`−` controls navigate the overview; **Whole area** resets it. As the
+view reaches Henry Street, the existing pub/shop/street cutaway fades in at its real city position and rotation,
+keeping the familiar sprites, doors, popups and night tint. The map data is fetched once at startup, not per frame.
 
 ### Generated Ancoats city (normal map)
 
@@ -1122,6 +1135,8 @@ streets, film grain, matching the game's portraits.
   pub-open night capture is in `tools/city/build/night-legacy/`. Visible triangles stayed below 150k/400k.
   Five city walks, city route connectivity/physics/weather/chat and the daytime legacy movement check pass.
   Owner review and physical phone performance remain outstanding.
+- **2D map (25 Nov):** `/game#map` now shows the whole five-street area and zooms into the retained Henry Street
+  cutaway. Desktop Chrome views were checked; physical-phone pinch, drag and readability still need owner review.
 
 - **Ancoats review build (24 Nov):** terrain and most heights use EA LiDAR. The street is still made from
   repeating facade bays. Ground floor interiors and individually modelled storefronts belong to the original
@@ -1236,10 +1251,11 @@ streets, film grain, matching the game's portraits.
 - **Promise evidence is deployed (23 Nov).** Keep watching real kept/broken/lapsed results and false claims with
   the read-only promise report; unsupported research/repayment needs real actions before it can be checked.
 
-- **Ancoats city and night lighting are ready for owner review (25 Nov).** The five-street city is now the normal
+- **Ancoats city, night lighting and the zoomable 2D map are ready for owner review (25 Nov).** The five-street city is now the normal
   `/world3d` map; `?city=0` retains the original kit scene. Inspect `tools/city/build/night-final/`, then check night,
-  kit-scene lighting and performance on a physical phone before deployment. Low city build is 7.999 MB of
-  its 8 MB limit, including the Henry Street plaque texture.
+  kit-scene lighting and performance on a physical phone before deployment. Review the overview and Henry Street
+  captures in `tools/city/build/screenshots/map2d-review/`, including touch controls on a phone. Low city build is
+  7.999 MB of its 8 MB limit, including the Henry Street plaque texture.
 
 - Align the G4 checkout with the rewritten history using §6 so automatic updates resume. Review its
   access controls. Request an eligible old-object/cache
@@ -1273,7 +1289,8 @@ owner looks at screenshots at each gate. Same inputs always give the same city, 
 
 **Status (25 Nov):** the five-street Ancoats city is the normal `/world3d` map and uses EA LiDAR for terrain and
 154 building heights, the owner's kit textures and instanced facades, and Kenney CC0 trees. Night includes
-working city and kit-scene lamp pools, moonlight and weather-aware stars. Rebuild and provenance are in §7.
+working city and kit-scene lamp pools, moonlight and weather-aware stars. The `/game#map` view now covers the same
+area with its own small export, pan/zoom controls and Henry Street cutaway. Rebuild and provenance are in §7.
 Package and sampled triangle targets pass. The owner visual review and real-phone performance gate remain open.
 
 **How the work is split**
@@ -1502,6 +1519,19 @@ the key pool and open sign-ups.
 ---
 
 ## 14. History
+
+### 25 November 2026 — Zoomable 2D Ancoats map
+
+- **What:** replaced the fixed `/game#map` view with a north-up, zoomable plan of the five-street area, using a
+  deterministic 84,799-byte `map2d.json` export. Added a places registry for OSM building anchors and Henry Street,
+  and placed the existing pub/shop/street cutaway at its city transform. Added pan, wheel/pinch/double-click,
+  zoom buttons and Whole area controls; the website now announces the whole-area map.
+- **Why / learned:** the cutaway footprint can be mapped to the same local metres and yaw as the 3D set, so its
+  current art and character interactions fit into the real neighbourhood map without a second scene.
+- **Checks:** focused map tests passed (10 subtests); city export tests passed (5 passed, 1 optional Meshopt test
+  skipped); all five Node test files passed; desktop Chrome overview and Henry Street screenshots captured. The
+  single timed full Python suite run reached 120 seconds without output and timed out; it was not retried. Physical-
+  phone interaction still needs owner review. No push.
 
 ### 25 November 2026 — All eighteen APCs on the website
 

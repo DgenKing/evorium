@@ -8,11 +8,13 @@ const SHOP = "Patel's News, Ancoats";
 
 function mapHarness(agents) {
   const elements = new Map();
+  const painted=[];
+  const drawing={clearRect(){},save(){},restore(){},transform(){},setTransform(){},fillRect(){},beginPath(){},moveTo(){},lineTo(){},closePath(){},fill(){},stroke(){},arc(){},fillText(value){painted.push(String(value));},measureText:()=>({width:24}),drawImage(){}};
   function element(id) {
     if (!elements.has(id)) elements.set(id, {
       hidden: false, innerHTML: '', style: {}, dataset: {},
       addEventListener() {}, setAttribute() {}, focus() {},
-      getContext: () => ({}), querySelectorAll: () => [],
+      getContext: () => drawing, querySelectorAll: () => [],clientWidth:960,clientHeight:600,
       getBoundingClientRect: () => ({width:960,height:600,left:0,top:0})
     });
     return elements.get(id);
@@ -27,11 +29,11 @@ function mapHarness(agents) {
   });
   // Inspect the closure in the test VM without exposing implementation state in the app.
   const source=readFileSync('evorium/static/map.js','utf8').replace(
-    'window.evoriumMap={update};',
-    'window.evoriumMap={update,people,targetFor,advance,walkSpeed,labelName,getSpeakers:()=>speakers};'
+    'window.evoriumMap={update,places:PLACES,getZoom:()=>zoom,zoomAt,wholeArea,',
+    'window.evoriumMap={update,people,targetFor,advance,walkSpeed,labelName,getSpeakers:()=>speakers,places:PLACES,getZoom:()=>zoom,zoomAt,wholeArea,'
   );
   vm.runInContext(source,context);
-  return {context,map:context.window.evoriumMap};
+  return {context,map:context.window.evoriumMap,painted};
 }
 const agent=(id,name,location=PUB,activity='in for a drink')=>({id,name,location,activity});
 function update(h,agents) { h.context.latestAgents=agents;h.map.update(); }
@@ -129,4 +131,24 @@ test('map shows the local player and other named players independently, includin
   assert.equal(h.map.labelName(self.agent),'You');assert.equal(h.map.labelName(friend.agent),'Thomas');
   h.context.latestPlayer.other_players=[];h.map.update();
   assert.equal(h.map.people.has('player-21'),false);assert.equal(h.map.people.has('player-20'),true);
+});
+
+const cityData={bounds:[[-200,-150],[200,150]],henry:{position:[4.9,5.48],rotation_degrees:41.8,size:[35.1,23.4]},
+  buildings:[{id:'way/99',type:'commercial',shape:[[30,20],[40,20],[40,30],[30,30]]}],roads:[],open_spaces:[],trees:[]};
+
+test('zoom stays in range and Whole area resets the view',()=>{
+  const h=mapHarness([]);h.map.setCityData(cityData);
+  assert.equal(h.map.getZoom(),1);h.map.zoomAt(6);assert.equal(h.map.getZoom(),6);
+  h.map.zoomAt(99);assert.equal(h.map.getZoom(),8.5);h.map.zoomAt(.01);assert.equal(h.map.getZoom(),1);
+  h.map.zoomAt(6);h.map.wholeArea();assert.equal(h.map.getZoom(),1);
+});
+
+test('a new OSM place in the single places list is labelled on the map',()=>{
+  const h=mapHarness([]);h.map.setCityData(cityData);
+  h.map.places.push({key:'arcade',name:'Back-street Arcade',osmId:'way/99',locations:['Back-street Arcade, Ancoats'],occupants:'arcade'});
+  assert.equal(h.map.targetFor(agent(99,'Peggy','Back-street Arcade, Ancoats')),'place:arcade');
+  h.context.latestAgents=[agent(99,'Peggy','Back-street Arcade, Ancoats')];h.map.update();
+  assert.ok(h.map.people.get('99').visible);
+  h.map.render();
+  assert.ok(h.painted.includes('Back-street Arcade'));assert.ok(h.painted.includes('Peggy'));
 });

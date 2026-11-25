@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import json
+import math
+import os
 import shutil
 import struct
 import subprocess
@@ -112,16 +114,89 @@ def _measure(tier_dir: Path, city_json: Path):
                       "city.json": {"bytes": manifest_bytes, "triangles": 0}}}
 
 
+def _map2d_data(build: Path, config: dict):
+    """Small deterministic, local-metre overview geometry for the dashboard map."""
+    def load(name):
+        return json.loads((build / "layers" / f"{name}.geojson").read_text(encoding="utf-8"))
+    def point(p):
+        return [round(float(p[0]), 1), round(float(p[1]), 1)]
+    def simplify(points, tolerance=1.0):
+        # Stable radial-distance simplification preserves the recognizable OSM outline.
+        kept = []
+        for p in points:
+            q = point(p)
+            if not kept or (q[0]-kept[-1][0])**2+(q[1]-kept[-1][1])**2 >= tolerance*tolerance:
+                kept.append(q)
+        if len(points) > 2 and kept[-1] != point(points[-1]): kept.append(point(points[-1]))
+        return kept
+    def rings(feature):
+        g=feature.get("geometry",{}); c=g.get("coordinates",[])
+        if g.get("type")=="Polygon": return c[:1]
+        if g.get("type")=="MultiPolygon": return [poly[0] for poly in c if poly]
+        return []
+    buildings=[]
+    for f in sorted(load("buildings")["features"],key=lambda x:str(x.get("id",""))):
+        shape=rings(f)
+        if shape:
+            props=f.get("properties",{})
+            buildings.append({"id":str(f.get("id", "")),"type":props.get("building", "yes"),"shape":simplify(shape[0],.6)})
+    roads=[]
+    for f in sorted(load("roads")["features"],key=lambda x:str(x.get("id",""))):
+        g=f.get("geometry",{}); c=g.get("coordinates",[]); kind=g.get("type")
+        lines=[c] if kind=="LineString" else c if kind=="MultiLineString" else []
+        props=f.get("properties",{})
+        for i,line in enumerate(lines):
+            if len(line)>1:
+                roads.append({"id":str(f.get("id","")),"type":props.get("highway","path"),"name":props.get("name",""),
+                              "width":round(float(props.get("width_m", 5 if props.get("highway") not in {"footway","path","steps","cycleway"} else 1.8)),1),"line":simplify(line,1.5)})
+    spaces=[]
+    for layer in ("landuse","water"):
+        for f in sorted(load(layer)["features"],key=lambda x:str(x.get("id",""))):
+            shape=rings(f)
+            if not shape: continue
+            props=f.get("properties",{}); spaces.append({"id":str(f.get("id","")),"name":props.get("name",""),"type":props.get("leisure",props.get("landuse",props.get("water","open"))),"shape":simplify(shape[0],1.0)})
+    trees=[]
+    for f in sorted(load("trees")["features"],key=lambda x:str(x.get("id",""))):
+        c=f.get("geometry",{}).get("coordinates",[])
+        if len(c)>=2 and isinstance(c[0],(int,float)): trees.append(point(c))
+    shuttle=config.get("shuttle_street",{})
+    position=shuttle.get("position",[0,0]);yaw=math.radians(float(shuttle.get("rotation_degrees",0)))
+    sx,sz=(float(v) for v in shuttle.get("footprint_size",[35.1,23.4]))
+    footprint=[]
+    for lx,lz in ((-sx/2,-sz/2),(sx/2,-sz/2),(sx/2,sz/2),(-sx/2,sz/2)):
+        footprint.append([round(float(position[0])+lx*math.cos(yaw)+lz*math.sin(yaw),1),
+                          round(float(position[1])-lx*math.sin(yaw)+lz*math.cos(yaw),1)])
+    return {"schema_version":1,"origin":config.get("area",{}).get("origin",[0,0]),
+            "bounds":[[round(float(config["area"]["bbox"][0])-float(config["area"]["origin"][0]),1),round(float(config["area"]["bbox"][1])-float(config["area"]["origin"][1]),1)],
+                      [round(float(config["area"]["bbox"][2])-float(config["area"]["origin"][0]),1),round(float(config["area"]["bbox"][3])-float(config["area"]["origin"][1]),1)]],
+            "buildings":buildings,"roads":roads,"open_spaces":spaces,"trees":trees,
+            "henry":{"position":position,"rotation_degrees":shuttle.get("rotation_degrees",0),"size":[sx,sz],"shape":footprint}}
+
+
+def export_map2d(build: Path, static: Path, config: dict):
+    data=_map2d_data(build,config)
+    encoded=json.dumps(data,sort_keys=True,separators=(",",":"),ensure_ascii=False)+"\n"
+    if len(encoded.encode("utf-8"))>=150_000: raise ValueError("map2d.json exceeds 150 KB")
+    destination=static/"data/map2d.json"; destination.parent.mkdir(parents=True,exist_ok=True)
+    destination.write_text(encoded,encoding="utf-8")
+    return {"map2d_bytes":len(encoded.encode("utf-8")),"map2d_buildings":len(data["buildings"]),"map2d_roads":len(data["roads"])}
+
+
 def run(config, fixture=False):
     root = Path.cwd()
     static = root / config["outputs"]["static_dir"]
     build = root / config["outputs"]["build_dir"]
+    if os.environ.get("EVORIUM_MAP2D_ONLY") == "1":
+        return export_map2d(build, static, config)
     raw = build / "export-source"
     if not fixture and not (raw / "city.json").is_file():
         raise FileNotFoundError("Run geometry and props before exporting the city")
     source_manifest = raw / "city.json" if raw.is_dir() else static / "data/city.json"
     with tempfile.TemporaryDirectory(prefix="export-", dir=build) if raw.is_dir() else tempfile.TemporaryDirectory() as temp:
-        return _export(config, fixture, root, static, build, raw, source_manifest, Path(temp))
+        result = _export(config, fixture, root, static, build, raw, source_manifest, Path(temp))
+    if not fixture and all((build / "layers" / f"{name}.geojson").is_file() for name in ("buildings", "roads", "landuse", "water", "trees")):
+        result.update(export_map2d(build, static, config))
+    return result
 
 
 def _export(config, fixture, root, static, build, raw, source_manifest, temp):

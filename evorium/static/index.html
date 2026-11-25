@@ -68,7 +68,10 @@
   .view-tabs button:focus-visible, #map-canvas:focus-visible { outline:2px solid var(--accent); outline-offset:3px; }
   #map-view { padding:16px 20px; max-width:1200px; min-width:0; }
   .map-stage { position:relative; border:1px solid #403c33; border-radius:8px; overflow:hidden; background:#332f29; }
-  #map-canvas { width:100%; aspect-ratio:960/600; display:block; touch-action:manipulation; }
+  #map-canvas { width:100%; aspect-ratio:960/600; display:block; touch-action:none; cursor:grab; }
+  #map-controls { display:flex; gap:6px; justify-content:flex-end; padding:8px; position:absolute; z-index:1; right:8px; top:8px; }
+  #map-controls button { min-width:40px; padding:7px 10px; background:#252824ec; color:var(--fg); border:1px solid #8d8067; }
+  #map-controls button:last-child { font-size:12px; }
   .map-hint { color:var(--muted); margin:8px 0; font-size:13px; }
   .map-popup { position:absolute; z-index:2; width:340px; max-width:calc(100% - 16px); max-height:85%; overflow:auto; overflow-wrap:anywhere; margin:0; box-shadow:0 8px 35px #0008; }
   .map-popup .popup-heading { display:flex; gap:12px; align-items:center; padding-right:22px; }
@@ -144,6 +147,7 @@
 <section id="map-view" role="tabpanel" aria-labelledby="map-tab" hidden>
   <div class="map-stage">
     <canvas id="map-canvas" width="960" height="600" tabindex="0" aria-label="Ancoats neighbourhood map. Choose a character below to inspect their card."></canvas>
+    <div id="map-controls" aria-label="Map zoom controls"><button id="map-zoom-in" type="button" aria-label="Zoom in">+</button><button id="map-zoom-out" type="button" aria-label="Zoom out">−</button><button id="map-whole-area" type="button">Whole area</button></div>
     <section id="map-popup" class="card map-popup" role="dialog" aria-label="Character details" hidden></section>
   </div>
   <p class="map-hint">Ancoats · Live whereabouts, cosmetic walking. Tap a character to see their card.</p>

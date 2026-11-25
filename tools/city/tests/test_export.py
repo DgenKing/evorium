@@ -126,3 +126,22 @@ def test_optimized_instanced_window_keeps_two_triangles(tmp_path):
     path.write_bytes(data)
     with pytest.raises(ValueError, match="pane triangles"):
         EXPORT._instance_measurement(path)
+
+
+def test_map2d_export_is_deterministic_and_below_150_kb(tmp_path):
+    build=tmp_path/"build";static=tmp_path/"static";(build/"layers").mkdir(parents=True)
+    fixtures={
+        "buildings":[{"id":"way/9","properties":{"building":"commercial"},"geometry":{"type":"Polygon","coordinates":[[[1,2],[8,2],[8,9],[1,2]]]}}],
+        "roads":[{"id":"way/7","properties":{"highway":"residential","name":"Henry Street"},"geometry":{"type":"LineString","coordinates":[[0,0],[10,0]]}}],
+        "landuse":[{"id":"way/8","properties":{"name":"Cutting Room Square","leisure":"park"},"geometry":{"type":"Polygon","coordinates":[[[2,2],[9,2],[9,9],[2,2]]]}}],
+        "water":[],"trees":[{"id":"node/6","geometry":{"type":"Point","coordinates":[4,5]}}]
+    }
+    for name,features in fixtures.items():
+        (build/"layers"/f"{name}.geojson").write_text(json.dumps({"type":"FeatureCollection","features":features}),encoding="utf-8")
+    config={"area":{"bbox":[-20,-20,20,20],"origin":[0,0]},"shuttle_street":{"position":[0,0],"rotation_degrees":10,"footprint_size":[35.1,23.4]}}
+    first=EXPORT.export_map2d(build,static,config);path=static/"data/map2d.json";raw=path.read_bytes()
+    second=EXPORT.export_map2d(build,static,config)
+    assert first==second and path.read_bytes()==raw
+    output=json.loads(raw)
+    assert len(raw)<150_000 and output["buildings"][0]["id"]=="way/9"
+    assert len(output["henry"]["shape"])==4 and output["roads"][0]["name"]=="Henry Street"

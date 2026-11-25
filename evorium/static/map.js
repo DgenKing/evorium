@@ -1,4 +1,4 @@
-/* Read-only map: consumes the dashboard's cached GET results, never fetches. */
+/* Read-only neighbourhood map: one city-data fetch at startup, then cached rendering. */
 (() => {
   'use strict';
   const WIDTH = 960, HEIGHT = 600;
@@ -12,6 +12,17 @@
   };
   const DOORS = {pub:{x:100,y:422}, shop:{x:880,y:422}};
   const STREET_Y = 467;
+  // One registry drives the map labels, occupants and zoom targets. Add a row here
+  // to place a future OSM building on the overview and expose its occupants.
+  const PLACES = [
+    {key:'pub',name:'The Crooked Billet',set:'henry',local:[-8,0],locations:[PUB],occupants:'pub'},
+    {key:'shop',name:"Patel's News",set:'henry',local:[10,0],locations:[SHOP],occupants:'shop'},
+    {key:'street',name:'Henry Street',set:'henry',local:[0,-7],locations:['Henry Street, Ancoats'],occupants:'street'}
+  ];
+  const CITY_DATA_URL='/static/world3d/data/map2d.json';
+  let cityMap=null, zoom=1, panX=0, panY=0, mapCenter=null, pointers=new Map(), drag=null, tapTime=0;
+  const zoomRange={min:1,max:8.5};
+  if(typeof fetch==='function') fetch(CITY_DATA_URL).then(r=>r.ok?r.json():null).then(data=>{cityMap=data;render();}).catch(()=>{});
   const STAIRS = {x:74,y:151};
   const points = (prefix, room, coords) => coords.map(([x,y],i)=>({key:`${prefix}-${i}`,room,x,y}));
   const BEHIND_BAR = points('staff','pub',[[170,179],[290,179],[365,179]]);
@@ -226,8 +237,19 @@
   }
   function render(time=0) {
     ctx.clearRect(0,0,WIDTH,HEIGHT);
+    if(cityMap?.bounds) { drawArea();drawPeople(time); }
+    if(zoom>2 && cityMap?.henry) drawCutaway(time);
+  }
+  function drawCutaway(time=0) {
+    const z=cityMap.henry, angle=(Number(z.rotation_degrees)||0)*Math.PI/180;
+    const cutX=z.size[0]/WIDTH, cutZ=z.size[1]/HEIGHT, factor=areaScale()*zoom;
+    const a=factor*Math.cos(angle)*cutX,b=factor*Math.sin(angle)*cutX;
+    const c=-factor*Math.sin(angle)*cutZ,d=factor*Math.cos(angle)*cutZ;
+    const center=worldScreen(...z.position);
+    const opacity=Math.max(0,Math.min(1,(zoom-2.2)/4.4));
+    ctx.save();ctx.globalAlpha=opacity;ctx.transform(a,b,c,d,center.x-a*WIDTH/2-c*HEIGHT/2,center.y-b*WIDTH/2-d*HEIGHT/2);
     drawScene();nightTint();
-    for (const person of [...people.values()].filter(p=>p.visible).sort((a,b)=>a.y-b.y)) {
+    for (const person of [...people.values()].filter(p=>p.visible&&!p.target?.startsWith('place:')).sort((a,b)=>a.y-b.y)) {
       drawSprite(ctx,person,time);
       const label=labelName(person.agent);
       ctx.font='12px system-ui, sans-serif';
@@ -236,8 +258,73 @@
       text(label,person.x,person.y+19,12,'#f4e9cf','center');
       if(speakers.has(String(person.agent.id))) drawBubble(person);
     }
-    drawWeather(time);drawHud();
+    drawWeather(time);drawHud();ctx.restore();
   }
+  function henryTarget(){return cityMap?.henry?.position||[0,0];}
+  function areaScale(){
+    const b=cityMap.bounds, width=b[1][0]-b[0][0],height=b[1][1]-b[0][1];
+    return Math.min((WIDTH-70)/width,(HEIGHT-70)/height);
+  }
+  function worldScreen(x,z){
+    const b=cityMap.bounds,cx=mapCenter?.[0]??(b[0][0]+b[1][0])/2,cz=mapCenter?.[1]??(b[0][1]+b[1][1])/2,s=areaScale()*zoom;
+    return {x:WIDTH/2+panX+(x-cx)*s,y:HEIGHT/2+panY-(z-cz)*s};
+  }
+  function areaAlpha(){return Math.max(0,1-Math.max(0,zoom-1.4)/4.3);}
+  function drawArea(){
+    const b=cityMap.bounds;mapCenter ||= [(b[0][0]+b[1][0])/2,(b[0][1]+b[1][1])/2];
+    rect(0,0,WIDTH,HEIGHT,'#4a483d');ctx.save();ctx.globalAlpha=areaAlpha();
+    const pathShape=shape=>{ctx.beginPath();shape.forEach((p,i)=>{const q=worldScreen(p[0],p[1]);if(i)ctx.lineTo(q.x,q.y);else ctx.moveTo(q.x,q.y);});ctx.closePath();};
+    for(const space of cityMap.open_spaces||[]){pathShape(space.shape);ctx.fillStyle=space.name==='Cutting Room Square'?'#746f58':'#625f4d';ctx.fill();}
+    for(const road of cityMap.roads||[]){
+      const pts=road.line.map(p=>worldScreen(p[0],p[1]));if(pts.length<2)continue;
+      const scale=areaScale()*zoom;ctx.beginPath();pts.forEach((p,i)=>i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y));
+      const foot=['footway','path','steps','cycleway','pedestrian'].includes(road.type);ctx.lineCap='round';
+      if(!foot){ctx.strokeStyle='#aaa28e';ctx.lineWidth=Math.max(1,scale*(road.width+3.2));ctx.stroke();}
+      ctx.strokeStyle=foot?'#aaa28e':'#686760';ctx.lineWidth=Math.max(1,scale*road.width);ctx.stroke();
+    }
+    for(const building of cityMap.buildings||[]){pathShape(building.shape);ctx.fillStyle=building.type==='commercial'?'#88715c':'#847361';ctx.fill();ctx.strokeStyle='#c4b596';ctx.lineWidth=Math.max(.6,areaScale()*zoom*.16);ctx.stroke();}
+    if(cityMap.henry?.shape?.length){pathShape(cityMap.henry.shape);ctx.strokeStyle='#e6bd73';ctx.lineWidth=Math.max(1,areaScale()*zoom*.35);ctx.stroke();}
+    for(const [x,z] of cityMap.trees||[]){const p=worldScreen(x,z),r=Math.max(2,areaScale()*zoom*.65);ctx.beginPath();ctx.arc(p.x,p.y,r,0,Math.PI*2);ctx.fillStyle='#536148';ctx.fill();}
+    const hour=Number(String(usage.sim_time||'').match(/,\s*(\d{1,2}):/)?.[1]||12);
+    if(hour>=19||hour<7)rect(0,0,WIDTH,HEIGHT,'#15223b55');
+    const streetNames=new Map();for(const road of cityMap.roads||[])if(['Henry Street','Blossom Street','Hood Street','Jersey Street','Murray Street'].includes(road.name)&&road.line.length>1){const old=streetNames.get(road.name);if(!old||road.line.length>old.length)streetNames.set(road.name,road.line);}
+    ctx.font='11px system-ui,sans-serif';ctx.textAlign='center';ctx.fillStyle='#f0dfba';
+    for(const [name,line] of streetNames){const loc=line[Math.floor(line.length/2)],p=worldScreen(...loc);ctx.fillText(name,p.x,p.y-5);}
+    for(const [index,place] of PLACES.entries()){const p=placeScreen(place);ctx.beginPath();ctx.arc(p.x,p.y,5,0,Math.PI*2);ctx.fillStyle='#e6bd73';ctx.fill();ctx.strokeStyle='#29251d';ctx.lineWidth=1.5;ctx.stroke();ctx.font='11px system-ui,sans-serif';ctx.textAlign='left';ctx.fillStyle='#fff0cf';ctx.fillText(place.name,p.x+8,p.y+(index===0?-8:index===1?16:4));}
+    ctx.restore();
+  }
+  function placeScreen(place){
+    return worldScreen(...placeWorld(place));
+  }
+  function placeWorld(place){
+    let x,z;
+    if(place.osmId){const building=cityMap.buildings.find(b=>String(b.id)===String(place.osmId));if(building){x=building.shape.reduce((n,p)=>n+p[0],0)/building.shape.length;z=building.shape.reduce((n,p)=>n+p[1],0)/building.shape.length;}}
+    if(x===undefined){const h=cityMap.henry,pos=h.position,angle=(Number(h.rotation_degrees)||0)*Math.PI/180,l=place.local||[0,0];x=pos[0]+l[0]*Math.cos(angle)+l[1]*Math.sin(angle);z=pos[1]-l[0]*Math.sin(angle)+l[1]*Math.cos(angle);}
+    return [x,z];
+  }
+  function drawPeople(time){
+    const fade=Math.max(0,Math.min(1,(zoom-2.2)/4.4));
+    for(const person of people.values())if(person.visible){
+      const p=personScreen(person);
+      ctx.save();ctx.globalAlpha=1-fade;ctx.beginPath();ctx.arc(p.x,p.y,person.agent.isPlayer?5:4,0,Math.PI*2);ctx.fillStyle=person.agent.isPlayer?'#85d7ff':'#f5dc9c';ctx.fill();ctx.strokeStyle='#25231e';ctx.lineWidth=1.5;ctx.stroke();
+      if(zoom<4) {ctx.font='10px system-ui,sans-serif';ctx.textAlign='left';ctx.fillStyle='#fff0cf';ctx.fillText(labelName(person.agent),p.x+6,p.y-5);}
+      ctx.restore();
+    }
+  }
+  function personScreen(person){
+    if(!cityMap?.henry)return {x:WIDTH/2,y:HEIGHT/2};
+    if(person.target?.startsWith('place:')){
+      const place=PLACES.find(p=>`place:${p.key}`===person.target);if(place){const anchor=placeWorld(place),n=[...String(person.agent.id)].reduce((v,c)=>v+c.charCodeAt(0),0),angle=n*2.399,r=.6+(n%5)*.22;return worldScreen(anchor[0]+Math.cos(angle)*r,anchor[1]+Math.sin(angle)*r);}
+    }
+    const angle=(Number(cityMap.henry.rotation_degrees)||0)*Math.PI/180,h=henryTarget();
+    const lx=(person.x-WIDTH/2)*cityMap.henry.size[0]/WIDTH,lz=(HEIGHT/2-person.y)*cityMap.henry.size[1]/HEIGHT;
+    return worldScreen(h[0]+lx*Math.cos(angle)+lz*Math.sin(angle),h[1]-lx*Math.sin(angle)+lz*Math.cos(angle));
+  }
+  function zoomAt(next,x=WIDTH/2,y=HEIGHT/2){
+    if(!cityMap?.bounds)return;const old=zoom,worldX=(x-WIDTH/2-panX)/(areaScale()*old)+(mapCenter[0]),worldZ=mapCenter[1]-(y-HEIGHT/2-panY)/(areaScale()*old);
+    zoom=Math.max(zoomRange.min,Math.min(zoomRange.max,next));const s=areaScale()*zoom;panX=x-WIDTH/2-(worldX-mapCenter[0])*s;panY=y-HEIGHT/2+(worldZ-mapCenter[1])*s;render();
+  }
+  function wholeArea(){if(cityMap?.bounds)mapCenter=[(cityMap.bounds[0][0]+cityMap.bounds[1][0])/2,(cityMap.bounds[0][1]+cityMap.bounds[1][1])/2];zoom=1;panX=panY=0;render();}
   function drawBubble(person) {
     const x=person.x+9,y=person.y-55;
     rect(x,y,23,15,'#f4e9cf');rect(x+2,y+15,4,4,'#f4e9cf');
@@ -266,9 +353,11 @@
     }
     if(agent.location===SHOP) return agent.activity==='behind the counter'?'till':'shop';
     if(agent.location==='Henry Street, Ancoats' || (agent.location==='Ancoats' && agent.activity==='walking to the shops')) return 'street';
+    const mapped=PLACES.find(p=>p.locations?.includes(agent.location));if(mapped)return `place:${mapped.key}`;
     return null;
   }
   function poolFor(target,agent) {
+    if(target?.startsWith('place:'))return Array.from({length:12},(_,i)=>({key:`${target}-${i}`,room:'street',x:480+(i%4-1.5)*12,y:285+Math.floor(i/4)*14}));
     if(target==='staff') return firstName(agent)==='Jess'?[BEHIND_BAR[1],BEHIND_BAR[0],BEHIND_BAR[2]]:BEHIND_BAR;
     return {tommy:TOMMY_TABLE,darts:DARTS,pub:[...PUB_SEATS,...BAR_STOOLS],till:TILL,shop:SHOP_CUSTOMER,street:STREET_SPOTS}[target]||[];
   }
@@ -407,7 +496,7 @@
     if(popup.hidden || window.innerWidth<=600) return;
     const person=people.get(selectedId);if(!person) return;
     const width=canvas.clientWidth,height=canvas.clientHeight;
-    const x=person.x/WIDTH*width,y=person.y/HEIGHT*height;
+    const point=personScreen(person),x=point.x/WIDTH*width,y=point.y/HEIGHT*height;
     popup.style.left=`${Math.max(8,Math.min(width-popup.offsetWidth-8,x+22))}px`;
     popup.style.top=`${Math.max(8,Math.min(height-popup.offsetHeight-8,y-50))}px`;
   }
@@ -457,13 +546,31 @@
   function hitPerson(event) {
     const bounds=canvas.getBoundingClientRect();
     const x=(event.clientX-bounds.left)*WIDTH/bounds.width,y=(event.clientY-bounds.top)*HEIGHT/bounds.height;
-    const radius=Math.max(23,20*WIDTH/bounds.width);
+    const radius=Math.max(8,18*WIDTH/bounds.width);
     return [...people.values()].filter(p=>p.visible&&!p.agent.isPlayer)
-      .filter(p=>Math.abs(p.x-x)<radius&&Math.abs(p.y-14-y)<Math.max(30,radius))
-      .sort((a,b)=>Math.hypot(a.x-x,a.y-14-y)-Math.hypot(b.x-x,b.y-14-y))[0];
+      .filter(p=>{const q=personScreen(p);return Math.hypot(q.x-x,q.y-y)<radius;})
+      .sort((a,b)=>{const aa=personScreen(a),bb=personScreen(b);return Math.hypot(aa.x-x,aa.y-y)-Math.hypot(bb.x-x,bb.y-y);})[0];
   }
-  canvas.addEventListener('pointermove',event=>{canvas.style.cursor=hitPerson(event)?'pointer':'default';});
+  canvas.addEventListener('pointerdown',event=>{
+    canvas.setPointerCapture?.(event.pointerId);pointers.set(event.pointerId,{x:event.clientX,y:event.clientY});
+    if(pointers.size===1)drag={id:event.pointerId,x:event.clientX,y:event.clientY,px:panX,py:panY};
+    else if(pointers.size===2){const pts=[...pointers.values()];drag={pinch:Math.hypot(pts[0].x-pts[1].x,pts[0].y-pts[1].y),zoom};}
+  });
+  canvas.addEventListener('pointermove',event=>{
+    canvas.style.cursor=hitPerson(event)?'pointer':'grab';if(!pointers.has(event.pointerId))return;
+    pointers.set(event.pointerId,{x:event.clientX,y:event.clientY});
+    if(pointers.size===1&&drag?.id===event.pointerId){const b=canvas.getBoundingClientRect();panX=drag.px+(event.clientX-drag.x)*WIDTH/b.width;panY=drag.py+(event.clientY-drag.y)*HEIGHT/b.height;render();}
+    else if(pointers.size===2&&drag?.pinch){const pts=[...pointers.values()],distance=Math.hypot(pts[0].x-pts[1].x,pts[0].y-pts[1].y);zoom=Math.max(zoomRange.min,Math.min(zoomRange.max,drag.zoom*distance/drag.pinch));render();}
+  });
+  canvas.addEventListener('pointerup',event=>{pointers.delete(event.pointerId);if(!pointers.size)drag=null;});
+  canvas.addEventListener('pointercancel',event=>{pointers.delete(event.pointerId);drag=null;});
+  canvas.addEventListener('wheel',event=>{event.preventDefault();const b=canvas.getBoundingClientRect();zoomAt(zoom*Math.exp(-event.deltaY*.0015),(event.clientX-b.left)*WIDTH/b.width,(event.clientY-b.top)*HEIGHT/b.height);},{passive:false});
+  canvas.addEventListener('dblclick',event=>{const b=canvas.getBoundingClientRect();zoomAt(zoom*1.8,(event.clientX-b.left)*WIDTH/b.width,(event.clientY-b.top)*HEIGHT/b.height);});
+  canvas.addEventListener('pointerup',event=>{const now=performance.now();if(event.pointerType==='touch'&&now-tapTime<360){const b=canvas.getBoundingClientRect();zoomAt(zoom*1.8,(event.clientX-b.left)*WIDTH/b.width,(event.clientY-b.top)*HEIGHT/b.height);tapTime=0;}else tapTime=now;});
   canvas.addEventListener('click',event=>{const person=hitPerson(event);if(person) openPopup(person.agent.id);else closePopup();});
+  $('map-zoom-in').addEventListener('click',()=>zoomAt(zoom*1.5));
+  $('map-zoom-out').addEventListener('click',()=>zoomAt(zoom/1.5));
+  $('map-whole-area').addEventListener('click',wholeArea);
   $('map-roster').addEventListener('click',event=>{const button=event.target.closest('[data-map-agent]');if(button) openPopup(button.dataset.mapAgent);});
   popup.addEventListener('click',event=>{
     const action=event.target.closest('[data-popup-action]')?.dataset.popupAction;
@@ -477,7 +584,8 @@
   document.addEventListener('pointerdown',event=>{if(!popup.hidden&&!popup.contains(event.target)&&!canvas.contains(event.target)&&!$('map-roster').contains(event.target)) closePopup();});
   document.addEventListener('keydown',event=>{if(event.key==='Escape'&&!popup.hidden) closePopup(true);});
 
-  window.evoriumMap={update};
+  window.evoriumMap={update,places:PLACES,getZoom:()=>zoom,zoomAt,wholeArea,
+    setCityData:data=>{cityMap=data;mapCenter=data?.bounds?[(data.bounds[0][0]+data.bounds[1][0])/2,(data.bounds[0][1]+data.bounds[1][1])/2]:null;},render};
   let remembered='dashboard';
   try { remembered=localStorage.getItem('evorium-view')||remembered; } catch (_) { /* storage unavailable */ }
   selectTab(location.hash==='#map'?'map':location.hash==='#dashboard'?'dashboard':remembered,false,false);
