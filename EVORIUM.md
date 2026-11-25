@@ -97,7 +97,7 @@ and phone); it runs around the clock on the owner's HP G4 and is reachable over 
 | Story arcs | Python resolves Northgate; darts and flat-hunt templates can follow |
 | Realism | Cached Manchester weather, fixed UK holidays/festive events/payday visits, deterministic ordinary setbacks; no extra model calls for Parts 1–4 |
 | Police follow-ups | Grace opens serious reported cases, seeks subjects on her beat, approaches the correct player and records advice/warnings (local, 23 Nov) |
-| Catch-up | "While you were away": significant events and gossip, cached narration or bullet fallback |
+| Catch-up | "While you were away": significant events and gossip, plus private unread player messages |
 | Director | Nudges a stalled or looping world with one mundane event a day at most |
 | Timeline | Permanent record + daily digest, at `/timeline-page` |
 | Navigation | ☰ burger menu top right on every page: Dashboard, Map, 3D, Timeline, Guide |
@@ -146,6 +146,23 @@ accounts use suffixed settings. Catch-up cache keys and narration budgets includ
 three real minutes after its latest message. Idle conversations close after five minutes, and maintenance
 and startup process every player. All accounts currently retain the full owner’s dashboard/map/timeline
 view and controls; this is for trusted friends, not public registration or separate admin permissions.
+
+### Multiplayer chat
+
+Walk up to another player in 3D and press **E** or tap **Talk**. The normal chat panel shows the other
+player's name and both sides of the thread. The envelope in the header opens player contacts, including
+players elsewhere or offline. A new message outside the open thread gives a clickable toast and an
+unread dot. Unread messages also appear in **While you were away** on the dashboard and when returning
+in 3D. Opening the thread marks messages read for that account.
+
+Only the two participants receive the text. When both players are at the same place, a nearby recipient
+can see the sender's words above their avatar. Other nearby players see a speech indicator. The messages
+stay outside the simulation's conversation, memory, timeline, god-view and narrated catch-up systems.
+
+Migration 21 adds the private message log. Sending resolves a configured recipient account and uses the
+authenticated account as sender. Messages are trimmed to 1–300 characters and limited to one per second per
+sending account. The 3D client checks for new messages every 2 seconds with a player chat open and every
+10 seconds otherwise. Human messages and read receipts use no model calls.
 
 ### The heartbeat (every 5 real seconds, `main._tick_loop`)
 
@@ -413,7 +430,8 @@ collision-verified A* graph. `?city=1` joins that graph to sampled OSM road/path
 | `evorium/actions.py` | The action menu, checks, effects, guards |
 | `evorium/decide.py` | Reaction calls |
 | `evorium/arcs.py` | Story endings and follow-on arcs |
-| `evorium/catchup.py` | "While you were away" |
+| `evorium/catchup.py` | "While you were away" world events and narration |
+| `evorium/player_chat.py` | Private human messages, unread state and nearby speech indicators |
 | `evorium/backoff.py` | Shared pause when DeepSeek is failing |
 | `evorium/scene.py` | Read-only `/world/scene` snapshot and first-name portrait URLs for the 3D game |
 | `evorium/director.py` | Stall/loop detection and validated nudges |
@@ -1029,8 +1047,8 @@ the loaded assets); choosing a preset reloads the matching asset set. Override w
 - All 20 APCs have portrait files. The dashboard and map share the full-name portrait map. 3D character cards
   use the same files via each APC's first name (with Mohammed displayed as Mo).
 - Other logged-in players with a place set appear with their own names, using Rob’s player body and
-  the existing waypoint walking. They have no portrait or E/touch talk prompt; player-to-player chat is
-  not part of accounts v1. The 2D map likewise shows other named players, including on the street.
+  the existing waypoint walking. Press E or tap Talk nearby to open a private chat (§3). The 2D map
+  likewise shows other named players, including on the street.
 - Characters: twenty APCs and the player have individual MakeHuman/MPFB models, with age/build morphs, textured faces,
   hair, beards where appropriate, and actual clothing meshes. MPFB 2.0.18 is a build-only Blender extension;
   all selected graphics are CC0. `build_cast_mpfb.py` defines the cast and exports metre/Y-up models.
@@ -1315,8 +1333,8 @@ streets, film grain, matching the game's portraits.
   visit. The can's quiet procedural rattle is subject to browser audio/gesture support and has not
   been checked by listening on physical speakers. Real-phone FPS and memory still need hardware.
 - **Accounts v1 limits:** each named login has its own player, but every account still sees the full god
-  view and can use owner controls. There is no self-service sign-up, role separation, logout/session UI
-  or player-to-player chat. Passwords remain only in private config; separate player permissions and
+  view and can use owner controls. Self-service sign-up, role separation and logout/session UI remain
+  future work. Passwords stay in private config. Separate player permissions and
   stronger account management are future work (§11). Presence persists until Leave or a place change;
   browser disconnects do not automatically remove a player.
 - **Barring isn't enforced.** A character can say the player is barred, but nothing stops them walking back in,
@@ -1649,6 +1667,14 @@ the key pool and open sign-ups.
 ---
 
 ## 14. History
+
+### 25 November 2026 — Private player chat
+
+- Added face-to-face E and touch chat, an envelope for remote or offline contacts, clickable unread
+  toasts and unread messages in While you were away. Nearby bystanders see a speech indicator.
+- Migration 21 keeps private messages apart from the world transcript. Text is visible only to the
+  participants and sending makes no model calls.
+
 
 ### 25 November 2026 — Browsers re-check game code after updates
 

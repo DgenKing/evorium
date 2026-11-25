@@ -38,3 +38,10 @@
 @media (pointer: coarse) {
   #arcade-play-hint { bottom: 93px; max-width: 63vw; font-size: .85rem; }
 }
+
+#player-messages{position:relative;margin-left:0}
+#player-unread-dot{position:absolute;right:.3rem;top:.3rem;width:.55rem;height:.55rem;border-radius:50%;background:#ffd076}
+#player-inbox-list,.private-messages{list-style:none;padding:0}
+#player-inbox-list button,.private-messages button{width:100%;text-align:left;margin:.2rem 0;overflow-wrap:anywhere}
+#player-message-toast{position:fixed;z-index:6;right:1rem;top:5.4rem;max-width:min(360px,90vw);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#chat-log p{overflow-wrap:anywhere;white-space:pre-wrap}

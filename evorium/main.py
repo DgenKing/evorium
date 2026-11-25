@@ -12,14 +12,14 @@ from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Query
 from fastapi.staticfiles import StaticFiles
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse, Response
 from evorium.configuration import load
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
-from evorium import arcade_games, greetings, pacing, player_position
+from evorium import arcade_games, greetings, pacing, player_chat, player_position
 from evorium import accounts, scene, economy, actions, decide, backoff, tick, world, timeline, player, relationships, places, plans, director
 from evorium.db import DEFAULT_DB_PATH, VISIBLE_IMPORTANCE, connect, init_db, npc_agents
 from evorium.events import emit, since
@@ -549,6 +549,47 @@ def load_player_position(map: player_position.MapName, response: Response):
 def save_player_position(position: player_position.Position):
     player_position.save(position, DEFAULT_DB_PATH)
     return Response(status_code=204)
+
+
+def _chat_accounts():
+    allowed = {name.casefold(): name for name, password in ACCOUNTS.items() if password and name.casefold() != 'owner'}
+    if DASHBOARD_PASSWORD or not ACCOUNTS:
+        allowed['owner'] = 'Rob'
+    return allowed
+
+
+class DirectMessageRequest(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    text: str
+
+
+class DirectReadRequest(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    through: int = Field(strict=True, ge=1, le=2**63 - 1)
+
+
+@app.get('/player-chat')
+def direct_inbox(response: Response, after: int | None = Query(default=None, ge=0, le=2**63 - 1)):
+    response.headers['Cache-Control'] = 'private, no-store'
+    return player_chat.inbox(DEFAULT_DB_PATH, _chat_accounts(), after)
+
+
+@app.get('/player-chat/thread')
+def direct_thread(peer: str, response: Response):
+    response.headers['Cache-Control'] = 'private, no-store'
+    return player_chat.thread(DEFAULT_DB_PATH, _chat_accounts(), peer)
+
+
+@app.post('/player-chat/send')
+def direct_send(peer: str, message: DirectMessageRequest, response: Response):
+    response.headers['Cache-Control'] = 'private, no-store'
+    return player_chat.send(DEFAULT_DB_PATH, _chat_accounts(), peer, message.text)
+
+
+@app.post('/player-chat/read')
+def direct_read(peer: str, request: DirectReadRequest):
+    player_chat.read(DEFAULT_DB_PATH, _chat_accounts(), peer, request.through)
+    return {'ok': True}
 
 
 @app.post('/player/profile')

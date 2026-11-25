@@ -57,11 +57,14 @@ def ensure_player(account, display_name, db_path=DEFAULT_DB_PATH):
         return player_row(c, account, display_name)
 
 
-def other_players(c, settings=None):
+def other_players(c, settings=None, *, include_account=False):
     settings = dict(c.execute('SELECT key,value FROM world')) if settings is None else settings
     people = []
     for r in c.execute("SELECT id,name,kind,account,location,activity,mood FROM agents WHERE kind='player' AND account!=? ORDER BY id", (current.get(),)):
         place = settings.get(setting_key('player_place', r['account']))
         if place:
-            people.append({**{key: r[key] for key in ('id', 'name', 'kind', 'location', 'activity', 'mood')}, 'place': place})
+            person = {key: r[key] for key in ('id', 'name', 'kind', 'location', 'activity', 'mood')}
+            if include_account:
+                person['account'] = r['account']
+            people.append(dict(person, place=place))
     return people

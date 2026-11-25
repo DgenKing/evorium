@@ -6,7 +6,7 @@ from collections import Counter
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from evorium import accounts, arcade, greetings, places, world
+from evorium import accounts, arcade, greetings, places, player_chat, world
 from evorium.db import DEFAULT_DB_PATH
 
 PORTRAITS = Path(__file__).parent / 'static' / 'portraits'
@@ -127,9 +127,11 @@ def snapshot(db_path=DEFAULT_DB_PATH, *, real_at=None):
                                'portrait': '/static/portraits/' + portrait if (PORTRAITS / portrait).is_file() else None})
         me = c.execute("SELECT id,name FROM agents WHERE kind='player' AND account=?", (accounts.current.get(),)).fetchone()
         player = {'id': me['id'], 'name': me['name'], 'place': settings.get(accounts.setting_key('player_place')) or 'street', 'talking_to': talk.get(me['id'])} if me else None
-        for other in accounts.other_players(c, settings):
+        speech = player_chat.speech_activity(c, real_at.timestamp())
+        for other in accounts.other_players(c, settings, include_account=True):
             characters.append({'id': other['id'], 'name': other['name'], 'first': other['name'], 'kind': 'player',
-                               'place': other['place'], 'activity': 'visiting', 'mood': other['mood'],
+                               'place': other['place'], 'account': other['account'], 'activity': 'visiting', 'mood': other['mood'],
+                               'speaking_at': speech.get((other['id'], other['place'])),
                                'talking_to': talk.get(other['id']), 'conversation_id': None,
                                'line': None, 'line_at': None, **lines.get(other['id'], {}), 'portrait': None})
         notices = [dict(row) for row in c.execute('SELECT place,text FROM notices WHERE julianday(since)<=julianday(?) AND (until IS NULL OR julianday(until)>julianday(?)) ORDER BY id', (stamp, stamp))]

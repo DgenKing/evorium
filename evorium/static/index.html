@@ -417,13 +417,35 @@ function renderLedger(ledger, simAt){
     ${(ledger.arcs||[]).map(a=>`<div class="mem"><b>${esc(a.key.replaceAll('_',' '))} · ${esc(a.status)}</b>${a.summary?`<p>${esc(a.summary)}</p>`:''}</div>`).join('')}`;
 }
 async function loadCatchup(){
-  try{
-    const c=await j('/catchup');
-    if(c.gap_hours<2||!c.items.length)return;
-    $('catchup').hidden=false;
-    $('catchup').innerHTML=`<button type="button" id="catchup-dismiss" style="float:right">Dismiss</button><h2>While you were away</h2>${c.paragraph?`<p>${esc(c.paragraph)}</p>`:''}<ul>${c.items.map(x=>`<li>${esc(x)}</li>`).join('')}</ul>`;
-    $('catchup-dismiss').onclick=async()=>{try{await j('/catchup/seen',{method:'POST'});$('catchup').hidden=true;}catch(e){$('error').textContent=e.message;}};
-  }catch(e){$('error').textContent=e.message;}
+  const [worldResult,inboxResult]=await Promise.allSettled([j('/catchup'),j('/player-chat')]);
+  const c=worldResult.value;
+  const items=c?.gap_hours>=2?(c.items||[]):[];
+  const unread=inboxResult.value?.unread||[];
+  if(worldResult.status==='rejected')$('error').textContent=worldResult.reason.message;
+  if(!items.length&&!unread.length)return;
+  const panel=$('catchup'),heading=document.createElement('h2'),dismiss=document.createElement('button');
+  heading.textContent='While you were away';
+  dismiss.type='button';dismiss.textContent='Dismiss';dismiss.style.float='right';
+  panel.replaceChildren(dismiss,heading);
+  if(items.length){
+    if(c.paragraph){const p=document.createElement('p');p.textContent=c.paragraph;panel.append(p);}
+    const list=document.createElement('ul');
+    for(const text of items){const item=document.createElement('li');item.textContent=text;list.append(item);}
+    panel.append(list);
+  }
+  if(unread.length){
+    const label=document.createElement('h3'),list=document.createElement('ul');
+    label.textContent='Private player messages';
+    for(const message of unread){
+      const item=document.createElement('li'),link=document.createElement('a');
+      link.href='/world3d?chat='+encodeURIComponent(message.sender);
+      link.textContent=message.sender_name+': '+message.text;
+      item.append(link);list.append(item);
+    }
+    panel.append(label,list);
+  }
+  panel.hidden=false;
+  dismiss.onclick=async()=>{try{if(items.length)await j('/catchup/seen',{method:'POST'});panel.hidden=true;}catch(e){$('error').textContent=e.message;}};
 }
 loadCatchup();
 refresh(); setInterval(refresh, 2000);

@@ -268,6 +268,18 @@ MIGRATIONS = (
         x REAL NOT NULL, y REAL NOT NULL, z REAL NOT NULL, yaw REAL NOT NULL,
         PRIMARY KEY(account, map)
     )""",),
+    # Migration 21: private messages between human players.
+    (
+        """CREATE TABLE player_chat (
+            id INTEGER PRIMARY KEY, sender_id INTEGER NOT NULL REFERENCES agents(id),
+            recipient_id INTEGER NOT NULL REFERENCES agents(id), text TEXT NOT NULL,
+            sent_at REAL NOT NULL, read_at REAL, nearby_place TEXT,
+            CHECK(sender_id!=recipient_id), CHECK(length(text) BETWEEN 1 AND 300)
+        )""",
+        "CREATE INDEX player_chat_sender ON player_chat(sender_id,id)",
+        "CREATE INDEX player_chat_recipient ON player_chat(recipient_id,id)",
+        "CREATE INDEX player_chat_sent_at ON player_chat(sent_at)",
+    ),
 )
 
 VISIBLE_IMPORTANCE = 3  # facts scored below this are kept in the database but never shown to characters

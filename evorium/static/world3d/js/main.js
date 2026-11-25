@@ -15,7 +15,8 @@ function save(key,value){try{localStorage.setItem('evorium3d.'+key,value);}catch
 async function boot(){
  // The Ancoats streets are the normal map (25 Nov). ?city=0 shows the old single street; automated ?test=1 pages keep it unless they ask for ?city=1.
  const cityEnabled=params.has('city')?params.get('city')==='1':!test;
- if(matchMedia('(pointer:coarse)').matches)$('controls').textContent='Left thumb move · Right drag look · Pinch zoom';
+ const touch=matchMedia('(pointer:coarse)').matches;
+ if(touch)$('controls').textContent='Left thumb move · Right drag look · Pinch zoom';
  const canvas=$('world'),scene=new THREE.Scene(),camera=new THREE.PerspectiveCamera(55,innerWidth/innerHeight,.08,150);
  const selected=params.get('quality')||stored('quality','auto');let preset=presets[selected]?selected:detectQuality({touch:matchMedia('(pointer:coarse)').matches,width:innerWidth});
  const renderer=new THREE.WebGLRenderer({canvas,antialias:preset==='high',powerPreference:'high-performance'});renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1;
@@ -36,7 +37,7 @@ async function boot(){
  let games=null;
  const input=new Input(canvas,async(action,event)=>{
  if(games?.active){if(action==='Escape')games.close();return;}
- if(action==='KeyE'&&!input.blocked&&!games?.open(games.nearby()))await ui.chat(actors.nearestTalk(player));if(action==='KeyN'){actors.tags=!actors.tags;$('tags').checked=actors.tags;save('tags',actors.tags);}if(action==='KeyC')world.debug.visible=!world.debug.visible;if(action==='F1')$('debug').hidden=!$('debug').hidden;if(action==='Escape'){await ui.closeChat();$('settings').hidden=true;input.blocked=false;}$('card').hidden=action==='Escape'||$('card').hidden;if(action==='pick'&&!input.blocked){const ray=new THREE.Raycaster();ray.setFromCamera(new THREE.Vector2(event.clientX/innerWidth*2-1,1-event.clientY/innerHeight*2),camera);const candidates=[...actors.people.values()];for(const hit of ray.intersectObjects(candidates.map(a=>a.body),true)){const a=candidates.find(a=>{let n=hit.object;while(n){if(n===a.root)return true;n=n.parent;}return false;});if(a){ui.card(a.person);break;}}}});
+ if(action==='KeyE'&&!input.blocked&&!games?.open(games.nearby()))await ui.talk(actors.nearestTalk(player));if(action==='KeyN'){actors.tags=!actors.tags;$('tags').checked=actors.tags;save('tags',actors.tags);}if(action==='KeyC')world.debug.visible=!world.debug.visible;if(action==='F1')$('debug').hidden=!$('debug').hidden;if(action==='Escape'){await ui.closeChat();$('settings').hidden=true;input.blocked=false;}$('card').hidden=action==='Escape'||$('card').hidden;if(action==='pick'&&!input.blocked){const ray=new THREE.Raycaster();ray.setFromCamera(new THREE.Vector2(event.clientX/innerWidth*2-1,1-event.clientY/innerHeight*2),camera);const candidates=[...actors.people.values()];for(const hit of ray.intersectObjects(candidates.map(a=>a.body),true)){const a=candidates.find(a=>{let n=hit.object;while(n){if(n===a.root)return true;n=n.parent;}return false;});if(a){ui.card(a.person);break;}}}});
  const ui=new UI(input,actors);
  if(world.arcade)games=new ArcadeGames({arcade:world.arcade,player,input,canvas,toast:text=>ui.toast(text)});actors.onSelect=p=>ui.card(p);actors.tags=stored('tags','true')!=='false';follow.invert=stored('invert','false')==='true';follow.sensitivity=Number(stored('sensitivity','1'));
  $('tags').checked=actors.tags;$('invert').checked=follow.invert;$('sensitivity').value=follow.sensitivity;$('quality').value=preset;
@@ -140,7 +141,9 @@ async function boot(){
   follow.update(0,player.position,{look:{x:0,y:0},zoom:0});
   await request('/player/enter',{place:player.place});
   joined=player.place;
-  await ui.initial();
+  const directPeer=params.get('chat');
+  ui.direct.start(directPeer);
+  await ui.initial(Boolean(directPeer));
   net.poll();
   savePosition=trackPosition(mode,player,context);
   const header=$('world-location');
@@ -168,7 +171,7 @@ async function boot(){
  }else if(!studio)player.actor.animate('idle',dt);
  world.arcade?.update(now);world.update(test?1/60:dt);if(!studio)actors.update(test?1/60:dt,camera);else for(const entry of lineup){if(!entry.actor.root.visible)continue;entry.actor.animate(pose,1/60);entry.actor.mixer.setTime(Number(params.get('frame')||.5));entry.actor.ground(pose);entry.actor.label.visible=entry.actor.root.visible;}if(test){if(!studio){player.actor.mixer.setTime(.5);player.actor.ground();}player.actor.root.position.copy(player.position);if(!studio)for(const a of actors.people.values()){a.mixer.setTime(.5);a.ground();}}ambient?.update(dt,snapshot.daylight,document.hidden);visibleTriangles=0;visibleDrawCalls=0;scene.traverse(o=>{if(o.isMesh&&!o.userData.counted){o.userData.counted=true;o.onBeforeRender=(_renderer,_scene,_camera,geometry,_material,group)=>{visibleDrawCalls++;visibleTriangles+=(group?.count??geometry.index?.count??geometry.attributes.position.count)/3*(o.isInstancedMesh?o.count:1);};}});renderer.render(scene,camera);for(const label of placeLabels.values())label.visible=label.position.distanceTo(camera.position)<22;labels.render(scene,camera);
  const game=games?.nearby();games?.updateHint(game);
- const nearby=game?null:actors.nearestTalk(player);$('talk').hidden=!nearby||input.blocked;$('talk-hint').hidden=!nearby||input.blocked;if(nearby)$('talk-hint').textContent='Press E to talk to '+nearby.person.first;
+ const nearby=game?null:actors.nearestTalk(player);$('talk').hidden=!nearby||input.blocked;$('talk-hint').hidden=!nearby||input.blocked;if(nearby)$('talk-hint').textContent=(touch?'Tap Talk to talk to ':'Press E to talk to ')+nearby.person.first;
  if(!test){const next=watchdog.update(dt,preset);if(next!==preset){preset=next;ambient?.setQuality(preset);world.weather.setQuality(preset);world.preset=presets[preset];world.sun.castShadow=!!presets[preset].shadows;applyPreset();ui.toast('Quality adjusted for smoother walking.');}}
  if(!$('debug').hidden)$('debug').textContent=JSON.stringify({...report(),lastPoll:net.lastPoll},null,2);
  window.__evoriumReport=report();

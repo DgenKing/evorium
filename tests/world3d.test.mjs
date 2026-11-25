@@ -91,27 +91,27 @@ console.log('Street life: movement heading and independent on-disk budget accoun
 const {runInNewContext}=await import('node:vm');
 const actorSource=fs.readFileSync(new URL('../evorium/static/world3d/js/npcs.js',import.meta.url),'utf8').replace(/^import .*;$/gm,'').replace('export class Actors','class Actors');
 const Actors=runInNewContext(actorSource+'\nActors;', {slotPosition,pathfind,pathfindFast});
-const nearbyHuman={person:{kind:'player',visible:true,place:'pub'},root:{position:{distanceTo:()=>.2}}};
+const nearbyHuman={person:{kind:'player',account:'thomas',name:'Thomas',visible:true,place:'pub'},root:{position:{distanceTo:()=>.2}}};
 const nearbyAPC={person:{kind:'npc',visible:true,place:'pub'},root:{position:{distanceTo:()=>1}}};
 const selection={people:new Map([[21,nearbyHuman],[1,nearbyAPC]])};
+assert.equal(Actors.prototype.nearestTalk.call(selection,{place:'pub',position:{}}),nearbyHuman);
+nearbyHuman.route=[[2,0,2]];
 assert.equal(Actors.prototype.nearestTalk.call(selection,{place:'pub',position:{}}),nearbyAPC);
-nearbyAPC.route=[[2,0,2]];
-assert.equal(Actors.prototype.nearestTalk.call(selection,{place:'pub',position:{}}),undefined);
-selection.people.delete(1);
-assert.equal(Actors.prototype.nearestTalk.call(selection,{place:'pub',position:{}}),undefined);
+nearbyHuman.route=[];
 const requestedModels=[];
 const actors=new Actors({}, {}, {routes:{nodes:{STREET_LEFT:[0,0,0],STREET_WAIT:[1,0,0]}},waypoints:{STREET_WAIT:{position:[1,0,0],yaw:0}}}, {ground:()=>0,place:()=> 'street'});
 actors.create=async name=>{requestedModels.push(name);return{root:{position:{fromArray(){}}},tag:{}};};
 actors.label=()=>{};
 await actors.sync({speed:1,characters:[{id:21,name:'Thomas',first:'Thomas',kind:'player',visible:true,place:'street',waypoint:'STREET_WAIT',slot:0}]},true);
 assert.equal(requestedModels[0],'player');assert.equal(actors.people.get(21).tag.textContent,'Thomas');
-console.log('Accounts: other humans use the player body and cannot receive an E-talk prompt.');
+console.log('Accounts: other humans share the player body and are selectable nearby.');
 
 // Incoming APC chat is shown as ordinary dialogue and never replaces an open panel.
 const uiSource=fs.readFileSync(new URL('../evorium/static/world3d/js/ui.js',import.meta.url),'utf8').replace(/^import .*;$/gm,'').replaceAll('export ','');
 const elements=new Map();const element=id=>{if(!elements.has(id))elements.set(id,{hidden:true,textContent:'',style:{},replaceChildren(){},focus(){}});return elements.get(id);};
 let incoming={police:{notice:'PCSO Grace Adeyemi wants a word',outcomes:[]},conversation:{agent_b_id:16,messages:[{speaker_name:'Grace Adeyemi',text:'Can we have a word?',rationale:'PRIVATE'}]}};
-const UIClass=runInNewContext(uiSource+'\nUI;', {document:{getElementById:element},window:{},request:async()=>incoming,Date,setTimeout,clearTimeout});
+const {messageLine}=await import('../evorium/static/world3d/js/player-chat.js');
+const UIClass=runInNewContext(uiSource+'\nUI;', {document:{getElementById:element},window:{},request:async()=>incoming,PlayerChat:class {},messageLine,Date,setTimeout,clearTimeout});
 const graceActor={person:{id:16,first:'Grace'}};const ui=new UIClass({reset(){},blocked:false},{people:new Map([[16,graceActor]])});
 const displayed=[];ui.line=(name,text)=>displayed.push([name,text]);await ui.pollPlayer();
 assert.equal(ui.target,graceActor);assert.equal(element('chat').hidden,false);assert.equal(ui.input.blocked,true);
@@ -129,3 +129,22 @@ assert.ok(weatherStyle({condition:'rain',raining:true},'low').count<weatherStyle
 assert.equal(weatherStyle({condition:'snow'}).snow,true);assert.equal(weatherStyle({condition:'fog'}).fog,true);
 assert.equal(weatherStyle({condition:'rain',raining:true}).dark,true);
 console.log('Weather: bounded quality particle counts, unknown fallback, snow, fog and wet lighting passed.');
+
+// E and the touch Talk button share the target dispatch. Human messages use literal text nodes.
+const mainSource=fs.readFileSync(new URL('../evorium/static/world3d/js/main.js',import.meta.url),'utf8');
+const inputSource=fs.readFileSync(new URL('../evorium/static/world3d/js/input.js',import.meta.url),'utf8');
+assert.match(mainSource,/action==='KeyE'.*ui\.talk\(actors\.nearestTalk\(player\)\)/);
+assert.match(inputSource,/#talk'\)\.onclick=\(\)=>onAction\('KeyE'\)/);
+const dispatch=[];
+const target=Actors.prototype.nearestTalk.call(selection,{place:'pub',position:{}});
+UIClass.prototype.talk.call({direct:{open:(...args)=>dispatch.push(['player',...args])},
+ chat:()=>dispatch.push(['APC'])},target);
+assert.deepEqual(dispatch,[['player','thomas','Thomas']]);
+function elementForText(tag){
+ return {tag,children:[],textContent:'',append(...children){this.children.push(...children);},
+   set innerHTML(_){throw Error('Do not parse human chat as HTML');}};
+}
+const payload='<img src=x onerror=alert(1)>';
+const line=messageLine({createElement:elementForText},'<Thomas>',payload);
+assert.deepEqual(line.children.map(node=>[node.tag,node.textContent]),[['strong','<Thomas>: '],['span',payload]]);
+console.log('Player chat: E dispatches to private chat and renders text literally.');
