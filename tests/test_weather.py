@@ -5,7 +5,7 @@ import httpx
 import pytest
 from evorium import weather,world,memory,prompts,plans,places
 from evorium.db import connect,init_db
-from evorium.seed import seed_agents
+from evorium.seed import CHARACTERS, seed_agents
 
 REAL=datetime(2026,11,23,12,tzinfo=timezone.utc)
 NOW=REAL.replace(tzinfo=None)
@@ -94,4 +94,5 @@ def test_dialogue_and_planning_receive_cached_weather_line(db,monkeypatch):
             self.calls.append(messages[0]['content'])
             return plans.DailyPlans(plans=[])
     fake=Fake();plans.daily(fake,NOW,db)
-    assert len(fake.calls)==18 and all('Weather in Ancoats:' in t for t in fake.calls)
+    assert len(fake.calls) == len(CHARACTERS)
+    assert all('Weather in Ancoats:' in text for text in fake.calls)

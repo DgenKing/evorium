@@ -56,7 +56,7 @@ def test_presence_filters_who_can_talk(db):
     with connect(db) as c:
         agents = [dict(r) for r in c.execute("SELECT * FROM agents")]
     names = {a["name"].split()[0] for a in world.present_in_pub(agents, datetime(2026, 11, 16, 20, 30))}  # Monday 20:30
-    assert names == {"Dez", "Jess", "Tommy"}            # Raj Monday = home; Chloe Monday = home
+    assert names == {"Dez", "Jess", "Tommy", "Maxine"}
     assert world.present_in_pub(agents, datetime(2026, 11, 16, 8, 30)) == []      # before opening
     assert {a["name"].split()[0] for a in world.present_in_pub(agents, datetime(2026, 11, 16, 10, 0))} == {"Dez"}
 

@@ -108,7 +108,7 @@ and phone); it runs around the clock on the owner's HP G4 and is reachable over 
 | Hosting | HP G4 home server, auto-updating from GitHub, nightly backups, public via a Cloudflare Tunnel; connection details kept private (§6) |
 | Model | DeepSeek `deepseek-flash`, JSON mode, temperature 0.8 (0.6 decisions, 0.2 structured calls) |
 | Cost | Estimated $0.65–$1.01 per real day at normal speed with auto on. Default daily cap $1.50 (§5) |
-| Tests | 404 Python tests + 19 city tests + Node map/navigation/city/night tests + Web3D Node checks and offline Chrome checks, all fake/offline |
+| Tests | 421 Python tests + 19 city tests + Node map/navigation/city/night tests + Web3D Node checks and offline Chrome checks, all fake/offline |
 
 ### Tech stack and dependencies
 
@@ -1598,6 +1598,12 @@ the key pool and open sign-ups.
 ---
 
 ## 14. History
+
+### 25 November 2026 — Arcade test expectations
+
+- Updated the weather planning test to use the seeded cast size and the Monday evening Billet test to
+  include Maxine on her off shift. The full offline Python suite passed with 421 tests in 12.81 seconds.
+
 
 ### 25 November 2026 — Gun Street Amusements
 
