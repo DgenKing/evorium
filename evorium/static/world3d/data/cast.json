@@ -124,11 +124,10 @@
     "skin": "#d2aa8c",
     "trousers": "#292832",
     "hair": "#c9c9bf",
-    "model": null,
+    "model": "cast/tommy.glb",
     "height": 1.68,
     "labelOffset": 0.22,
     "sitOffset": 0,
-    "fallback": true,
     "nightTie": true
   },
   "Maxine Stott": {
@@ -139,10 +138,9 @@
     "skin": "#d1a184",
     "trousers": "#353242",
     "hair": "#49362d",
-    "model": null,
-    "height": 1.69,
+    "model": "cast/brenda.glb",
+    "height": 1.66,
     "labelOffset": 0.22,
-    "sitOffset": 0,
-    "fallback": true
+    "sitOffset": 0
   }
 }

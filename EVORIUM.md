@@ -1229,8 +1229,10 @@ streets, film grain, matching the game's portraits.
 
 ## 9. Known issues and open questions
 
-- **Arcade cast (25 Nov):** Norman and Maxine use the shared Quaternius fallback bodies with their own
-  colours. Blender's MPFB extension could not initialise in the isolated build profile. Neither character
+- **Arcade cast (25 Nov):** Norman and Maxine first used the shared Quaternius fallback body, which reads as
+  an unclothed mannequin in play. Until they get their own models they borrow clothed ones: Norman uses
+  `cast/tommy.glb` (with his night tie) and Maxine `cast/brenda.glb`. Blender's MPFB extension could not
+  initialise in the isolated build profile. APCs with no cast.json entry still use the player model. Neither character
   has a portrait yet, so their website cards use initials.
 
 
@@ -1625,6 +1627,13 @@ the key pool and open sign-ups.
 ---
 
 ## 14. History
+
+### 25 November 2026 — Norman and Maxine dressed
+
+- Norman showed up in play as the bare fallback mannequin (no clothes, shoes or hair). As a stopgap, Norman now
+  uses Tommy's model and Maxine uses Brenda's; nothing uses the mannequin fallback. Dedicated models for them
+  and for the APCs who still borrow the player model are a separate job. Cast test updated; checked in the
+  lineup; 426 Python and all Node tests pass.
 
 ### 25 November 2026 — Local 3D tooling
 

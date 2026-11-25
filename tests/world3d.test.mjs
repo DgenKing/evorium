@@ -14,9 +14,10 @@ console.log('Web3D: graph, all waypoint routes, animation, quality, watchdog, sl
 for(const [name,config] of Object.entries(cast)){assert.ok(config.height>1.4&&config.height<2);if(config.fallback){assert.equal(config.model,null);continue;}assert.match(config.model,/^cast\/[a-z]+\.glb$/);for(const quality of ['low','high'])assert.ok(fs.existsSync(new URL('../evorium/static/world3d/assets/'+quality+'/'+config.model,import.meta.url)),name);}
 const clips=data('clips');assert.equal(new Set(Object.values(clips)).size,10);assert.equal(clips.walk,'Walk_Loop');assert.equal(clips.sit,'Sitting_Idle_Loop');
 let loaded=[],fallbacks=[];const cache=createCastCache(cast,async model=>{loaded.push(model);if(model.includes('jess'))throw Error('test missing model');return{model};},async()=>({gltf:{fallback:true},animations:{}}),item=>fallbacks.push(item));
-assert.equal(loaded.length,0);const rob=await cache.get('player');assert.equal(rob.fallback,false);await cache.get('unknown');assert.equal(loaded.length,1);const jess=await cache.get('Jess Hartley');assert.equal(jess.fallback,true);assert.equal(fallbacks.length,1);await cache.get('Jess Hartley');assert.equal(fallbacks.length,1);assert.equal(loaded.length,2);for(const name of ['Norman Pilling','Maxine Stott'])assert.equal((await cache.get(name)).fallback,true);
-assert.deepEqual(fallbacks.filter(item=>item.planned).map(item=>item.name),['Norman Pilling','Maxine Stott']);
-assert.equal(loaded.length,2,'planned fallback makes no request for a missing dedicated model');
+assert.equal(loaded.length,0);const rob=await cache.get('player');assert.equal(rob.fallback,false);await cache.get('unknown');assert.equal(loaded.length,1);const jess=await cache.get('Jess Hartley');assert.equal(jess.fallback,true);assert.equal(fallbacks.length,1);await cache.get('Jess Hartley');assert.equal(fallbacks.length,1);assert.equal(loaded.length,2);
+// Stand-ins until they get their own models: nobody uses the bare mannequin.
+assert.equal(cast['Norman Pilling'].model,'cast/tommy.glb');assert.equal(cast['Maxine Stott'].model,'cast/brenda.glb');
+assert.ok(Object.values(cast).every(config=>!config.fallback),'no planned mannequin fallbacks');
 console.log('MPFB cast: all models, dimensions, ten clips, lazy caching and fallback passed.');
 
 const {schedule,allowed,limits,separation,streetGraph,visibleStep,intervals,facing}=await import('../evorium/static/world3d/js/ambient.js');
