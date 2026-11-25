@@ -18,3 +18,12 @@ def test_world3d_page_and_local_assets():
             assert (root / 'world3d' / 'assets' / quality / filename).stat().st_size > 100
     assert client.get('/static/vendor/three/three.module.min.js').status_code == 200
     assert client.get('/static/world3d/data/cast.json').status_code == 200
+
+
+def test_game_code_is_revalidated_after_updates():
+    # Otherwise browsers mix cached old modules with new ones after a G4 update.
+    client = TestClient(main.app)
+    for path in ('/world3d', '/static/world3d/js/world.js', '/static/world3d/data/cast.json'):
+        response = client.get(path)
+        assert response.status_code == 200
+        assert response.headers['cache-control'] == 'no-cache'

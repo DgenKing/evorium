@@ -1650,6 +1650,14 @@ the key pool and open sign-ups.
 
 ## 14. History
 
+### 25 November 2026 — Browsers re-check game code after updates
+
+- After the where-am-i update the live game failed with "world.groundHeight is not a function": the browser
+  had the new `player-position.js` but a heuristically cached old `world.js`. Static files had no
+  Cache-Control. The auth middleware now sends `Cache-Control: no-cache` for .js, .css, .json and .html files
+  and for /game and /world3d, so browsers revalidate (cheap 304s) and never mix versions. Large models and
+  textures still cache normally. Test added; 432 Python tests pass.
+
 ### 25 November 2026 — Resume in 3D and see where you are
 
 - Migration 20 adds per-account position and facing checkpoints for the city and the original set. The

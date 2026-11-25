@@ -214,7 +214,12 @@ async def dashboard_auth(request, call_next):
     try:
         if account != 'owner':
             await run_in_threadpool(accounts.ensure_player, account, display, DEFAULT_DB_PATH)
-        return await call_next(request)
+        response = await call_next(request)
+        # Code must be revalidated after every G4 update, or browsers mix cached old modules with new ones.
+        if (path.endswith(('.js', '.css', '.json', '.html')) or path in ('/game', '/world3d')) \
+                and 'cache-control' not in response.headers:
+            response.headers['Cache-Control'] = 'no-cache'
+        return response
     finally:
         accounts.current.reset(token)
 
