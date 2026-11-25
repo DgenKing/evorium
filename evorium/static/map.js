@@ -198,7 +198,7 @@
   function drawSprite(context,person,time=0,scale=SPRITE_SCALE) {
     const d=spriteDefinition(person.agent), moving=person.route?.length>0;
     const step=moving?[0,2,0,-2][Math.floor(time*8+person.phase)%4]:0;
-    const gesture=!moving&&person.idleUntil>time;
+    const gesture=!moving&&(person.idleUntil>time || (/buying|browsing|coffee|bar/.test(person.agent.activity||'') && (time+person.phase)%8<1.3));
     const bob=gesture?Math.round(Math.sin(time*7+person.phase)):0;
     const cacheKey=`${person.agent.isPlayer?'Player':firstName(person.agent)}:${step}:${gesture}`;
     let sprite=spriteFrames.get(cacheKey);
@@ -235,6 +235,7 @@
     ctx.clearRect(0,0,WIDTH,HEIGHT);
     if(cityMap?.bounds) { drawArea();drawPeople(time); }
     if(zoom>2 && cityMap?.henry) drawCutaway(time);
+    if(cityMap?.bounds) drawGreetings();
   }
   function drawCutaway(time=0) {
     const z=cityMap.henry, angle=(Number(z.rotation_degrees)||0)*Math.PI/180;
@@ -321,6 +322,25 @@
     zoom=Math.max(zoomRange.min,Math.min(zoomRange.max,next));const s=areaScale()*zoom;panX=x-WIDTH/2-(worldX-mapCenter[0])*s;panY=y-HEIGHT/2+(worldZ-mapCenter[1])*s;render();
   }
   function wholeArea(){if(cityMap?.bounds)mapCenter=[(cityMap.bounds[0][0]+cityMap.bounds[1][0])/2,(cityMap.bounds[0][1]+cityMap.bounds[1][1])/2];zoom=1;panX=panY=0;render();}
+  function drawGreetings() {
+    const now=Date.now()/1000, latest=new Map();
+    for(const line of usage.greetings||[]) {
+      const id=String(line.id), person=people.get(id), place=PLACES.find(p=>p.key===line.place);
+      if(person?.visible && place?.locations.includes(person.agent.location) && line.start<=now && now<line.start+6)
+        latest.set(id,line);
+    }
+    for(const [id,line] of latest) {
+      const person=people.get(id);
+      const p=personScreen(person);
+      if(p.x<0||p.x>WIDTH||p.y<0||p.y>HEIGHT)continue;
+      ctx.font='12px system-ui, sans-serif';
+      const w=Math.min(340,ctx.measureText(line.text).width+16);
+      const x=Math.max(4,Math.min(WIDTH-w-4,p.x-w/2)), y=Math.max(4,p.y-52);
+      rect(x,y,w,23,'#f4e9cf');
+      rect(Math.max(x+4,Math.min(x+w-8,p.x)),y+23,5,5,'#f4e9cf');
+      ctx.fillStyle='#302e29';ctx.textAlign='left';ctx.fillText(line.text,x+8,y+16,w-16);
+    }
+  }
   function drawBubble(person) {
     const x=person.x+9,y=person.y-55;
     rect(x,y,23,15,'#f4e9cf');rect(x+2,y+15,4,4,'#f4e9cf');

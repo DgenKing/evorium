@@ -21,7 +21,7 @@ from pydantic import BaseModel, Field
 from evorium import accounts, scene, economy, actions, decide, backoff, tick, world, timeline, player, relationships, places, plans, director
 from evorium.db import DEFAULT_DB_PATH, VISIBLE_IMPORTANCE, connect, init_db, npc_agents
 from evorium.events import emit, since
-from evorium.llm import DeepSeekClient, DeferredClient, LLMError, get_usage
+from evorium.llm import DEFAULT_DAILY_SPEND_USD, DailyBudgetReached, InvalidProposal, DeepSeekClient, DeferredClient, LLMError, get_usage
 from evorium.memory import open_commitments
 from evorium.seed import seed_agents, seed_events
 from evorium.sim import get_conversation, latest_conversation_id, mark_interrupted, run_conversation, turns_for
@@ -67,8 +67,24 @@ WEBSITE = Path(__file__).resolve().parent.parent / "website"
 _run_lock = threading.Lock()
 _last_error: dict = {"message": None}
 _state = {"auto": False, "tick_thread": None, "stop": threading.Event(), "conversations": 0,
-          "gap_minutes": tick.DEFAULT_CONVERSATION_GAP_MIN, "last_tick": None}
+          "gap_minutes": None, "last_tick": None}
 TICK_REAL_SECONDS = 5
+
+
+def _auto_conversations(client, now, gap, db_path):
+    """Service each eligible place in oldest-served order, serially under the conversation lock."""
+    spoken = set()
+    for key, present in places.opportunities(now, gap, db_path):
+        if hasattr(client, 'check_budget'):
+            client.check_budget()
+        try:
+            a, b = world.pick_pair([p['id'] for p in present if p['id'] not in spoken], db_path)
+            run_conversation(client, a, b, turns_for(a, b, db_path), db_path, location=places.REGISTRY[key])
+        except ValueError:
+            continue
+        spoken.update((a,b))
+        _state['conversations'] += 1
+    return spoken
 
 
 def _tick_loop():
@@ -94,6 +110,8 @@ def _tick_loop():
             if _state["auto"] and not backoff.paused():
                 try:
                     client = DeepSeekClient(DEFAULT_DB_PATH)
+                    if hasattr(client, "check_budget"):
+                        client.check_budget()
                     timeline.daily_digest(client, now, DEFAULT_DB_PATH)
                     if backoff.paused():raise LLMError('DeepSeek calls are paused while the service recovers.')
                     plans.daily(client,now,DEFAULT_DB_PATH)
@@ -106,15 +124,15 @@ def _tick_loop():
                         try:
                             cases.approach(client,now,DEFAULT_DB_PATH)
                             plans.execute(client,now,DEFAULT_DB_PATH,auto=True)
-                            for key,present in places.opportunities(now,_state['gap_minutes'],DEFAULT_DB_PATH):
-                                try:a,b=world.pick_pair([p['id'] for p in present],DEFAULT_DB_PATH)
-                                except world.PairLimitReached:break
-                                except ValueError:continue
-                                try:run_conversation(client,a,b,turns_for(a,b,DEFAULT_DB_PATH),DEFAULT_DB_PATH,location=places.REGISTRY[key])
-                                except ValueError:continue
-                                _state['conversations']+=1
-                                break
+                            spoken = _auto_conversations(client, now, _state['gap_minutes'], DEFAULT_DB_PATH)
+                            from evorium import greetings
+                            try:
+                                greetings.run(client, now, DEFAULT_DB_PATH, exclude=spoken)
+                            except InvalidProposal:
+                                pass  # A malformed greeting is skipped without affecting ordinary chats.
                         finally:_run_lock.release()
+                except DailyBudgetReached:
+                    pass  # Keep auto enabled so the next UK day resumes by itself.
                 except LLMError as exc:
                     backoff.failed(exc)
                     _last_error["message"] = str(exc)
@@ -144,11 +162,12 @@ async def lifespan(app: FastAPI):
          f"Pub is {'open' if world.pub_open(now) else 'shut'}." + (f" Marked {stuck} interrupted conversation(s) failed." if stuck else ""))
     _state["auto"] = world.get_setting("auto", "0", DEFAULT_DB_PATH) == "1"
     try:
-        _state["gap_minutes"] = int(world.get_setting("gap_minutes", str(tick.DEFAULT_CONVERSATION_GAP_MIN), DEFAULT_DB_PATH))
+        legacy_gap = world.get_setting('gap_minutes', '20', DEFAULT_DB_PATH)
+        _state['gap_minutes'] = int(world.get_setting('gap_override', '0' if legacy_gap == '20' else legacy_gap, DEFAULT_DB_PATH)) or None
     except ValueError:
-        _state["gap_minutes"] = tick.DEFAULT_CONVERSATION_GAP_MIN
-    if _state["auto"]:
-        emit(f"Auto mode resumed from before the restart (a conversation every ~{_state['gap_minutes']} sim-minutes).")
+        _state['gap_minutes'] = None
+    if _state['auto']:
+        emit("Auto mode resumed from before the restart.")
     _state["stop"] = threading.Event()
     t = threading.Thread(target=_tick_loop, daemon=True)
     _state["tick_thread"] = t
@@ -206,7 +225,7 @@ class SpeedRequest(BaseModel):
 
 
 class AutoRequest(BaseModel):
-    gap_minutes: int = Field(default=tick.DEFAULT_CONVERSATION_GAP_MIN, ge=1, le=24 * 60)
+    gap_minutes: int | None = Field(default=None, ge=1, le=24 * 60)
 
 
 @app.get("/world3d")
@@ -269,14 +288,21 @@ async def events(after: int = 0):
 @app.get("/usage")
 async def usage():
     data = get_usage(DEFAULT_DB_PATH)
+    daily_cap = DEFAULT_DAILY_SPEND_USD
     try:
-        cap = DeepSeekClient(DEFAULT_DB_PATH).settings.max_spend_usd
+        settings = DeepSeekClient(DEFAULT_DB_PATH).settings
+        cap = settings.max_spend_usd
+        daily_cap = getattr(settings, "max_daily_spend_usd", daily_cap)
     except LLMError:
         cap = None
     now = world.now(DEFAULT_DB_PATH)
     from evorium import weather,calendar_uk
-    with connect(DEFAULT_DB_PATH) as c: weather_now = weather.read(c, now)
+    from evorium import greetings
+    with connect(DEFAULT_DB_PATH) as c:
+        weather_now = weather.read(c, now)
+        hello = greetings.active(dict(c.execute('SELECT key,value FROM world WHERE key=?', (greetings.STATE_KEY,))))
     data.update({
+        "greetings": hello, "daily_cap_usd": daily_cap, "daily_cap_reached": data["daily_spend_usd"] >= daily_cap,
         "weather": weather_now, "calendar": calendar_uk.state(now),
         "ledger": economy.ledger(DEFAULT_DB_PATH, now), "director": world.get_setting("director","1",DEFAULT_DB_PATH)=="1", "places": places.describe(now,DEFAULT_DB_PATH), "max_spend_usd": cap, "last_error": _last_error["message"], "running": _run_lock.locked(),
         "auto": _state["auto"], "auto_conversations": _state["conversations"], "gap_minutes": _state["gap_minutes"],
@@ -349,8 +375,8 @@ async def auto_start(req: AutoRequest):
     _state["conversations"] = 0
     _last_error["message"] = None
     world.set_setting("auto", "1", DEFAULT_DB_PATH)
-    world.set_setting("gap_minutes", req.gap_minutes, DEFAULT_DB_PATH)
-    emit(f"Auto mode ON: a conversation every ~{req.gap_minutes} sim-minutes whenever two or more people are in the pub.")
+    world.set_setting("gap_override", req.gap_minutes or 0, DEFAULT_DB_PATH)
+    emit("Auto mode ON at all public places.")
     return {"auto": True}
 
 
@@ -387,6 +413,8 @@ async def run(req: RunRequest):
     try:
         _last_error["message"] = None
         client = DeepSeekClient(DEFAULT_DB_PATH)
+        if hasattr(client, 'check_budget'):
+            client.check_budget()
         now = world.now(DEFAULT_DB_PATH)
         groups = places.present(now, DEFAULT_DB_PATH)
         a, b = req.agent_a_id, req.agent_b_id
@@ -421,6 +449,8 @@ async def run(req: RunRequest):
         return get_conversation(cid, DEFAULT_DB_PATH)
     except ValueError as exc:
         raise HTTPException(409,str(exc))
+    except DailyBudgetReached as exc:
+        raise HTTPException(429, str(exc))
     except LLMError as exc:
         _last_error["message"] = str(exc)
         raise HTTPException(502, str(exc))

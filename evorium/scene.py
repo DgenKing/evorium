@@ -6,7 +6,7 @@ from collections import Counter
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from evorium import accounts, places, world
+from evorium import accounts, greetings, places, world
 from evorium.db import DEFAULT_DB_PATH
 
 PORTRAITS = Path(__file__).parent / 'static' / 'portraits'
@@ -122,7 +122,7 @@ def snapshot(db_path=DEFAULT_DB_PATH, *, real_at=None):
     from evorium import calendar_uk
     return {'calendar':calendar_uk.state(now),'weather':weather_now,'sim_at': stamp, 'sim_time': world.describe(now), 'speed': speed, 'daylight': daylight,
             'pub_open': places.is_open('pub', now, values), 'shop_open': places.is_open('shop', now, values),
-            'notices': notices, 'places': public_places(now, {**values, '_weather': weather_now}), 'characters': assign_spots(characters), 'player': player}
+            'greetings': greetings.active(settings, real_at), 'notices': notices, 'places': public_places(now, {**values, '_weather': weather_now}), 'characters': assign_spots(characters), 'player': player}
 
 
 def public_places(now, values):

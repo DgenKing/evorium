@@ -203,3 +203,24 @@ def test_cached_tokens_read_from_provider_usage(world):
         client.clock = lambda: OFF_PEAK
         client.propose(1, MESSAGES)
     assert calls(world)[0]["est_cost_usd"] == pytest.approx(0.0000924)
+
+
+def test_daily_cap_blocks_retry_and_resets_at_uk_midnight(world):
+    from evorium.llm import DailyBudgetReached
+    # 22:59 UTC is 23:59 in London during BST. The failed reply still has billed usage.
+    clock = [datetime(2026, 7, 21, 22, 59, tzinfo=timezone.utc)]
+    requests = []
+    def handler(request):
+        requests.append(request)
+        return response('invalid' if len(requests) == 1 else json.dumps(GOOD))
+    with httpx.Client(transport=httpx.MockTransport(handler)) as http:
+        client = DeepSeekClient(world, Settings('fake', max_daily_spend_usd=0.00003), http)
+        client.clock = lambda: clock[0]
+        with pytest.raises(DailyBudgetReached, match='UK midnight'):
+            client.propose(1, MESSAGES)
+        assert len(requests) == 1
+        assert get_usage(world, at=clock[0])['daily_spend_usd'] == pytest.approx(0.000033)
+        clock[0] = clock[0].replace(hour=23, minute=0)
+        assert get_usage(world, at=clock[0])['daily_spend_usd'] == 0
+        assert client.propose(1, MESSAGES).say == GOOD['say']
+    assert len(requests) == 2

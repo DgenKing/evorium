@@ -17,7 +17,7 @@ export class Actors{
  let active;const actor={root,body,mixer,actions,bindY,ground(state=this.state){if(model.fallback)return;body.position.y=bindY;if(!['idle','talk','walk','run','sit','sit_down','stand_up','land'].includes(state))return;root.updateMatrixWorld(true);for(const skeleton of new Set(soles.map(s=>s.mesh.skeleton)))skeleton.update();let lowest=Infinity;const v=new THREE.Vector3();for(const {mesh,indices} of soles)for(const index of indices){mesh.getVertexPosition(index,v);v.applyMatrix4(mesh.matrixWorld);lowest=Math.min(lowest,v.y-root.position.y);}if(Number.isFinite(lowest)&&Math.abs(lowest)<.25)body.position.y=bindY-lowest;},height:config.height,fallback:model.fallback,animate(state,dt){this.state=state;const next=actions[state]||actions.idle;if(next!==active){active?.fadeOut(.2);next?.reset().fadeIn(.2).play();active=next;}mixer.update(dt);this.ground(state);}};
  return actor;
  }
- label(actor,person){const wrap=document.createElement('div');wrap.className='actor-label';const bubble=document.createElement('div');bubble.className='bubble';bubble.hidden=true;const tag=document.createElement('button');tag.className='name-tag';tag.textContent=person.first;tag.onclick=()=>this.onSelect?.(actor.person||person);wrap.append(bubble,tag);const object=new CSS2DObject(wrap);object.position.y=actor.height+configLabelOffset(this.data.cast,person.name);actor.root.add(object);Object.assign(actor,{label:object,tag,bubble,expires:0});}
+ label(actor,person){const wrap=document.createElement('div');wrap.className='actor-label';const bubble=document.createElement('div');bubble.className='bubble';bubble.hidden=true;const tag=document.createElement('button');tag.className='name-tag';tag.textContent=person.first;tag.onclick=()=>this.onSelect?.(actor.person||person);const activity=document.createElement('div');activity.className='actor-activity';activity.hidden=true;wrap.append(bubble,tag,activity);const object=new CSS2DObject(wrap);object.position.y=actor.height+configLabelOffset(this.data.cast,person.name);actor.root.add(object);Object.assign(actor,{label:object,tag,bubble,activity,expires:0});}
  say(actor,text){actor.bubble.textContent=text.slice(0,220);actor.bubble.hidden=false;actor.expires=performance.now()+6000;}
  async sync(snapshot,test=false){
  this.snapshot=snapshot;
@@ -72,15 +72,30 @@ export class Actors{
   const pace=['Tommy','Brenda'].includes(p.first)?1.1:['Raj','Dez'].includes(p.first)?1.5:1.4;
   return pace*Math.max(1,Math.min(6,Number(this.snapshot?.speed)||1));
  }
- update(dt,camera){const eye=camera.position;
+ update(dt,camera){
+ const eye=camera.position, now=Date.now()/1000;
+ const greetings=new Map((this.snapshot?.greetings||[]).filter(line=>line.start<=now&&now<line.start+6).map(line=>[line.id,line]));
  for(const [id,a] of this.people){const p=a.person;let moving=false;
  if(a.route.length&&!a.chatting){const next=new THREE.Vector3().fromArray(a.route[0]);const floorPlace=this.world.place(next);next.y=floorPlace==='pub'?0:floorPlace==='shop'?.055:this.world.ground(next.x,next.z);const dir=next.clone().sub(a.root.position);const speed=this.walkRate(p);
  if(dir.length()<speed*dt+.08){a.root.position.copy(next);a.route.shift();}else{dir.normalize();a.root.position.addScaledVector(dir,speed*dt);a.root.rotation.y=THREE.MathUtils.damp(a.root.rotation.y,Math.atan2(dir.x,dir.z),8,dt);moving=true;}}
  if(a.leaving&&!a.route.length){this.departures.set(id,a.journey);this.scene.remove(a.root);a.label.element.remove();this.people.delete(id);continue;}
  if(!moving&&p.visible){const other=this.people.get(p.talking_to);const yaw=a.chatting?Math.atan2(this.player.position.x-a.root.position.x,this.player.position.z-a.root.position.z):other?Math.atan2(other.root.position.x-a.root.position.x,other.root.position.z-a.root.position.z):this.data.waypoints[p.waypoint].yaw;a.root.rotation.y=THREE.MathUtils.damp(a.root.rotation.y,yaw,8,dt);}
- a.animate(moving?'walk':a.chatting||p.talking_to?'talk':['PUB_BOOTH','PUB_WINDOW'].includes(p.waypoint)?'sit':'idle',dt);
+ const hello=greetings.get(id);
+ if(hello&&hello.place===p.place&&!a.chatting&&!p.talking_to&&a.helloAt!==hello.start){
+  this.say(a,hello.text);
+  a.expires=performance.now()+1000*(hello.start+6-now);
+  a.helloAt=hello.start;
+ }
+ const sitting=['PUB_BOOTH','PUB_WINDOW'].includes(p.waypoint)||
+  (p.place==='cafe'&&p.slot<=3);
+ const gesturing=p.kind==='npc'&&/buying|browsing|counter|working the bar/.test(p.activity||'')&&(now+id)%11<1.5;
+ a.animate(moving?'walk':a.chatting||p.talking_to||(hello&&hello.place===p.place)?'talk':sitting?'sit':gesturing?'talk':'idle',dt);
+ a.tag.title=p.activity||'';
  if(performance.now()>a.expires)a.bubble.hidden=true;
  const head=a.root.position.clone().add(new THREE.Vector3(0,a.height+.1,0)),d=eye.distanceTo(head);const ray=this.world.octree.rayIntersect(new THREE.Ray(eye,head.clone().sub(eye).normalize()));a.label.visible=d<12&&(!ray||ray.distance>d-.3);a.tag.hidden=!this.tags;
+ const activity=p.activity||'';
+ if(a.activity.textContent!==activity)a.activity.textContent=activity;
+ a.activity.hidden=!this.tags||!activity||moving||d>=5||!a.bubble.hidden;
  }
  }
  nearestTalk(player){return [...this.people.values()].filter(a=>a.person.kind!=='player'&&a.person.visible&&!a.route?.length&&a.person.place===player.place&&a.root.position.distanceTo(player.position)<2).sort((a,b)=>a.root.position.distanceTo(player.position)-b.root.position.distanceTo(player.position))[0];}

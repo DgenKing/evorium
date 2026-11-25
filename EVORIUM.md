@@ -107,7 +107,7 @@ and phone); it runs around the clock on the owner's HP G4 and is reachable over 
 | City pipeline | Five-street Ancoats city generated from surveyed terrain, kit materials and instanced facades; both package limits pass (§7, §10). |
 | Hosting | HP G4 home server, auto-updating from GitHub, nightly backups, public via a Cloudflare Tunnel; connection details kept private (§6) |
 | Model | DeepSeek `deepseek-flash`, JSON mode, temperature 0.8 (0.6 decisions, 0.2 structured calls) |
-| Cost | About $0.00015 per call; about $0.40 a day for the whole world at real speed with auto mode on |
+| Cost | Estimated $0.65–$1.01 per real day at normal speed with auto on. Default daily cap $1.50 (§5) |
 | Tests | 404 Python tests + 19 city tests + Node map/navigation/city/night tests + Web3D Node checks and offline Chrome checks, all fake/offline |
 
 ### Tech stack and dependencies
@@ -157,16 +157,21 @@ view and controls; this is for trusted friends, not public registration or separ
    Python-owned story outcomes. These continue during model outages and with auto mode off.
 4. Close idle player chats; scan Grace’s serious reports and expire unresolved spoken-to cases.
 5. In auto mode ("Let them live"): daily digest → daily plans → budgeted reactions →
-   optional ending narration → director check → at most one conversation, at whichever public place has 2+
-   people and has waited longest. Grace approaches a co-located player with a case before automatic APC
-   chats; an available APC case pairing takes priority at its place. Automatic NPC pairs stop after two
-   completed/running chats on the same game date. A capped-only opportunity stays silent; player chats
-   and manual run controls remain available. Longest-unheard people take priority in ordinary picking.
+   optional ending narration → director check → check each eligible public place oldest served first. The Billet
+   waits eight sim minutes between automatic chats and the other places wait twelve. Each place can start one
+   conversation per heartbeat. Requests run serially. Grace's case approach and pairing priorities stay in place.
+   The two full chats per pair per game day and the existing recent-pair and quiet-character preferences still apply.
+   A capped pair can leave its own place quiet while eligible neighbours talk elsewhere.
 
-DeepSeek failures pause all model calls for 1, 2, 4, 8, then 15 real minutes until a call succeeds. Routines,
-letters, settlement and deadlines carry on. Invalid model replies don't trigger the pause; only network, HTTP and
-missing-usage failures do. Empty failed conversations stay in SQLite but are hidden from the timeline and map.
-Budget or balance errors stop auto mode.
+Arrivals can trigger one short greeting between familiar APCs who share a place, including a pavement encounter
+on Henry Street. Each pair can do this once per game day, each APC waits thirty sim minutes, and the world tries
+at most 24 per game day. One request with a 90-token output limit returns one or two short lines. They appear in
+both maps as temporary bubbles. A line flagged as notable can be saved as an attributed statement. Routine
+gestures, activity labels and café seating are rendered without new calls.
+
+Provider outages use the existing real-time backoff. Routines, letters, settlement and deadlines carry on.
+The daily DeepSeek cap pauses new provider calls and leaves auto mode enabled for the next UK calendar day.
+The separate all-time local ceiling and provider balance checks still apply.
 
 ### A conversation (`sim.run_conversation`)
 
@@ -596,6 +601,7 @@ is limited to `tests/`. Run the optional build tests with
 | `DEEPSEEK_MODEL` | `deepseek-flash` | Model name |
 | `ACCOUNTS` | `{}` | Optional display-name → credential mapping, set privately in `config.py`; restart after changes. Example structure only in `config.example.py` |
 | `MAX_SPEND_USD` | 4.00 | Local cap: new calls are refused once estimated spend reaches it (not a provider cap; "remaining" assumes the original $5) |
+| `MAX_DAILY_SPEND_USD` | 1.50 | Shared daily limit in USD for DeepSeek calls, reset at real UK midnight |
 | `INPUT_USD_PER_MILLION` / `CACHED_INPUT_USD_PER_MILLION` / `OUTPUT_USD_PER_MILLION` | 0.30 / 0.006 / 1.20 | Peak prices; off-peak is half |
 | `REACTION_CALLS_PER_DAY` | 12 (max 12) | World-wide reaction budget |
 | `CATCHUP_COOLDOWN_SECONDS` | 600 (min 600) | Real-time gap between catch-up narrations |
@@ -618,8 +624,14 @@ when accessing the game remotely. `GET /me` reports the current canonical accoun
   million tokens at peak: input $0.30 on a cache miss, $0.006 on a cache hit, output $1.20. Each call is priced
   from the `prompt_cache_hit_tokens` DeepSeek returns, and halved outside peak hours (01–04 and 06–10 UTC,
   Mon–Fri). Calls priced before 19 Nov used the old peak, uncached rate and overstate.
-- **Real cost:** about $0.00015 a call. A 4-line conversation with notes is about $0.0008; $1 buys about 1,000
-  conversations.
+- **Estimate at 1× with auto on:** **$0.65–$1.01 per real day**, based on the previous $0.40/day and the
+  20-to-12/8 minute frequency change. The pair caps, actual attendance, prompt size and cache hits affect the
+  bill. At 24 greetings per game day, 250 estimated input tokens and at most 90 output tokens each add about
+  $0.0044/day at the configured peak uncached rates.
+- **Enforcement:** the dashboard shows today's measured estimate against the $1.50 default cap. The budget
+  includes all counted provider calls, including billed invalid replies. Requests are serialized, and the limit is
+  checked before each request and retry. The final billed response may take the estimate just above the limit.
+  UK midnight uses real time even when the simulation is fast-forwarded. The separate all-time local cap still applies.
 
 ### Logs
 
@@ -841,6 +853,10 @@ places registry links known APC locations and future OSM buildings to labels, oc
 Wheel, pinch, drag, double-click and the `+`/`−` controls navigate the overview; **Whole area** resets it. As the
 view reaches Henry Street, the existing pub/shop/street cutaway fades in at its real city position and rotation,
 keeping the familiar sprites, doors, popups and night tint. The map data is fetched once at startup, not per frame.
+
+Short APC greetings appear above the speaker in both map views. In 3D, nearby characters also show their routine
+activity under their name. Café visitors can sit on the frontage stools and shop or bar routines use brief
+gestures. These poses use the existing animation clips.
 
 ### City destinations and walks
 
@@ -1399,8 +1415,8 @@ players are offline.
 - **"Keep Ancoats running while I'm away" is ON by default; players can opt out.** While on, a small share of
   the world's background calls is made with their key, rotating across contributors. No money moves between
   players and the game.
-- **Scale:** the shared world costs roughly $0.10–0.40 a day at real speed; split across 20 contributors that's
-  about a penny a day each.
+- **Scale:** the shared world is estimated at $0.65–$1.01 a day at real speed (§5), or about three to five cents
+  per day each if shared across twenty contributors.
 - **Player settings:** spending limit; keep-running toggle; instant pause; remove my key. Profile shows e.g.
   "$0.43 this month: $0.31 your chats, $0.12 keeping Ancoats running".
 - **When nobody contributes**, the world goes quiet until someone plays, or the owner keeps a backstop key.
@@ -1547,6 +1563,19 @@ the key pool and open sign-ups.
 ---
 
 ## 14. History
+
+### 25 November 2026 — More APC activity and a daily DeepSeek budget
+
+- The Billet's automatic chat gap is eight sim minutes and the other venues' gap is twelve. One capped pair
+  no longer stops a heartbeat from serving other places. Pair limits and recent-pair preferences still apply.
+- Familiar APCs can exchange short greetings on arrivals. Both map views show the lines and the 3D view shows
+  routine activity with gestures, labels and café seating. Only notable lines can become facts.
+- The dashboard shows daily estimated DeepSeek spend against a configurable $1.50 limit. The daily check uses
+  UK midnight, including during summer time, and applies before retries. The normal-speed estimate is
+  $0.65–$1.01 per real day.
+- All five Node test files passed. The single timed full Python suite stopped at a dashboard fixture whose fake
+  usage response lacked the daily fields. Replaced the fake usage response with offline accounting records.
+  The affected Python files then passed 161 tests.
 
 ### 25 November 2026 — Public places across Ancoats
 

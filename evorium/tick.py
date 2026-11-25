@@ -18,7 +18,6 @@ from evorium.memory import DUE_FMT, resolve_commitment
 
 logger = logging.getLogger(__name__)
 MAX_PROMISE_CHECKS_PER_TICK = 2
-DEFAULT_CONVERSATION_GAP_MIN = 20  # sim minutes between auto conversations
 
 
 def _agents(connection) -> list[dict]:

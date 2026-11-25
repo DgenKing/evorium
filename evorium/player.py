@@ -5,7 +5,7 @@ from fastapi import HTTPException
 from evorium import accounts, world, places, timeline, relationships, backoff
 from evorium.db import DEFAULT_DB_PATH, connect
 from evorium.memory import DUE_FMT, knowledge_for_prompt, open_commitments, resolve_commitment
-from evorium.llm import InvalidProposal, LLMError
+from evorium.llm import DailyBudgetReached, InvalidProposal, LLMError
 from evorium.prompts import build_messages
 from evorium import sim
 
@@ -58,7 +58,10 @@ def close(client, db_path=DEFAULT_DB_PATH):
             a=sim._agent(c,conv['agent_a_id']);b=sim._agent(c,conv['agent_b_id'])
         full=sim.get_conversation(conv['id'],db_path)
         transcript=[{'speaker_name':m['speaker_name'],'text':m['text']} for m in full['messages']]
-        summary=sim._take_notes(client,db_path,conv['id'],a,b,transcript,conv['sim_time']) if transcript and not backoff.paused() else ('They talked; detailed notes were unavailable while DeepSeek recovered.' if transcript else 'No words exchanged.')
+        try:
+            summary=sim._take_notes(client,db_path,conv['id'],a,b,transcript,conv['sim_time']) if transcript and not backoff.paused() else ('They talked; detailed notes were unavailable while DeepSeek recovered.' if transcript else 'No words exchanged.')
+        except DailyBudgetReached:
+            summary = 'They talked. Detailed notes were paused by the daily DeepSeek budget.'
         with connect(db_path) as c:
             from evorium import cases
             cases.spoken(c, conv['id'], world.now(db_path))
@@ -99,6 +102,13 @@ def say(client,to_agent_id,text,db_path=DEFAULT_DB_PATH):
         if backoff.paused():raise HTTPException(503,"DeepSeek is paused while the service recovers.")
         now=world.now(db_path);text=text.strip();place=world.get_setting(accounts.setting_key('player_place'),'',db_path)
         if not 1<=len(text)<=500:raise HTTPException(409,'Say between 1 and 500 characters.')
+        if hasattr(client, 'check_budget'):
+            try:
+                client.check_budget()
+            except DailyBudgetReached as exc:
+                raise HTTPException(429, str(exc)) from None
+            except LLMError as exc:
+                raise HTTPException(502, str(exc)) from None
         if not place:
             # Outside the pub and shop means you're on Henry Street: talking to someone there puts you on the street.
             if not any(a['id']==to_agent_id for a in places.present(now,db_path).get('street',[])):

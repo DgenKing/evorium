@@ -5,3 +5,13 @@
 
 #police-notice{position:fixed;top:64px;left:50%;transform:translateX(-50%);z-index:5;background:#17232eed;color:#fff;padding:8px 14px;border-radius:6px;max-width:85vw;text-align:center}
 #settings .credits{margin:14px 0 0;font-size:11px;line-height:1.4;color:#a8adb5}
+
+.actor-activity {
+  color: #fff2db;
+  background: #232821db;
+  font-size: 11px;
+  padding: 2px 5px;
+  border-radius: 4px;
+  max-width: 240px;
+  text-align: center;
+}

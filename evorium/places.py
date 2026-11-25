@@ -45,7 +45,11 @@ def describe(now, db_path=DEFAULT_DB_PATH):
              'people':[{'id':a['id'],'name':a['name']} for a in people[key]]} for key,name in REGISTRY.items()]
 
 
-def opportunities(now,gap,db_path=DEFAULT_DB_PATH):
+def conversation_gap(key, override=None):
+    return override if override is not None else 8 if key == 'pub' else 12
+
+
+def opportunities(now,gap=None,db_path=DEFAULT_DB_PATH):
     """Oldest-served place first so faster clocks cannot starve the shop."""
     from evorium.tick import conversation_due
     people=present(now,db_path)
@@ -54,4 +58,4 @@ def opportunities(now,gap,db_path=DEFAULT_DB_PATH):
         from evorium import cases
         preferred = {key: cases.priority(c, [a['id'] for a in people[key]], now) is not None for key in REGISTRY}
     return [(key,people[key]) for key in sorted(REGISTRY,key=lambda key:(not preferred[key], last[key]))
-            if len(people[key])>=2 and conversation_due(now,gap,db_path,REGISTRY[key])]
+            if len(people[key])>=2 and conversation_due(now, conversation_gap(key, gap), db_path, REGISTRY[key])]

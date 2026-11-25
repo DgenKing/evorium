@@ -127,15 +127,17 @@ def test_dashboard_and_scene_expose_realism_without_provider_calls(db,monkeypatc
     bad_days.maintain(NOW,db);tick.update_routines(NOW,db)
     monkeypatch.setattr(main,'DEFAULT_DB_PATH',db)
     monkeypatch.setattr(world,'now',lambda *a:NOW)
-    monkeypatch.setattr(main,'get_usage',lambda *a:{})
     monkeypatch.setattr(main,'DeepSeekClient',lambda *a:SimpleNamespace(settings=SimpleNamespace(max_spend_usd=4)))
     with connect(db) as c:
+        c.execute("INSERT INTO llm_calls(agent_id,model,input_tokens,output_tokens,est_cost_usd,ok) VALUES (1,'fake',1,1,1.5,1)")
         world._set(c,'speed',0)
         world._set(c,'anchor_real',world._real_now().strftime(world.FMT))
         world._set(c,'anchor_sim',NOW.strftime(world.FMT))
         world._set(c,'weather_reading',json.dumps({'time':datetime.now(timezone.utc).timestamp(),'temperature':7,'condition':'rain','raining':True,'wind':12}))
     client=TestClient(main.app)
     usage=client.get('/usage').json()
+    assert usage['daily_spend_usd'] == usage['daily_cap_usd'] == 1.5
+    assert usage['daily_cap_reached'] is True
     assert usage['weather']['condition']=='rain' and usage['weather']['source']=='cached'
     assert 'days to Christmas' in usage['calendar']['label']
     agents=client.get('/agents').json()

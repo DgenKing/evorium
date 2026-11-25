@@ -48,6 +48,17 @@ async function boot(){
     label.position.set(x,world.ground(x,z)+2.75,z);
     scene.add(label);
     placeLabels.set(place.key,label);
+    if(place.key==='cafe'){
+     const seat=new THREE.CylinderGeometry(.23,.23,.06,8);
+     const leg=new THREE.CylinderGeometry(.06,.09,.42,6);
+     const material=new THREE.MeshStandardMaterial({color:0x66513b,roughness:.9});
+     for(const [px,,pz] of place.positions)for(let slot=0;slot<4;slot++){
+      const sx=px+slot*.7, sz=pz-.16, ground=world.ground(sx,sz);
+      const top=new THREE.Mesh(seat,material), stem=new THREE.Mesh(leg,material);
+      top.position.set(sx,ground+.45,sz);stem.position.set(sx,ground+.21,sz);
+      scene.add(top,stem);
+     }
+    }
    }
   }
   world.updateSnapshot(snapshot);

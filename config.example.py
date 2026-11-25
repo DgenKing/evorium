@@ -10,6 +10,7 @@ OUTPUT_USD_PER_MILLION = 1.20
 
 # Local hard stop on new requests once estimated spend reaches this (USD).
 MAX_SPEND_USD = 4.00
+MAX_DAILY_SPEND_USD = 1.50  # shared across model calls, resets at UK midnight
 
 # Optional HTTP Basic access control for every page, static asset and API route.
 # Leave empty for local development. Restart after changing your local config.

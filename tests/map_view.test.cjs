@@ -156,3 +156,17 @@ test('a new OSM place in the single places list is labelled on the map',()=>{
   h.map.render();
   assert.ok(h.painted.includes('Back-street Arcade'));assert.ok(h.painted.includes('Peggy'));
 });
+
+test('short greetings render only while current and at the speaker’s place',()=>{
+  const h=mapHarness([agent(1,'Dez')]);h.map.setCityData(cityData);
+  const now=Date.now()/1000;
+  h.context.latestUsage.greetings=[
+    {id:1,place:'pub',text:'Morning!',start:now-1},
+    {id:1,place:'shop',text:'Wrong venue',start:now-1},
+    {id:1,place:'pub',text:'Too old',start:now-10},
+    {id:1,place:'pub',text:'Too early',start:now+10}
+  ];
+  h.map.update();h.map.render();
+  assert.ok(h.painted.includes('Morning!'));
+  for(const hidden of ['Wrong venue','Too old','Too early'])assert.ok(!h.painted.includes(hidden));
+});

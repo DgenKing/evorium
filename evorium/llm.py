@@ -2,8 +2,9 @@
 
 import logging
 import math
+import threading
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, time, timedelta, timezone
 from decimal import Decimal
 from pathlib import Path
 
@@ -18,10 +19,16 @@ from evorium.models import ActionProposal
 logger = logging.getLogger(__name__)
 ENDPOINT = "https://api.deepseek.com/chat/completions"
 MAX_OUTPUT_TOKENS = 300
+DEFAULT_DAILY_SPEND_USD = 1.50
+_request_lock = threading.Lock()
 
 
 class LLMError(RuntimeError):
     """Safe error text that may be shown in the dashboard."""
+
+
+class DailyBudgetReached(LLMError):
+    pass
 
 
 class InvalidProposal(LLMError):
@@ -37,9 +44,11 @@ class Settings:
     max_spend_usd: float = 4.00
     cached_input_usd_per_million: float = 0.006  # peak, cache hit
 
+    max_daily_spend_usd: float = DEFAULT_DAILY_SPEND_USD
+
     def __post_init__(self):
         for value in (self.input_usd_per_million, self.output_usd_per_million, self.max_spend_usd,
-                      self.cached_input_usd_per_million):
+                      self.cached_input_usd_per_million, self.max_daily_spend_usd):
             if not math.isfinite(value) or value <= 0:
                 raise ValueError("Token rates and spend cap must be finite positive numbers.")
 
@@ -56,6 +65,7 @@ class Settings:
             input_usd_per_million=getattr(config, "INPUT_USD_PER_MILLION", 0.30),
             output_usd_per_million=getattr(config, "OUTPUT_USD_PER_MILLION", 1.20),
             max_spend_usd=getattr(config, "MAX_SPEND_USD", 4.00),
+            max_daily_spend_usd=getattr(config, "MAX_DAILY_SPEND_USD", DEFAULT_DAILY_SPEND_USD),
             cached_input_usd_per_million=getattr(config, "CACHED_INPUT_USD_PER_MILLION", 0.006),
         )
 
@@ -92,18 +102,24 @@ def estimate_cost(input_tokens: int, output_tokens: int, settings: Settings,
     return cost if at is None or is_peak(at) else cost / 2
 
 
-def get_usage(db_path: str | Path = DEFAULT_DB_PATH, initial_credit_usd: float = 5.00) -> dict:
+def get_usage(db_path: str | Path = DEFAULT_DB_PATH, initial_credit_usd: float = 5.00, *, at=None) -> dict:
+    from evorium.world import TZ
+    day = (at or datetime.now(timezone.utc)).astimezone(TZ).date()
+    start, end = (datetime.combine(d, time.min, TZ).astimezone(timezone.utc)
+                  .isoformat(timespec="milliseconds").replace("+00:00", "Z")
+                  for d in (day, day + timedelta(days=1)))
     with connect(db_path) as connection:
         rows = connection.execute(
-            "SELECT input_tokens, output_tokens, est_cost_usd FROM llm_calls"
+            "SELECT input_tokens, output_tokens, est_cost_usd, created_at FROM llm_calls"
         ).fetchall()
     spend = sum((Decimal(str(row["est_cost_usd"])) for row in rows), Decimal(0))
+    today = sum((Decimal(str(row["est_cost_usd"])) for row in rows if start <= row["created_at"] < end), Decimal(0))
     input_tokens = sum(row["input_tokens"] for row in rows)
     output_tokens = sum(row["output_tokens"] for row in rows)
     return {
         "api_calls": len(rows), "input_tokens": input_tokens,
         "output_tokens": output_tokens, "total_tokens": input_tokens + output_tokens,
-        "estimated_spend_usd": float(spend), "initial_credit_usd": initial_credit_usd,
+        "estimated_spend_usd": float(spend), "daily_spend_usd": float(today), "budget_day": day.isoformat(), "initial_credit_usd": initial_credit_usd,
         "estimated_remaining_usd": float(max(Decimal(0), Decimal(str(initial_credit_usd)) - spend)),
     }
 
@@ -123,48 +139,63 @@ class DeepSeekClient:
             raise LLMError('DeepSeek calls are paused while the service recovers.')
         if not self.settings.api_key or self.settings.api_key == "sk-...":
             raise LLMError("Set DEEPSEEK_API_KEY in config.py before running a conversation.")
-        spent = get_usage(self.db_path)["estimated_spend_usd"]
+        # Serialize only billable requests. Check again before any JSON retry.
+        for attempt in range(2):
+            try:
+                with _request_lock:
+                    if backoff.paused():
+                        raise LLMError('DeepSeek calls are paused while the service recovers.')
+                    started = self.clock()
+                    self.check_budget(started)
+                    try:
+                        result = self._attempt(agent_id, messages, schema, max_tokens, started_at=started)
+                    except InvalidProposal:
+                        raise
+                    except LLMError as exc:
+                        backoff.failed(exc)
+                        raise
+                    backoff.succeeded()
+                    return result
+            except InvalidProposal:
+                if attempt == 1:
+                    logger.warning("Agent %s: invalid dialogue after two attempts; skipping.", agent_id)
+                    raise InvalidProposal("Model returned invalid dialogue twice; turn skipped.") from None
+        raise AssertionError("Unreachable")
+
+    def check_budget(self, at=None):
+        usage = get_usage(self.db_path, at=at or self.clock())
+        daily_cap = self.settings.max_daily_spend_usd
+        if usage["daily_spend_usd"] >= daily_cap:
+            raise DailyBudgetReached(f"Daily DeepSeek budget cap reached (${daily_cap:.2f}). Resumes at UK midnight.")
+        spent = usage["estimated_spend_usd"]
         if spent >= self.settings.max_spend_usd:
             raise LLMError(
                 f"Local budget cap reached (${spent:.2f} of ${self.settings.max_spend_usd:.2f}). "
                 "Raise MAX_SPEND_USD in config.py to continue."
             )
-        # At most two requests. Only invalid dialogue JSON/schema gets a retry.
-        for attempt in range(2):
-            try:
-                result = self._attempt(agent_id, messages, schema, max_tokens)
-                backoff.succeeded()
-                return result
-            except InvalidProposal:
-                if attempt == 1:
-                    logger.warning("Agent %s: invalid dialogue after two attempts; skipping.", agent_id)
-                    raise InvalidProposal("Model returned invalid dialogue twice; turn skipped.") from None
-            except LLMError as exc:  # network/HTTP/usage failures only; invalid replies are caught above
-                backoff.failed(exc)
-                raise
-        raise AssertionError("Unreachable")
 
-    def _start_call(self, agent_id: int) -> int:
+    def _start_call(self, agent_id: int, started_at: datetime) -> int:
         # Record attempts before network I/O, including interrupted requests.
         with connect(self.db_path) as connection:
             cursor = connection.execute(
                 """INSERT INTO llm_calls
-                (agent_id, model, input_tokens, output_tokens, est_cost_usd, ok, error)
-                VALUES (?, ?, ?, ?, ?, 0, ?)""",
+                (agent_id, model, input_tokens, output_tokens, est_cost_usd, ok, error, created_at)
+                VALUES (?, ?, ?, ?, ?, 0, ?, ?)""",
                 (agent_id, self.settings.model, 0, 0, 0,
-                 "Pending or interrupted call; usage unavailable, cost unknown."),
+                 "Pending or interrupted call; usage unavailable, cost unknown.",
+                 started_at.astimezone(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")),
             )
             return cursor.lastrowid
 
     def _attempt(self, agent_id: int, messages: list[dict[str, str]],
-                 schema: type[BaseModel] = ActionProposal, max_tokens: int = MAX_OUTPUT_TOKENS):
+                 schema: type[BaseModel], max_tokens: int, *, started_at: datetime):
         payload = {
             "model": self.settings.model, "messages": messages,
             "temperature": 0.8 if schema is ActionProposal else 0.6 if schema.__name__ == "Decision" else 0.2, "max_tokens": max_tokens,
             "response_format": {"type": "json_object"},
             "thinking": {"type": "disabled"},
         }
-        call_id = self._start_call(agent_id)
+        call_id = self._start_call(agent_id, started_at)
         input_tokens, output_tokens, cached = 0, 0, 0
         usage_available = False
         proposal, failure = None, None
@@ -201,7 +232,7 @@ class DeepSeekClient:
             failure = LLMError("DeepSeek connection failed or timed out; no automatic network retry.")
         except (KeyError, IndexError, TypeError, ValueError, ValidationError):
             failure = LLMError("DeepSeek response lacks valid usage data; tokens and cost unknown.")
-        cost = estimate_cost(input_tokens, output_tokens, self.settings, cached, self.clock())
+        cost = estimate_cost(input_tokens, output_tokens, self.settings, cached, started_at)
         error = str(failure) if failure else None
         if failure and not usage_available:
             error += " Usage unavailable; recorded token/cost zeros are placeholders."
@@ -225,6 +256,9 @@ class DeferredClient:
     """Construct the real client only when a conversation actually needs the API."""
     def __init__(self,db_path=DEFAULT_DB_PATH):
         self.db_path=db_path
+
+    def check_budget(self):
+        DeepSeekClient(self.db_path).check_budget()
 
     def propose(self,*args,**kwargs):
         return DeepSeekClient(self.db_path).propose(*args,**kwargs)
