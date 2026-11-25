@@ -444,6 +444,9 @@ collision-verified A* graph. `?city=1` joins that graph to sampled OSM road/path
   `YYYY-MM-DD HH:MM`), `/me` ({account, name}), `/player`, `/world/ledger`, `/actions?since=`, `/catchup`, `/world/scene`.
 - **Pages:** `/` (the public website from `website/`, no login, with `/styles.css` and `/images/…`), `/game`
   (dashboard; `/game#map` for the map), `/timeline-page`, `/world3d`, `/guide`. Everything except the website needs a login.
+- **Arcade scores:** `GET /arcade/scores` returns the signed-in account's personal bests.
+  `POST /arcade/scores/{slug}` accepts a bounded integer score for a listed game. Migration 18 adds
+  `arcade_scores` and links personal bests to Norman's existing facts table.
 - The map loads deterministic local-metre `world3d/data/map2d.json` once at startup. Its place registry connects
   saved locations to Henry Street or an OSM building id and draws registered occupants at those anchors.
 - **Write:** `POST /conversations/run`, `/speed`, `/auto/start`, `/auto/stop`, `/director {enabled}`,
@@ -893,9 +896,27 @@ The city scene adds a walkable arcade on the pinned OSM industrial footprint (wa
 5.1 m tall). The Gun Street doorway links to the city route graph. Its shell and machine bodies use the
 player collision octree. A rear partition preserves the older Billet interior where the two footprints
 overlap. A local mask removes overlapping kit backdrop fragments from the arcade volume.
-The machines and screens are scenic props, with two rows of two-player pushers, fruit machines, a claw and
-air hockey. The four cabinet bays and pool position use stable waypoint and mesh IDs `cabinet-1` to
-`cabinet-4` and `pool-table`. Norman's flat is represented by a rear stair door. Maxine uses the Blossom Street
+The two rows of coin pushers, fruit machines, claw and air hockey are scenic props. Five playable spots
+use the stable waypoint and mesh IDs `cabinet-1` through `cabinet-4` and `pool-table`:
+
+| Spot | Game | Personal best |
+|---|---|---|
+| Cabinet 1 | Dead Zone 4.0 | Highest wave reached |
+| Cabinet 2 | Gyro Balance: Chaos | Highest arena completed |
+| Cabinet 3 | Crooked Billet Darts | Fewest darts to finish 501 |
+| Cabinet 4 | 1941 — Sky Assault | Highest points |
+| Pool table | Evorium Pool | Most balls potted in a finished rack |
+
+Walk up and press **E** or tap **Play**. The full-screen game pauses 3D movement. **Exit** or **Esc** closes
+the frame. The games retain their own controls. A validated personal best is shown at its machine and in
+the game header. Norman's notebook keeps one observed fact per account and game.
+
+`evorium/static/games/games.json` maps slugs and titles to the five positions. Add a game by adding its
+`<slug>/index.html` and a catalogue row. A later entry for the same position takes that spot. Keep resources
+inside the HTML. The server adds the Esc and score bridge to each listed page. A game can call
+`window.evoriumGameScore?.(value)` to report a completed score in its configured range. Game frames permit
+scripts under an opaque origin and reject network fetches. Gyro carries its original Three.js r170 dependency
+offline with its MIT licence. Scores are client reports and are for personal records. Norman's flat is represented by a rear stair door. Maxine uses the Blossom Street
 residential approach to OSM way 1127565117.
 
 ### Generated Ancoats city (normal map)
@@ -1598,6 +1619,16 @@ the key pool and open sign-ups.
 ---
 
 ## 14. History
+
+### 25 November 2026 — Playable arcade cabinets and pool
+
+- Installed the five supplied games and added a cabinet launcher with keyboard and touch entry, an Exit button
+  and Esc. Gyro's pinned Three.js dependency is embedded so all five games run in restricted local frames.
+- Migration 18 adds personal bests by account. New bests appear on the machines and update Norman's notebook.
+  The five stable placements and score rules come from the catalogue.
+- Chrome verified all five games, the iframe's network block, Esc, the score bridge and a phone-sized 1941
+  viewport. Saved two desktop views. All six Node files passed. The single full Python run stopped at the
+  old exact table-list assertion. After adding the new table to that assertion, nine affected tests passed.
 
 ### 25 November 2026 — Arcade test expectations
 

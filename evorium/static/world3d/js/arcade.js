@@ -50,7 +50,7 @@ uniform vec2 arcadeOutline[${points.length}];
  });
 }
 
-export function createArcade(world, data, layout) {
+export function createArcade(world, data, layout, catalogue=[]) {
  const group = new THREE.Group(), collision = new THREE.Group();
  const [wx,wz] = layout.origin;
  const floor = world.ground(wx,wz)+.03;
@@ -140,11 +140,51 @@ export function createArcade(world, data, layout) {
  box(-4.5,.939,17.75,1.8,.02,.036,pink);
  for(const x of [-5.33,-3.68])for(const z of [16.79,18.7])box(x,.37,z,.14,.74,.14,metal,true);
  for(const z of [16.96,18.54])box(-4.5,.96,z,.20,.05,.17,pink);
- const pads=material(0x563350);
- for(const id of ['cabinet-1','cabinet-2','cabinet-3','cabinet-4','pool-table']){
-  const [x,z]=layout.spots[id], pool=id==='pool-table';
-  const marker=box(x,.008,z,pool?2.25:.85,.014,pool?2.7:1.04,pads);
-  marker.name=id;
+ const games=new Map();
+ const tabletop=material(0x1a6651), rail=material(0x59352d);
+ const accents=[pink,blue,gold,glow(0x84f492)];
+ const ink=['#ff93d2','#8cf9ff','#ffe6a4','#aefcaf'];
+ for(const entry of new Map(catalogue.map(game=>[game.placement,game])).values()){
+  const [x,z]=layout.spots[entry.placement]||[];
+  if(x===undefined)continue;
+  const pool=entry.placement==='pool-table';
+  const index=Number(entry.placement.at(-1))-1;
+  const unit=new THREE.Group();unit.name=entry.placement;unit.position.set(x,0,z);group.add(unit);
+  if(pool){
+   box(x,.45,z,1.4,.9,2.3,rail,true);
+   box(x,.92,z,1.22,.055,2.1,tabletop);
+   for(const dx of [-.63,.63])box(x+dx,.98,z,.12,.12,2.28,rail);
+   for(const dz of [-1.09,1.09])box(x,.98,z+dz,1.36,.12,.12,rail);
+   for(const [dx,dz,color] of [[.25,.38,0xffffff],[-.18,-.4,0xf7cb45],[.19,-.48,0xc74061],[-.37,0,0x16121b]]){
+    const ball=new THREE.Mesh(new THREE.SphereGeometry(.039,8,5),material(color));
+    ball.position.set(x+dx,.98,z+dz);group.add(ball);
+   }
+   sign(entry.title,x,1.85,z-.88,1.8,.36,'#aefcaf',0);
+  }else{
+   const accent=accents[index]||pink;
+   box(x-.65,1.03,z,.96,2.06,.97,metal,true);
+   box(x-.15,1.02,z,.28,.16,.94,dark,true);
+   box(x-.025,1.11,z-.19,.09,.035,.09,accent);
+   box(x-.035,1.11,z+.16,.11,.04,.055,gold);
+   box(x-.16,1.56,z,.043,.65,.83,accent);
+   sign(entry.title,x-.156,1.99,z,.95,.22,ink[index]||'#fff',Math.PI/2);
+  }
+  const canvas=document.createElement('canvas');canvas.width=384;canvas.height=64;
+  const ctx=canvas.getContext('2d'), map=new THREE.CanvasTexture(canvas);
+  map.colorSpace=THREE.SRGBColorSpace;
+  const label=new THREE.Mesh(new THREE.PlaneGeometry(pool?1.05:.88,.18),new THREE.MeshBasicMaterial({map}));
+  label.position.set(pool?0:-.154,pool?1.64:1.18,pool?-.88:0);
+  label.rotation.y=pool?0:Math.PI/2;unit.add(label);
+  const drawBest=text=>{
+   ctx.fillStyle='#1c1523';ctx.fillRect(0,0,384,64);
+   ctx.fillStyle='#f1dfc2';ctx.font='bold 30px system-ui';
+   ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(text,192,32,367);
+   map.needsUpdate=true;
+  };
+  drawBest('Your best: —');
+  // Standing point is in the aisle beside the pool table, not inside its collision box.
+  const position=new THREE.Vector3(x+(pool?.86:0),0,z);
+  games.set(entry.placement,{...entry,position,drawBest});
  }
  const home=layout.spots['arcade-home'];
  box(home[0],1,24.45,1.15,2,.15,metal);
@@ -160,6 +200,7 @@ export function createArcade(world, data, layout) {
  world.octree=new Octree().fromGraphNode(world.collisionRoot);
  const positions={...layout.nodes,...layout.spots};
  group.updateMatrixWorld(true);
+ for(const game of games.values())group.localToWorld(game.position);
  cutBackdrops(world.set,group,outline,layout.height);
  for(const [id,[x,z]] of Object.entries(positions)){
   const position=group.localToWorld(new THREE.Vector3(x,0,z)).toArray();
@@ -180,7 +221,7 @@ export function createArcade(world, data, layout) {
   }
   return inside;
  }
- return {contains,group,
+ return {contains,group,games,
   setBooth(open){shutter.visible=boothClosed.visible=!open;},
   update(time){flicker.visible=!(time%1700>1510&&time%1700<1590);}
  };

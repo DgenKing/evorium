@@ -1,0 +1,7 @@
+[
+  {"slug":"dead-zone-4","title":"Dead Zone 4.0","placement":"cabinet-1","score":{"unit":"wave","min":1,"max":100000}},
+  {"slug":"gyro-chaos","title":"Gyro Balance: Chaos","placement":"cabinet-2","motion":true,"score":{"unit":"arena","min":1,"max":10}},
+  {"slug":"evorium-darts","title":"Crooked Billet Darts","placement":"cabinet-3","score":{"unit":"darts","min":1,"max":100000,"lower":true}},
+  {"slug":"1941","title":"1941 — Sky Assault","placement":"cabinet-4","score":{"unit":"points","min":0,"max":2147483647}},
+  {"slug":"evorium-pool","title":"Evorium Pool","placement":"pool-table","score":{"unit":"balls","min":1,"max":15}}
+]

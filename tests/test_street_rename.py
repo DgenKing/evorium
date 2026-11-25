@@ -45,7 +45,7 @@ def test_migration_17_renames_saved_text_once_and_preserves_history(tmp_path):
 
     init_db(path)
     connection = sqlite3.connect(path)
-    assert connection.execute("PRAGMA user_version").fetchone()[0] == 17
+    assert connection.execute("PRAGMA user_version").fetchone()[0] == len(MIGRATIONS)
     for table, column in (("agents", "location"), ("agents", "background"), ("agents", "current_goal"),
                           ("conversations", "location"), ("conversations", "summary"), ("memories", "content"),
                           ("facts", "content"), ("commitments", "content"), ("commitments", "target_json"),
@@ -69,7 +69,7 @@ def test_migration_17_renames_saved_text_once_and_preserves_history(tmp_path):
     connection = sqlite3.connect(path)
     after = {table: connection.execute(f'SELECT * FROM "{table}" ORDER BY rowid').fetchall() for table in tables}
     assert after == before
-    assert connection.execute("PRAGMA user_version").fetchone()[0] == 17
+    assert connection.execute("PRAGMA user_version").fetchone()[0] == len(MIGRATIONS)
     connection.close()
 
 

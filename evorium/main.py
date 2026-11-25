@@ -18,6 +18,7 @@ from fastapi.responses import FileResponse, Response
 from evorium.configuration import load
 from pydantic import BaseModel, Field
 
+from evorium import arcade_games
 from evorium import accounts, scene, economy, actions, decide, backoff, tick, world, timeline, player, relationships, places, plans, director
 from evorium.db import DEFAULT_DB_PATH, VISIBLE_IMPORTANCE, connect, init_db, npc_agents
 from evorium.events import emit, since
@@ -210,6 +211,7 @@ async def dashboard_auth(request, call_next):
         accounts.current.reset(token)
 
 
+app.mount("/static/games", arcade_games.GameFiles(directory=arcade_games.GAMES_DIR), name="games")
 app.mount("/static", StaticFiles(directory=STATIC), name="static")
 app.mount("/images", StaticFiles(directory=WEBSITE / "images"), name="website-images")
 
@@ -230,7 +232,8 @@ class AutoRequest(BaseModel):
 
 @app.get("/world3d")
 async def world3d():
-    return FileResponse(STATIC / "world3d" / "index.html")
+    return FileResponse(STATIC / "world3d" / "index.html",
+                        headers={"Content-Security-Policy": "frame-src 'self'; object-src 'none'"})
 
 
 @app.get("/")
@@ -246,6 +249,27 @@ async def website_styles():
 @app.get("/game")
 async def index():
     return FileResponse(STATIC / "index.html")
+
+
+class ArcadeScoreRequest(BaseModel):
+    score: int = Field(strict=True, ge=0, le=2147483647)
+
+    model_config = {"extra": "forbid"}
+
+
+@app.get('/arcade/scores')
+def arcade_scores():
+    return arcade_games.scores(DEFAULT_DB_PATH)
+
+
+@app.post('/arcade/scores/{slug}')
+def arcade_score(slug: str, req: ArcadeScoreRequest):
+    try:
+        return arcade_games.save_score(DEFAULT_DB_PATH, slug, req.score)
+    except KeyError:
+        raise HTTPException(404, 'Unknown arcade game') from None
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from None
 
 
 @app.get("/agents")

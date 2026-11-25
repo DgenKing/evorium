@@ -248,6 +248,13 @@ MIGRATIONS = (
     ),
     # Migration 17: rename place values and APC-readable saved text; transcripts/history stay untouched.
     (_rename_street_references,),
+    # Migration 18: personal arcade bests and their notebook fact references.
+    ("""CREATE TABLE arcade_scores (
+        account TEXT NOT NULL, slug TEXT NOT NULL,
+        score INTEGER NOT NULL CHECK(typeof(score)='integer' AND score BETWEEN 0 AND 2147483647),
+        fact_id INTEGER REFERENCES facts(id) ON DELETE SET NULL,
+        PRIMARY KEY(account, slug)
+    )""",),
 )
 
 VISIBLE_IMPORTANCE = 3  # facts scored below this are kept in the database but never shown to characters

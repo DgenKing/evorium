@@ -15,3 +15,26 @@
   max-width: 240px;
   text-align: center;
 }
+
+#arcade-game {
+  position: fixed; inset: 0; margin: 0; border: 0; padding: 0;
+  width: 100%; height: 100dvh; max-width: none; max-height: none;
+  background: #111419; color: #f7eee1;
+}
+#arcade-game[open] { display: grid; grid-template-rows: auto minmax(0, 1fr); }
+.arcade-game-bar {
+  display: flex; align-items: center; gap: .7rem; flex-wrap: wrap;
+  padding: max(.4rem, env(safe-area-inset-top)) max(.6rem, env(safe-area-inset-right)) .4rem max(.6rem, env(safe-area-inset-left));
+  background: #242228;
+}
+#arcade-exit { margin-left: auto; }
+#arcade-frame-slot iframe { display: block; width: 100%; height: 100%; border: 0; }
+#arcade-play-hint {
+  position: fixed; bottom: 64px; left: 50%; transform: translateX(-50%);
+  width: max-content; max-width: 90vw; padding: 7px 13px; border-radius: 12px;
+  background: #191b26e8; text-align: center;
+}
+#arcade-play { bottom: calc(112px + env(safe-area-inset-bottom)); }
+@media (pointer: coarse) {
+  #arcade-play-hint { bottom: 93px; max-width: 63vw; font-size: .85rem; }
+}
