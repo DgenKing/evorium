@@ -1,7 +1,7 @@
 # Asset licences
 
 - Henry Street / Ancoats kit, made for Evorium by the owner's friend; used with permission. Source: owner-supplied `Ancoats_Blender_Kit/Ancoats.blend`. The supplied photographic cast is excluded from the web export.
-- Quaternius Universal Base Characters **Standard**, CC0 1.0: https://quaternius.com/packs/universalbasecharacters.html and https://quaternius.itch.io/universal-base-characters . Pack `License_Standard.txt` confirms CC0. This Standard archive contains Superhero male/female bodies, used as tinted stand-ins, rather than Regular bodies.
+- Quaternius Universal Base Characters **Standard**, CC0 1.0: https://quaternius.com/packs/universalbasecharacters.html and https://quaternius.itch.io/universal-base-characters . Pack `License_Standard.txt` confirms CC0. This Standard archive contains Superhero male/female bodies, which remain in legacy build assets.
 - Quaternius Universal Animation Library **Standard**, CC0 1.0: https://quaternius.com/packs/universalanimationlibrary.html and https://quaternius.itch.io/universal-animation-library . Pack `License.txt` confirms CC0. Ten selected clips; matching universal bone names.
 - Three.js **0.187.0**, MIT: https://www.npmjs.com/package/three/v/0.187.0 ; full licence in `/static/vendor/three/LICENSE`. Official package supplies the module, core and addons including Meshopt decoder (its source contains its MIT notice). This release no longer distributes minified builds; `three.module.min.js` is the unmodified official `three.module.js` under the requested filename, and imports unmodified `three.core.js`.
 
@@ -16,7 +16,7 @@ MakeHuman's base mesh, morph targets, game-engine rig and weights are **CC0-1.0*
 the source-code and graphics licences are separate:
 https://www.makehumancommunity.org/about/license.html .
 
-The nine exported cast models are derived from the following CC0 graphical assets.
+The 21 exported cast models are derived from the following CC0 graphical assets.
 Each linked official pack page identifies its assets and licences individually.
 The selected asset files also retain their licence headers in MPFB's user data.
 No CC-BY hair/body-part packs are used. Colour changes, balding-hair edits,
@@ -53,6 +53,16 @@ Quaternius animation clips remain CC0 under the licence above.
 | skins/young_caucasian_female | CC0-1.0 | [Pack asset table](https://static.makehumancommunity.org/assets/assetpacks/makehuman_system_assets.html) |
 | skins/young_caucasian_female2 | CC0-1.0 | [Pack asset table](https://static.makehumancommunity.org/assets/assetpacks/makehuman_system_assets.html) |
 | skins/young_caucasian_male | CC0-1.0 | [Pack asset table](https://static.makehumancommunity.org/assets/assetpacks/makehuman_system_assets.html) |
+| clothes/male_casualsuit01 | CC0-1.0 | [Pack asset table](https://static.makehumancommunity.org/assets/assetpacks/makehuman_system_assets.html) |
+| clothes/shoes03 | CC0-1.0 | [Pack asset table](https://static.makehumancommunity.org/assets/assetpacks/makehuman_system_assets.html) |
+| clothes/shoes04 | CC0-1.0 | [Pack asset table](https://static.makehumancommunity.org/assets/assetpacks/makehuman_system_assets.html) |
+| hair/elvs_french_braid_variation | CC0-1.0 | [Pack asset table](https://static.makehumancommunity.org/assets/assetpacks/hair01.html) |
+| hair/ponytail01 | CC0-1.0 | [Pack asset table](https://static.makehumancommunity.org/assets/assetpacks/makehuman_system_assets.html) |
+| hair/toigo_blunt_bob_with_bangs | CC0-1.0 | [Pack asset table](https://static.makehumancommunity.org/assets/assetpacks/hair01.html) |
+| skins/middleage_african_female | CC0-1.0 | [Pack asset table](https://static.makehumancommunity.org/assets/assetpacks/makehuman_system_assets.html) |
+| skins/middleage_caucasian_female | CC0-1.0 | [Pack asset table](https://static.makehumancommunity.org/assets/assetpacks/makehuman_system_assets.html) |
+| skins/young_asian_female | CC0-1.0 | [Pack asset table](https://static.makehumancommunity.org/assets/assetpacks/makehuman_system_assets.html) |
+| skins/young_caucasian_male2 | CC0-1.0 | [Pack asset table](https://static.makehumancommunity.org/assets/assetpacks/makehuman_system_assets.html) |
 
 ## Street life (20 November 2026)
 

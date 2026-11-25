@@ -20,10 +20,22 @@ CAST = {
  'simon':dict(name='Simon Ferris',gender=1,age=46,weight=.4,muscle=.45,height=1.84,proportions=.58,race=(0,0,1),skin='middleage_caucasian_male',hair='culturalibre_hair_05',hair_color='#38302c',outfit='male_elegantsuit01',top='#393e43',trousers='#3d444c'),
  'brenda':dict(name='Brenda Ashworth',gender=0,age=71,weight=.7,muscle=.25,height=1.56,proportions=.42,race=(0,0,1),skin='old_caucasian_female',hair='afro01',hair_color='#b7b5aa',outfit='female_casualsuit01',cardigan=True,top='#a18bab',trousers='#565269'),
  'mo':dict(name='Mohammed "Mo" Iqbal',gender=1,age=38,weight=.6,muscle=.55,height=1.79,proportions=.52,race=(.12,.72,.16),skin='young_asian_male',skin_tint='#c29876',hair='culturalibre_hair_02',hair_color='#24252a',beard='grinsegold_beard_sigmund_wip',beard_color='#292729',outfit='male_casualsuit06',cardigan=True,top='#333d50',trousers='#34363b'),
+ 'peggy':dict(name='Peggy Coyle',gender=0,age=82,weight=.50,muscle=.19,height=1.53,proportions=.39,race=(0,0,1),skin='old_caucasian_female',hair='afro01',hair_color='#e3ded0',perm=82,outfit='female_casualsuit01',cardigan=True,top='#50404a',trousers='#3c393e'),
+ 'liam':dict(name='Liam Byrne',gender=1,age=27,weight=.53,muscle=.73,height=1.83,proportions=.55,race=(0,0,1),skin='young_caucasian_male2',hair='short04',hair_color='#473529',outfit='male_casualsuit05',top='#252b38',trousers='#47484b',vest='#c6d237',shoes='shoes04'),
+ 'anjali':dict(name='Anjali Patel',gender=0,age=19,weight=.37,muscle=.36,height=1.65,proportions=.49,race=(.11,.69,.20),skin='young_asian_female',skin_tint='#c29a76',hair='ponytail01',hair_color='#282221',outfit='female_casualsuit01',top='#435d79',trousers='#333940'),
+ 'pete':dict(name='Pete Lomax',gender=1,age=58,weight=.84,muscle=.55,height=1.79,proportions=.50,race=(0,0,1),skin='middleage_caucasian_male',hair='short01',hair_color='#96928d',outfit='male_casualsuit01',top='#333a37',trousers='#404548',shoes='shoes04'),
+ 'hannah':dict(name='Hannah Kerr',gender=0,age=31,weight=.43,muscle=.40,height=1.72,proportions=.52,race=(0,0,1),skin='young_caucasian_female2',hair='toigo_curled_under_bob',hair_color='#83533a',outfit='female_casualsuit01',cardigan=True,top='#282f34',trousers='#464d5d'),
+ 'gary':dict(name='Gary Walsh',gender=1,age=49,weight=.55,muscle=.40,height=1.74,proportions=.50,race=(0,0,1),skin='middleage_caucasian_male',hair='short01',hair_color='#a09c97',balding=True,outfit='male_casualsuit05',top='#a6373d',shoulders='#293b52',trousers='#323e50'),
+ 'kirsty':dict(name='Kirsty Doyle',gender=0,age=26,weight=.49,muscle=.30,height=1.63,proportions=.48,race=(0,0,1),skin='young_caucasian_female',hair='rehmanpolanski_hair_bun_brown',hair_color='#a88d66',outfit='female_casualsuit01',top='#cbbfa8',trousers='#4c575f',shoes='shoes03'),
+ 'grace':dict(name='Grace Adeyemi',gender=0,age=33,weight=.50,muscle=.54,height=1.76,proportions=.54,race=(.92,.04,.04),skin='middleage_african_female',hair='elvs_french_braid_variation',hair_color='#251d1b',outfit='female_casualsuit01',top='#232e44',trousers='#293242',vest='#d4de46',shoes='shoes04'),
+ 'barry':dict(name='Barry Hughes',gender=1,age=61,weight=.29,muscle=.43,height=1.79,proportions=.52,race=(0,0,1),skin='old_caucasian_male',hair='ponytail01',hair_color='#8e8a82',outfit='male_casualsuit05',top='#555052',trousers='#43464a'),
+ 'ronnie':dict(name='Ronnie Clegg',gender=1,age=70,weight=.42,muscle=.27,height=1.70,proportions=.44,race=(0,0,1),skin='old_caucasian_male',hair='culturalibre_hair_05',hair_color='#928e81',outfit='male_casualsuit05',top='#696150',shirt='#484544',trousers='#424241'),
+ 'norman':dict(name='Norman Pilling',gender=1,age=63,weight=.42,muscle=.25,height=1.71,proportions=.46,race=(0,0,1),skin='old_caucasian_male',hair='culturalibre_hair_05',hair_color='#aaa8a0',outfit='male_casualsuit05',top='#586575',shirt='#ddd8c8',trousers='#31343b',night_tie=True),
+ 'maxine':dict(name='Maxine Stott',gender=0,age=51,weight=.62,muscle=.39,height=1.67,proportions=.47,race=(0,0,1),skin='middleage_caucasian_female',hair='toigo_blunt_bob_with_bangs',hair_color='#5a382f',outfit='female_casualsuit01',cardigan=True,top='#843f4b',trousers='#373541'),
  'player':dict(name='player',gender=1,age=35,weight=.5,muscle=.45,height=1.76,proportions=.5,race=(0,0,1),skin='young_caucasian_male',hair='short04',hair_color='#483b33',outfit='male_casualsuit06',top='#e9dfc9',trousers='#536c7d'),
 }
-RAW=Path(__file__).resolve().parent/'raw';DATA=Path(LocationService.get_user_data());OUT=RAW/'cast';OUT.mkdir(exist_ok=True)
-args=argparse.ArgumentParser();args.add_argument('--only',choices=list(CAST));a=args.parse_args(sys.argv[sys.argv.index('--')+1:] if '--' in sys.argv else [])
+RAW=Path(__file__).resolve().parent/'raw';DATA=Path(LocationService.get_user_data());OUT=RAW/'cast';OUT.mkdir(parents=True,exist_ok=True)
+args=argparse.ArgumentParser();args.add_argument('--only',nargs='+',choices=list(CAST));a=args.parse_args(sys.argv[sys.argv.index('--')+1:] if '--' in sys.argv else [])
 used=json.loads((OUT/'licenses.json').read_text()) if a.only and (OUT/'licenses.json').exists() else {};inventory=json.loads((OUT/'inventory.json').read_text()) if a.only and (OUT/'inventory.json').exists() else {}
 def asset(kind,name):
  folder=DATA/kind/name
@@ -31,7 +43,7 @@ def asset(kind,name):
  if not paths:raise RuntimeError(f'Missing installed MPFB asset {kind}/{name}')
  path=paths[0];text=path.read_text(errors='replace')
  # Every selected pack was independently checked against its official CC0 asset table.
- pack='bodyparts05' if name.startswith('grinsegold') else 'hair01' if name.startswith(('culturalibre','toigo','rehmanpolanski')) else 'makehuman_system_assets'
+ pack='bodyparts05' if name.startswith('grinsegold') else 'hair01' if name.startswith(('culturalibre','toigo','rehmanpolanski','elvs')) else 'makehuman_system_assets'
  used[kind+'/'+name]={'source':f'https://static.makehumancommunity.org/assets/assetpacks/{pack}.html','license':'CC0-1.0','file':str(path.relative_to(DATA))}
  return path
 
@@ -69,6 +81,65 @@ def add(kind,name,h,color=None,alpha=False):
 def delete_faces(obj,predicate):
  bm=bmesh.new();bm.from_mesh(obj.data);bmesh.ops.delete(bm,geom=[f for f in bm.faces if predicate(f)],context='FACES');bm.to_mesh(obj.data);bm.free()
 
+def wardrobe(identifier, clothes, config, sole, height):
+ """Assign solid fabric colours on the fitted clothing mesh."""
+ palette = {'top': config['top'], 'trousers': config['trousers']}
+ for role in ('shirt', 'vest', 'shoulders'):
+  if role in config:
+   palette[role] = config[role]
+ if identifier in ('liam', 'grace'):
+  palette['reflective trim'] = '#aeb5ad'
+ clothes.data.materials.clear()
+ indices = {}
+ for role, color in palette.items():
+  indices[role] = len(clothes.data.materials)
+  clothes.data.materials.append(material(f'{identifier} {role}', color=color))
+ for face in clothes.data.polygons:
+  x, y, z = face.center
+  level = (z - sole) / height
+  role = 'trousers' if level <= .49 else 'top'
+  if 'shirt' in indices and y < 0 and level > .62 and abs(x) < .020 + (level - .62) * .43:
+   role = 'shirt'
+  if 'shoulders' in indices and level > .74:
+   role = 'shoulders'
+  if 'vest' in indices and .52 < level < .83 and abs(x) < .22:
+   if abs(x) > .045 or y > 0:
+    role = 'reflective trim' if level < .57 else 'vest'
+  face.material_index = indices[role]
+
+
+def night_tie(clothes, rig, sole, height):
+ """Fit a weighted silk tie to Norman's jacket front in the bind pose."""
+ surface = BVHTree.FromPolygons([v.co for v in clothes.data.vertices],
+                                [p.vertices[:] for p in clothes.data.polygons])
+ rows = ((.802,.018), (.780,.012), (.735,.017), (.684,.023), (.662,.001))
+ vertices = []
+ for level, width in rows:
+  z = sole + level * height
+  for x in (-width, width):
+   point, _, _, _ = surface.ray_cast(Vector((x,-1,z)), Vector((0,1,0)))
+   if point is None:
+    raise RuntimeError('Norman tie is outside the jacket')
+   vertices.append((x, point.y - .017, z))
+ faces = [(2*i,2*i+2,2*i+3,2*i+1) for i in range(len(rows)-1)]
+ mesh = bpy.data.meshes.new('Norman night tie')
+ mesh.from_pydata(vertices, [], faces)
+ mesh.materials.append(material('Norman burgundy silk', color='#8f293e'))
+ tie = bpy.data.objects.new('Norman night tie', mesh)
+ bpy.context.collection.objects.link(tie)
+ tie.parent = clothes.parent
+ tie.matrix_world = clothes.matrix_world.copy()
+ for vertex in mesh.vertices:
+  nearest = min(clothes.data.vertices, key=lambda v: (v.co-vertex.co).length_squared)
+  for weight in nearest.groups:
+   name = clothes.vertex_groups[weight.group].name
+   group = tie.vertex_groups.get(name) or tie.vertex_groups.new(name=name)
+   group.add([vertex.index],weight.weight,'REPLACE')
+ modifier = tie.modifiers.new('Game engine rig','ARMATURE')
+ modifier.object = rig
+ return tie
+
+
 def build(identifier,c):
  bpy.ops.object.select_all(action='SELECT');bpy.ops.object.delete(use_global=False)
  macro=TargetService.get_default_macro_info_dict();macro.update(gender=c['gender'],age=.5+(c['age']-25)/130,weight=c['weight'],muscle=c['muscle'],height=.5,proportions=c['proportions'],race=dict(zip(('african','asian','caucasian'),c['race'])))
@@ -87,19 +158,19 @@ def build(identifier,c):
  if c.get('balding'):
   xs=[v.co.x for v in hair.data.vertices];zs=[v.co.z for v in hair.data.vertices];cx=(max(xs)+min(xs))/2;half=(max(xs)-min(xs))/2;high=min(zs)+(max(zs)-min(zs))*.65
   delete_faces(hair,lambda f:abs(f.calc_center_median().x-cx)<half*.7 and f.calc_center_median().z>high)
- if identifier=='brenda':
+ if identifier=='brenda' or c.get('perm'):
   # Use the fitted CC0 afro's bounds to build an opaque, low-poly curly perm.
   xs=[v.co.x for v in hair.data.vertices];ys=[v.co.y for v in hair.data.vertices];zs=[v.co.z for v in hair.data.vertices];center=Vector(((min(xs)+max(xs))/2,(min(ys)+max(ys))/2,(min(zs)+max(zs))/2));rx=(max(xs)-min(xs))*.43;ry=(max(ys)-min(ys))*.43;rz=(max(zs)-min(zs))*.4
-  bm=bmesh.new();rng=random.Random(71)
+  bm=bmesh.new();rng=random.Random(c.get('perm',71))
   for row in range(6):
    angle=row*.28;count=max(1,int(28*math.sin(angle)))
    for i in range(count):
     theta=i/count*math.tau+row*.35+rng.uniform(-.12,.12);a2=angle+rng.uniform(-.12,.12);point=center+Vector((rx*math.sin(a2)*math.cos(theta),ry*math.sin(a2)*math.sin(theta),rz*.7*math.cos(a2)+rng.uniform(-.012,.012)))
     result=bmesh.ops.create_icosphere(bm,subdivisions=1,radius=rng.uniform(.020,.033));bmesh.ops.scale(bm,verts=result['verts'],vec=(1,rng.uniform(.8,1.2),rng.uniform(.8,1.3)));bmesh.ops.translate(bm,verts=result['verts'],vec=point)
     for face in {f for v in result['verts'] for f in v.link_faces}:face.material_index=rng.randrange(3)
-  mesh=bpy.data.meshes.new('Brenda fitted perm');bm.to_mesh(mesh);bm.free();hair.data=mesh
+  mesh=bpy.data.meshes.new(identifier+' fitted perm');bm.to_mesh(mesh);bm.free();hair.data=mesh
   hair.vertex_groups.clear();group=hair.vertex_groups.new(name='head');group.add(list(range(len(mesh.vertices))),1,'REPLACE');
-  for i,color in enumerate(['#8b8b83','#a8a89e','#b9b9af']):hair.data.materials.append(material('Brenda silver curls '+str(i),color=color))
+  for i,color in enumerate(['#a8a398','#d1caba','#e3ded0'] if c.get('perm') else ['#8b8b83','#a8a89e','#b9b9af']):hair.data.materials.append(material(identifier+' silver curls '+str(i),color=color))
   for face in hair.data.polygons:face.use_smooth=True
  meshes.append(hair)
  if c.get('beard'):
@@ -114,9 +185,10 @@ def build(identifier,c):
   meshes.append(beard)
  clothes=add('clothes',c['outfit'],h);meshes.append(clothes)
  # Real garment geometry, with per-face material colours; no runtime body/clothing mask.
- clothes.data.materials.clear();clothes.data.materials.append(material(identifier+' top',color=c['top']));clothes.data.materials.append(material(identifier+' trousers',color=c['trousers']))
  zs=[v.co.z for v in proxy.data.vertices];height=max(zs)-min(zs);waist=min(zs)+height*.49
- for f in clothes.data.polygons:f.material_index=0 if f.center.z>waist else 1
+ wardrobe(identifier,clothes,c,min(zs),height)
+ if c.get('night_tie'):
+  meshes.append(night_tie(clothes,rig,min(zs),height))
  if identifier=='tommy':
   plaid=bpy.data.images.new('Tommy checked shirt',width=256,height=256);pixels=[]
   for y in range(256):
@@ -125,7 +197,7 @@ def build(identifier,c):
   plaid.pixels=pixels;mat=clothes.data.materials[0];bs=next(n for n in mat.node_tree.nodes if n.type=='BSDF_PRINCIPLED');node=mat.node_tree.nodes.new('ShaderNodeTexImage');node.image=plaid;mat.node_tree.links.new(node.outputs['Color'],bs.inputs['Base Color'])
  if c.get('cardigan'):
   cardigan=add('clothes','male_casualsuit05',h);delete_faces(cardigan,lambda f:f.calc_center_median().z<waist);cardigan.data.materials.clear();cardigan.data.materials.append(material(identifier+' cardigan',color=c['top']));meshes.append(cardigan)
- meshes.append(add('clothes','shoes02',h,'#353234'))
+ meshes.append(add('clothes',c.get('shoes','shoes02'),h,'#353234'))
  # Export only fitted game meshes, not helper basemesh. Bake masks before decimation.
  for obj in meshes:
   bpy.context.view_layer.objects.active=obj
@@ -147,5 +219,5 @@ def build(identifier,c):
  print('CAST_EXPORTED',identifier,inventory[identifier]['vertices'],flush=True)
 
 for identifier,c in CAST.items():
- if not a.only or identifier==a.only:build(identifier,c)
+ if not a.only or identifier in a.only:build(identifier,c)
 (OUT/'inventory.json').write_text(json.dumps(inventory,indent=2));(OUT/'licenses.json').write_text(json.dumps(used,indent=2))

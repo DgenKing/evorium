@@ -1,9 +1,9 @@
 {
   "high": {
-    "bytes": 10961806,
-    "megabytes": 10.961806,
-    "triangles": 278789,
-    "estimatedTextureMB": 504.365056,
+    "bytes": 17381070,
+    "megabytes": 17.38107,
+    "triangles": 458740,
+    "estimatedTextureMB": 789.5777280000002,
     "cast": {
       "dez": {
         "bytes": 695472,
@@ -58,6 +58,78 @@
         "megabytes": 0.514376,
         "triangles": 12260,
         "estimatedTextureMB": 25.165823999999997
+      },
+      "peggy": {
+        "bytes": 451968,
+        "megabytes": 0.451968,
+        "triangles": 14366,
+        "estimatedTextureMB": 19.573418666666665
+      },
+      "liam": {
+        "bytes": 500572,
+        "megabytes": 0.500572,
+        "triangles": 11483,
+        "estimatedTextureMB": 25.165823999999997
+      },
+      "anjali": {
+        "bytes": 569668,
+        "megabytes": 0.569668,
+        "triangles": 13324,
+        "estimatedTextureMB": 25.165823999999997
+      },
+      "pete": {
+        "bytes": 739736,
+        "megabytes": 0.739736,
+        "triangles": 22793,
+        "estimatedTextureMB": 25.165823999999997
+      },
+      "hannah": {
+        "bytes": 516256,
+        "megabytes": 0.516256,
+        "triangles": 14867,
+        "estimatedTextureMB": 25.165823999999997
+      },
+      "gary": {
+        "bytes": 663912,
+        "megabytes": 0.663912,
+        "triangles": 11612,
+        "estimatedTextureMB": 25.165823999999997
+      },
+      "kirsty": {
+        "bytes": 442596,
+        "megabytes": 0.442596,
+        "triangles": 13439,
+        "estimatedTextureMB": 25.165823999999997
+      },
+      "grace": {
+        "bytes": 441356,
+        "megabytes": 0.441356,
+        "triangles": 16437,
+        "estimatedTextureMB": 25.165823999999997
+      },
+      "barry": {
+        "bytes": 627436,
+        "megabytes": 0.627436,
+        "triangles": 14714,
+        "estimatedTextureMB": 25.165823999999997
+      },
+      "ronnie": {
+        "bytes": 460096,
+        "megabytes": 0.460096,
+        "triangles": 15119,
+        "estimatedTextureMB": 19.573418666666665
+      },
+      "norman": {
+        "bytes": 464632,
+        "megabytes": 0.464632,
+        "triangles": 15118,
+        "estimatedTextureMB": 19.573418666666665
+      },
+      "maxine": {
+        "bytes": 541036,
+        "megabytes": 0.541036,
+        "triangles": 16679,
+        "estimatedTextureMB": 25.165823999999997
       }
     },
     "ambient": {
@@ -94,10 +166,10 @@
     }
   },
   "low": {
-    "bytes": 6762918,
-    "megabytes": 6.762918,
-    "triangles": 166756,
-    "estimatedTextureMB": 122.68339199999998,
+    "bytes": 10128786,
+    "megabytes": 10.128786,
+    "triangles": 236183,
+    "estimatedTextureMB": 219.15238400000004,
     "cast": {
       "dez": {
         "bytes": 342344,
@@ -151,6 +223,78 @@
         "bytes": 277184,
         "megabytes": 0.277184,
         "triangles": 4706,
+        "estimatedTextureMB": 8.388608
+      },
+      "peggy": {
+        "bytes": 272080,
+        "megabytes": 0.27208,
+        "triangles": 6332,
+        "estimatedTextureMB": 6.990506666666666
+      },
+      "liam": {
+        "bytes": 271884,
+        "megabytes": 0.271884,
+        "triangles": 4445,
+        "estimatedTextureMB": 8.388608
+      },
+      "anjali": {
+        "bytes": 290764,
+        "megabytes": 0.290764,
+        "triangles": 4766,
+        "estimatedTextureMB": 8.388608
+      },
+      "pete": {
+        "bytes": 340180,
+        "megabytes": 0.34018,
+        "triangles": 8034,
+        "estimatedTextureMB": 8.388608
+      },
+      "hannah": {
+        "bytes": 267576,
+        "megabytes": 0.267576,
+        "triangles": 5310,
+        "estimatedTextureMB": 8.388608
+      },
+      "gary": {
+        "bytes": 317604,
+        "megabytes": 0.317604,
+        "triangles": 4175,
+        "estimatedTextureMB": 8.388608
+      },
+      "kirsty": {
+        "bytes": 247568,
+        "megabytes": 0.247568,
+        "triangles": 4809,
+        "estimatedTextureMB": 8.388608
+      },
+      "grace": {
+        "bytes": 246364,
+        "megabytes": 0.246364,
+        "triangles": 5712,
+        "estimatedTextureMB": 8.388608
+      },
+      "barry": {
+        "bytes": 304420,
+        "megabytes": 0.30442,
+        "triangles": 5265,
+        "estimatedTextureMB": 8.388608
+      },
+      "ronnie": {
+        "bytes": 262672,
+        "megabytes": 0.262672,
+        "triangles": 7317,
+        "estimatedTextureMB": 6.990506666666666
+      },
+      "norman": {
+        "bytes": 267176,
+        "megabytes": 0.267176,
+        "triangles": 7320,
+        "estimatedTextureMB": 6.990506666666666
+      },
+      "maxine": {
+        "bytes": 277580,
+        "megabytes": 0.27758,
+        "triangles": 5942,
         "estimatedTextureMB": 8.388608
       }
     },

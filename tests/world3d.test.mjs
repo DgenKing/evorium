@@ -1,3 +1,5 @@
+import {execFileSync} from 'node:child_process';
+import {fileURLToPath} from 'node:url';
 import assert from 'node:assert/strict';import fs from 'node:fs';import {pathfind,pathfindFast,slotPosition,transformRoutes,buildCityRouteGraph} from '../evorium/static/world3d/js/graph.js';import {selectAnimation} from '../evorium/static/world3d/js/anim.js';import {detectQuality,Watchdog} from '../evorium/static/world3d/js/quality.js';import {lookupCast,createCastCache} from '../evorium/static/world3d/js/cast.js';
 const data=n=>JSON.parse(fs.readFileSync(new URL('../evorium/static/world3d/data/'+n+'.json',import.meta.url)));
 const graph=data('routes'),waypoints=data('waypoints');const small={nodes:{a:[0,0,0],b:[1,0,0],c:[2,0,0],d:[1,0,2]},edges:[['a','b'],['b','c'],['a','d'],['d','c']]};assert.deepEqual(pathfind(small,'a','c'),['a','b','c']);assert.deepEqual(pathfind(small,'a','missing'),[]);
@@ -7,18 +9,65 @@ for(const end of ['STREET_LEFT','STREET_RIGHT'])for(const waypoint of [...Object
 for(const [values,expected] of [[{},'idle'],[{speed:1.6},'walk'],[{speed:4},'run'],[{grounded:false,verticalSpeed:2},'jump_start'],[{grounded:false,verticalSpeed:-1},'fall'],[{wasGrounded:false},'land'],[{sitting:true},'sit'],[{talking:true},'talk']])assert.equal(selectAnimation(values),expected);
 assert.equal(detectQuality({touch:true}),'low');assert.equal(detectQuality({width:390}),'low');assert.equal(detectQuality({maxTextureSize:16384,pixelRatio:2}),'high');assert.equal(detectQuality({maxTextureSize:8192}),'medium');
 assert.deepEqual(slotPosition({position:[1,2,3],yaw:0},2),[2.4,2,3]);assert.ok(Math.abs(slotPosition({position:[0,0,0],yaw:Math.PI/2},1)[2]+.7)<1e-8);
-const cast=data('cast');assert.equal(Object.keys(cast).length,11);assert.equal(lookupCast(cast,'Jess Hartley').body,'female');assert.equal(lookupCast(cast,'unknown'),cast.player);
+const cast=data('cast');
+const seedPath=fileURLToPath(new URL('../evorium/seed.py',import.meta.url));
+const people=JSON.parse(execFileSync('python3',['-c',
+ 'import runpy, json, sys; print(json.dumps([row[0] for row in runpy.run_path(sys.argv[1])["CHARACTERS"]]))',
+ seedPath],{cwd:new URL('..',import.meta.url),encoding:'utf8'}));
+assert.deepEqual(Object.keys(cast).sort(),['player',...people].sort());
+assert.equal(lookupCast(cast,'Jess Hartley').body,'female');
+assert.throws(()=>lookupCast(cast,'unknown'),/Missing cast model/);
 const watchdog=new Watchdog();let preset='high';for(let i=0;i<110;i++)preset=watchdog.update(.1,preset);assert.equal(preset,'low');assert.equal(watchdog.drops,2);
 console.log('Web3D: graph, all waypoint routes, animation, quality, watchdog, slots and cast passed.');
 
-for(const [name,config] of Object.entries(cast)){assert.ok(config.height>1.4&&config.height<2);if(config.fallback){assert.equal(config.model,null);continue;}assert.match(config.model,/^cast\/[a-z]+\.glb$/);for(const quality of ['low','high'])assert.ok(fs.existsSync(new URL('../evorium/static/world3d/assets/'+quality+'/'+config.model,import.meta.url)),name);}
+const models=new Set();
+const budgets=data('budgets');
+function readModel(quality, model){
+ const catalog=new URL(`../evorium/static/world3d/assets/${quality}/${model}`,import.meta.url);
+ const file=fs.readFileSync(catalog);
+ assert.equal(file.toString('ascii',0,4),'glTF',model);
+ const length=file.readUInt32LE(12);
+ return {size:file.length,json:JSON.parse(file.toString('utf8',20,20+length))};
+}
+function jointNames({skins,nodes}){
+ return [...new Set(skins.flatMap(skin=>skin.joints.map(index=>nodes[index].name)))].sort();
+}
+const playerJoints=jointNames(readModel('high',cast.player.model).json);
+for(const [name,config] of Object.entries(cast)){
+ assert.ok(config.height>1.4&&config.height<2,name);
+ assert.ok(config.scale>0 && config.labelOffset>0 && /^#[0-9a-f]{6}$/i.test(config.tint),name);
+ assert.ok(!config.fallback,name);
+ if(name!=='player')assert.notEqual(config.model,cast.player.model,name);
+ assert.match(config.model,/^cast\/[a-z]+\.glb$/);
+ assert.ok(!models.has(config.model),`${name} reuses a cast model`);
+ models.add(config.model);
+ for(const quality of ['low','high']){
+  const {size,json}=readModel(quality,config.model);
+  const id=config.model.slice('cast/'.length,-'.glb'.length);
+  assert.equal(size,budgets[quality].cast[id].bytes,name);
+  assert.deepEqual(jointNames(json),playerJoints,name);
+  assert.ok(json.meshes.length>=5,`${name} is missing fitted meshes`);
+  if(name==='Norman Pilling')assert.ok(json.nodes.some(node=>node.name==='Norman night tie'));
+ }
+}
 const clips=data('clips');assert.equal(new Set(Object.values(clips)).size,10);assert.equal(clips.walk,'Walk_Loop');assert.equal(clips.sit,'Sitting_Idle_Loop');
-let loaded=[],fallbacks=[];const cache=createCastCache(cast,async model=>{loaded.push(model);if(model.includes('jess'))throw Error('test missing model');return{model};},async()=>({gltf:{fallback:true},animations:{}}),item=>fallbacks.push(item));
-assert.equal(loaded.length,0);const rob=await cache.get('player');assert.equal(rob.fallback,false);await cache.get('unknown');assert.equal(loaded.length,1);const jess=await cache.get('Jess Hartley');assert.equal(jess.fallback,true);assert.equal(fallbacks.length,1);await cache.get('Jess Hartley');assert.equal(fallbacks.length,1);assert.equal(loaded.length,2);
-// Stand-ins until they get their own models: nobody uses the bare mannequin.
-assert.equal(cast['Norman Pilling'].model,'cast/tommy.glb');assert.equal(cast['Maxine Stott'].model,'cast/brenda.glb');
-assert.ok(Object.values(cast).every(config=>!config.fallback),'no planned mannequin fallbacks');
-console.log('MPFB cast: all models, dimensions, ten clips, lazy caching and fallback passed.');
+const loaded=[],modelErrors=[];
+const cache=createCastCache(cast,async model=>{
+ loaded.push(model);
+ if(model===cast['Jess Hartley'].model)throw Error('test missing model');
+ return {model};
+},error=>modelErrors.push(error));
+assert.deepEqual(loaded,[]);
+assert.equal((await cache.get('player')).model,cast.player.model);
+await assert.rejects(cache.get('unknown'),/Missing cast model/);
+assert.deepEqual(loaded,[cast.player.model]);
+const jess=cache.get('Jess Hartley');
+await assert.rejects(jess,/test missing model/);
+assert.equal(cache.get('Jess Hartley'),jess);
+for(const name of ['Norman Pilling','Maxine Stott'])assert.equal((await cache.get(name)).model,cast[name].model);
+assert.deepEqual(loaded,[cast.player.model,cast['Jess Hartley'].model,cast['Norman Pilling'].model,cast['Maxine Stott'].model]);
+assert.deepEqual(modelErrors.map(error=>error.name),['unknown','Jess Hartley']);
+console.log('MPFB cast: dedicated models, game-engine joints, ten clips and lazy loading passed.');
 
 const {schedule,allowed,limits,separation,streetGraph,visibleStep,intervals,facing}=await import('../evorium/static/world3d/js/ambient.js');
 for(const [kind,[min,max]] of Object.entries(intervals)){assert.equal(schedule(kind,20,()=>0),20+min);assert.equal(schedule(kind,20,()=>1),20+max);assert.equal(schedule(kind,20,()=>.5),20+(min+max)/2);}

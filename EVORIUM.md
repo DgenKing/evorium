@@ -84,7 +84,7 @@ and phone); it runs around the clock on the owner's HP G4 and is reachable over 
 
 | Area | State |
 |---|---|
-| Characters | 20 APCs, 18 with portraits + one player per account (existing owner Rob retained; friends created at first login) + 1 system ("World") row |
+| Characters | 20 APCs, all with portraits + one player per account (existing owner Rob retained; friends created at first login) + 1 system ("World") row |
 | Places | Eight public places (§4). Gun Street Amusements is open 24 hours. Billet normally 09:00–24:00; Patel's normally Mon–Sat 07:00–19:00; festive/bank-holiday hours apply (§4); street always |
 | Clock | Real UK time × speed multiplier (0 = paused, 1 = real, up to 600×+) |
 | Conversations | 4/6 lines; automatic pairs capped at two per game day, with quiet-APC priority and at least three hours of shared free time per normal week |
@@ -103,7 +103,7 @@ and phone); it runs around the clock on the owner's HP G4 and is reachable over 
 | Navigation | ☰ burger menu top right on every page: Dashboard, Map, 3D, Timeline, Guide |
 | Dashboard | Character cards, live feed, usage/spend, controls, terrace card, **version** (git commit and date) and the **Restart server** button |
 | Map tab | Zoomable, draggable north-up map of the five Ancoats streets; place-linked APC/player markers and the existing pub/shop/street cutaway, pixel sprites, bubbles and portrait popups |
-| 3D game | `/world3d`: five real Ancoats streets by default, with the original kit scene available at `?city=0`; Three.js, nine distinct MPFB models, third person, touch controls, chat, street life and night lighting |
+| 3D game | `/world3d`: five real Ancoats streets by default, with the original kit scene available at `?city=0`; Three.js, dedicated models for all twenty APCs and the player, third person, touch controls, chat, street life and night lighting |
 | City pipeline | Five-street Ancoats city generated from surveyed terrain, kit materials and instanced facades; both package limits pass (§7, §10). |
 | Hosting | HP G4 home server, auto-updating from GitHub, nightly backups, public via a Cloudflare Tunnel; connection details kept private (§6) |
 | Model | DeepSeek `deepseek-flash`, JSON mode, temperature 0.8 (0.6 decisions, 0.2 structured calls) |
@@ -384,7 +384,7 @@ model calls were added.
 
 `/world3d` loads vendored Three.js, high or low glTF assets and baked lighting, builds a collision octree from
 simple hulls, and animates the third-person player and NPCs. Individual MPFB models load lazily with shared
-retargeted clips; failed models use a logged Quaternius fallback. It polls `GET /world/scene` every 1.5 seconds
+retargeted clips. A missing APC model is reported and that actor is omitted. It polls `GET /world/scene` every 1.5 seconds
 (5 seconds after errors). That endpoint reads a consistent read-only SQLite snapshot and exposes public presence
 and dialogue only, with no model calls. Spot assignments live in Python; the browser handles walking (along a
 collision-verified A* graph. `?city=1` joins that graph to sampled OSM road/path centerlines and uses heap-based A*), bubbles, lighting and doors. The public place registry connects the simulation to OSM landmarks, hours, weather rules and 3D spots. `ambient.js` adds browser-local cosmetic street life with its own visible-tab clock, lazy animal loads and no collision in the player octree. Player actions use the existing `/player/*` and
@@ -1004,21 +1004,21 @@ the loaded assets); choosing a preset reloads the matching asset set. Override w
 
 - The kit scene's Crooked Billet and Patel's News, exported from `Ancoats.blend`, with 44 collision
   hulls and 15 waypoints converted to three.js space (x, z, −y).
-- All 20 APCs have portrait files (Norman and Maxine added 25 Nov). The dashboard and map share the full-name portrait map; 3D character cards
+- All 20 APCs have portrait files. The dashboard and map share the full-name portrait map. 3D character cards
   use the same files via each APC's first name (with Mohammed displayed as Mo).
 - Other logged-in players with a place set appear with their own names, using Rob’s player body and
   the existing waypoint walking. They have no portrait or E/touch talk prompt; player-to-player chat is
   not part of accounts v1. The 2D map likewise shows other named players, including on the street.
-- Characters: nine individually built MakeHuman/MPFB models, with age/build morphs, textured faces,
+- Characters: twenty APCs and the player have individual MakeHuman/MPFB models, with age/build morphs, textured faces,
   hair, beards where appropriate, and actual clothing meshes. MPFB 2.0.18 is a build-only Blender extension;
   all selected graphics are CC0. `build_cast_mpfb.py` defines the cast and exports metre/Y-up models.
   The MPFB game-engine rig uses an explicit UAL bone map and rest-pose calibration; `retarget_cast.py`
   bakes the same ten clip names. Only Rob and visible NPCs load in normal play; models are cached as they
-  appear. Old Quaternius bodies and original clips load only after a model failure, listed in the debug HUD.
+  appear. APCs always use their own models. Norman's fitted, skinned tie shows during his night shift.
 - Baked indirect lighting (Cycles, 128 samples, 2048 high / 1024 low atlas); night dims the bake and uses
   glowing windows and runtime lights.
-- Assets including the MPFB cast and street life: **low 6.763 MB**, **high 10.962 MB**, including all nine models and
-  fallback files; normal play loads a visible subset. Vendor modules add about 2.4 MB uncompressed.
+- Assets including the MPFB cast and street life: **low 10.129 MB**, **high 17.381 MB**, including all 21 models and
+  legacy files. Normal play loads a visible subset. Vendor modules add about 2.4 MB uncompressed.
   Per-character budgets are below; licences are in `evorium/static/world3d/assets/LICENSES.md`.
 - Physics: capsule-and-octree walking with step-up, a 1.03 m jump, wall and closed-door blocking, and a camera
   that never clips through walls.
@@ -1058,8 +1058,8 @@ Normal play always uses the server's daylight. `?ambient=cat` without `test=1` d
 All three animal downloads total **232,548 bytes (0.233 MB)** per tier: cat 79,560 / dog 75,748 /
 fox 77,240 bytes, **807 / 602 / 622 triangles**. Both tiers keep these already tiny meshes.
 `data/budgets.json` records and enforces **1.2 MB low / 2.5 MB high** ambient limits plus the
-existing **12 MB / 30 MB** whole-package limits. Total assets including all cast and fallbacks:
-**6,759,074 bytes low / 10,957,998 bytes high**. No new runtime or build dependencies.
+existing **12 MB / 30 MB** whole-package limits. Total assets including the full cast and legacy files:
+**10,128,786 bytes low / 17,381,070 bytes high**. No new runtime or build dependencies.
 
 To rebuild just the ambient assets, retain
 `~/Downloads/evorium-animals/Animal Pack Vol.2 by @Quaternius.zip`, then run:
@@ -1089,11 +1089,22 @@ optimisation on a fresh checkout. Source provenance is in the existing asset lic
 | Brenda | 0.272 | 6,330 | 0.453 | 14,348 |
 | Mo | 0.338 | 6,714 | 0.668 | 18,973 |
 | Rob | 0.277 | 4,706 | 0.514 | 12,260 |
+| Peggy | 0.272 | 6,332 | 0.452 | 14,366 |
+| Liam | 0.272 | 4,445 | 0.501 | 11,483 |
+| Anjali | 0.291 | 4,766 | 0.570 | 13,324 |
+| Pete | 0.340 | 8,034 | 0.740 | 22,793 |
+| Hannah | 0.268 | 5,310 | 0.516 | 14,867 |
+| Gary | 0.318 | 4,175 | 0.664 | 11,612 |
+| Kirsty | 0.248 | 4,809 | 0.443 | 13,439 |
+| Grace | 0.246 | 5,712 | 0.441 | 16,437 |
+| Barry | 0.304 | 5,265 | 0.627 | 14,714 |
+| Ronnie | 0.263 | 7,317 | 0.460 | 15,119 |
+| Norman | 0.267 | 7,320 | 0.465 | 15,118 |
+| Maxine | 0.278 | 5,942 | 0.541 | 16,679 |
 
-Whole-package texture estimates including mipmaps, fallback textures and all nine models are
-122.7 MB low / 504.4 MB high. These exclude
-renderer buffers, geometry and JavaScript; normal-play allocation is lower because models/fallbacks
-load lazily. Real iPhone memory remains unverified.
+Whole-package texture estimates including mipmaps and all 21 models are 219.2 MB low and 789.6 MB high.
+These exclude renderer buffers, geometry and JavaScript. Normal play allocates less because character meshes
+and textures load on demand. Real iPhone memory remains unverified.
 
 ### Rebuilding the assets
 
@@ -1168,8 +1179,10 @@ To tweak a person, edit the `CAST` dictionary at the top of `tools/web3d/build_c
 name, age, gender macro, weight, muscle, proportions, race mix, height in metres, skin, hair,
 beard and clothing. Brenda's fitted hair is rebuilt as opaque low-poly curls; Dez's beard is projected toward
 the face for stubble, and Tommy's top hair is removed for his receding style. Run the cast builder, `retarget_cast.py`, then `optimise.sh` as above.
-`--only dez` supports a diagnostic single-character build; run the full builder before a release
-so the complete inventory and licence manifest are regenerated. Intermediates are in `raw/cast/`.
+For a cast-only change, run the builder with `-- --only <slug> [<slug> ...]`, then use
+`node tools/web3d/optimise.mjs --cast-only`. The latter packages the characters listed in the raw inventory
+and updates their budget figures. Start with an empty raw cast inventory to export only the selected models.
+A full builder run regenerates the complete inventory and licence manifest. Intermediates are in `raw/cast/`.
 The explicit mapping is `tools/web3d/data/mpfb_to_ual_bones.json`; animation inventory is in
 `raw/cast/retarget_inventory.json`. Rest translation channels are stripped except pelvis bob/sit;
 the browser rebases that channel to each model's pelvis. Grounded clips use a sole-vertex correction to
@@ -1177,7 +1190,7 @@ avoid retargeting penetration; airborne clips keep their pose. Ten shared clip n
 
 Per-character limits: low **0.7 MB / 12k triangles / 512px textures**, high **1.6 MB / 25k / 1024px**.
 The optimizer fails on those limits or total downloads above **12 MB low / 30 MB high**,
-including fallback files. `budgets.json` records per-character sizes/triangles and texture estimates.
+including legacy files. `budgets.json` records per-character sizes/triangles and texture estimates.
 
 ### Checks
 
@@ -1187,10 +1200,10 @@ with JSON reports, plus 16 ambient captures (desktop high / phone low: off, pige
 and a 60× routine change. Blank images fail. `--movement-only` and `--screens-only` run parts. Test URLs:
 `/world3d?test=1&cam=street|pub|shop|cast|player&quality=low|high` (fixed camera and time; exposes
 `__evoriumReady` and `__evoriumReport`). Player-writing checks refuse any server that isn't the fake one.
-Ambient reports/captures are in `raw/screens/ambient/`; the harness checks scale, grounding, actual walk-bone changes, day/night removal, hidden-time pause, saved toggle, lazy loading, quality caps and pigeon scatter/player passage, and measures 30 rendered frames against ambient-off. `node tools/web3d/ambient_checks.mjs --one=cat` reruns one type while the fake server is running. The cast-specific captures are `--cast` (nine-person lineup and all head close-ups, desktop/phone low/high)
+Ambient reports/captures are in `raw/screens/ambient/`; the harness checks scale, grounding, actual walk-bone changes, day/night removal, hidden-time pause, saved toggle, lazy loading, quality caps and pigeon scatter/player passage, and measures 30 rendered frames against ambient-off. `node tools/web3d/ambient_checks.mjs --one=cat` reruns one type while the fake server is running. The cast-specific captures are `--cast` (21-person lineup and all head close-ups, desktop/phone low/high)
 and `--poses` (Dez/Tommy/Brenda idle, walk, run, jump, sit and talk on desktop low). Use
-`?test=1&cam=lineup`, or `cam=head|body&character=dez|jess|tommy|raj|chloe|simon|brenda|mo|player`,
-with optional `pose=walk` and `frame=0.5`. These studio-only views deliberately load all nine models.
+`?test=1&cam=lineup`, or `cam=head|body&character=<model slug>`, with optional `pose=walk` and
+`frame=0.5`. The two-row lineup shows all 21 models.
 
 Headless Chrome uses software rendering (SwiftShader), so its FPS (about 4–11 low, 2 high) says nothing about
 real phones or the GTX 1060. Real iOS memory, keyboard and touch need a physical phone.
@@ -1213,7 +1226,7 @@ Some image filenames keep their original names (`unreal-hero`). The waitlist sti
 `hello@example.com`. The game server serves it at `/` with no login (`main.py`: `/`, `/styles.css`, `/images/`), so pushing to `main`
 publishes it through the G4's auto-update. Its Play buttons (nav and hero) link to `/game`. Personal contact details remain deferred. A **"What's new"** section (nav link "What's new", before the waitlist) lists
 features newest first; see rule 12 in §15. The **"Meet the APCs"** section (nav label "The APCs") now shows
-all twenty: eight large cards and a responsive twelve-person **"More of the street"** grid with portraits or initials,
+all twenty: eight large cards and a responsive twelve-person **"More of the street"** grid with portraits,
 roles and spoiler-free hooks. Grid portraits use optimised local WebP files with JPG fallbacks. The hero and
 share descriptions use "APC".
 
@@ -1228,12 +1241,6 @@ streets, film grain, matching the game's portraits.
 ---
 
 ## 9. Known issues and open questions
-
-- **Arcade cast (25 Nov):** Norman and Maxine first used the shared Quaternius fallback body, which reads as
-  an unclothed mannequin in play. Until they get their own models they borrow clothed ones: Norman uses
-  `cast/tommy.glb` (with his night tie) and Maxine `cast/brenda.glb`. Blender's MPFB extension could not
-  initialise in the isolated build profile. APCs with no cast.json entry still use the player model. Both now have portraits (static/portraits and website/images).
-
 
 - **Ancoats city (25 Nov):** `/world3d` now defaults to Blossom, Henry, Hood, Jersey and Murray streets;
   `?city=0` keeps the original kit scene available. Night is moonlit and stars clear with weather, with 74 city lamps
@@ -1311,8 +1318,6 @@ streets, film grain, matching the game's portraits.
   chance.
 - **M4 simplifications:** fixed two-hour reaction delay (sixteen hours to reconsider); the flat viewing and the
   outside job are small Python templates; pub income is an illustrative model, not accounting.
-- **The ten new APCs have no 3D models yet:** in `/world3d` they borrow Rob's body (the cast lookup's default)
-  until MPFB models are built for them. Dashboard, map and conversations are fine.
 - **Some facts are stored twice** (5 in the 20 Nov copy, e.g. "Dez chose to wait" noted in two conversations).
   Harmless; a de-duplication on insert would tidy it.
 - **Topic repetition can still happen:** the two-chat automatic pair cap limits loops but does not guarantee
@@ -1369,11 +1374,7 @@ streets, film grain, matching the game's portraits.
   purge through GitHub Support; do not merge old clones back into the cleaned history. Make the kit
   visible to this session before restarting Web3D rebuild stages.
 
-1. **Build MPFB 3D models for the ten new APCs** (Peggy, Liam, Anjali, Pete, Hannah, Gary, Kirsty, Grace, Barry,
-   Ronnie) with the existing
-   `build_cast_mpfb.py` pipeline, and give them waypoints and poses. Then watch whether Brenda, Chloe and Mo now
-   join conversations (they had 0, 0 and 2 before the routine changes).
-2. **Play and review the MPFB cast** on desktop and a real phone; refine likenesses, seated poses, bubbles at
+1. **Play and review the MPFB cast** on desktop and a real phone; refine likenesses, seated poses, bubbles at
    the screen edge, NPC overlap and fades; review street life and its quiet can rattle on real hardware.
 2. **Watch the story run** on the G4 for a few days: decisions, promises now being recorded, and Northgate coming
    to a head on 17–18 Dec. Review the pacing and the settlement constants.
@@ -1586,9 +1587,9 @@ the key pool and open sign-ups.
   with game-ready male1591/female1605 proxies, CC0 system skins/eyes/brows/lashes/garments,
   CC0 hair01 hairstyles and the CC0 bodyparts05 beard. Hair and clothing colours are explicit.
   Balding hair is edited in geometry; Tommy's checked shirt is generated procedurally.
-  Real meshes replace runtime body tint masks (those remain only on fallback bodies).
-  See §7 for installation/rebuilding and the adjacent asset licence manifest for every source.
-  The portraits and website images were viewed as references; website files were not changed.
+  All 20 APCs have fitted clothing, shoes and hair. High-vis panels mark Liam and Grace, and Norman's
+  fitted silk tie follows the shared game-engine rig. The models use the portraits as visual references.
+  See §7 for installation and rebuilding and the asset licence manifest for sources.
 
 
 - **Portraits** (`evorium/static/portraits/`, 256×256 PNG, fictional people): `dez`, `chloe`, `tommy`, `jess`,
@@ -1626,6 +1627,21 @@ the key pool and open sign-ups.
 ---
 
 ## 14. History
+
+### 25 November 2026 — Dedicated cast rebased onto main
+
+- Kept the owner's new portraits for Norman and Maxine and replaced their borrowed models with
+  their own rigged models. The earlier portrait and wardrobe entries are retained below.
+
+### 25 November 2026 — Dedicated 3D models for every APC
+
+- Built low and high MPFB models for Peggy, Liam, Anjali, Pete, Hannah, Gary, Kirsty, Grace, Barry,
+  Ronnie, Norman and Maxine with the original game-engine rig and ten shared clips. Norman wears a
+  fitted tie on night duty. Maxine's workwear model uses the requested 50s styling.
+- Removed player and mannequin substitutions for APCs. The test lineup shows all 20 APCs plus the
+  player in two rows. The cast-only optimizer keeps existing scene assets and animation files in place.
+- Playwright loaded the complete lineup at both tiers on a scratch world. The lineup drew 120,212
+  triangles on low and 312,761 on high, within the existing in-view limits.
 
 ### 25 November 2026 — Portraits for Norman and Maxine
 
