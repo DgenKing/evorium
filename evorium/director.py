@@ -7,7 +7,7 @@ from pydantic import BaseModel,Field,ConfigDict
 from evorium import world,places,plans,timeline
 from evorium.db import DEFAULT_DB_PATH,connect,npc_agents,system_id
 from evorium.events import emit
-from evorium.llm import LLMError
+from evorium.llm import LLMError, PacingWait, DailyBudgetReached
 from evorium.memory import DUE_FMT
 
 CHECK_EVERY_HOURS=2
@@ -137,6 +137,13 @@ Small incidents ONLY: a barrel going off, late delivery, burst pipe, child off s
                 c.execute("INSERT INTO scheduled_events(at,agent_id,subject,content,origin) VALUES (?,?,?,?,'director')",(at.strftime(DUE_FMT),cast[p.for_name]['id'],p.type,p.content))
             timeline.record(c,now,'director',f"{p.type.replace('_',' ')} for {p.for_name}: {p.content} — {p.rationale}",4,cast[p.for_name]['id'],cast[p.with_name]['id'] if meeting else None)
         return True
+    except (PacingWait, DailyBudgetReached):
+        with connect(db_path) as c:
+            if previous is None:
+                c.execute("DELETE FROM world WHERE key='director_check'")
+            else:
+                world._set(c, 'director_check', previous)
+        return False
     except (LLMError,ValueError,TypeError):
         emit(f'Director proposal dropped or unavailable. Next check in {CHECK_EVERY_HOURS} sim-hours.','error')
         return False

@@ -149,6 +149,7 @@ def say(client,to_agent_id,text,db_path=DEFAULT_DB_PATH):
         transcript=[{'speaker_name':m['speaker_name'],'text':m['text']} for m in full['messages']]
         try:proposal=client.propose(to_agent_id,build_messages(target,me,transcript,knowledge,world.describe(now)))
         except InvalidProposal:raise HTTPException(502,"They didn't seem to hear you. Try again.") from None
+        except DailyBudgetReached as exc:raise HTTPException(429,str(exc)) from None
         except LLMError as exc:raise HTTPException(502,str(exc)) from None
         with connect(db_path) as c:
             c.execute('INSERT INTO messages(conversation_id,speaker_id,text,rationale,sim_time) VALUES (?,?,?,?,?)',(cid,to_agent_id,proposal.say,proposal.rationale,world.describe(now)))

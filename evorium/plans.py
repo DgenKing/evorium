@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field, ConfigDict
 from evorium import world, places, timeline, relationships
 from evorium.db import DEFAULT_DB_PATH,connect,npc_agents
 from evorium.events import emit
-from evorium.llm import LLMError
+from evorium.llm import LLMError, PacingWait, DailyBudgetReached
 from evorium.memory import DUE_FMT,open_commitments,knowledge_for_prompt,resolve_commitment
 
 class PlanProposal(BaseModel):
@@ -105,6 +105,10 @@ The actions list is normally empty, or [{{"action":"menu key","args":{{}},"reaso
 Your important fact ids: {json.dumps(_decision_facts(a['id'], db_path))}'''
         calls+=1
         try:result=client.propose(a['id'],[{'role':'user','content':prompt}],schema=DailyPlans,max_tokens=400)
+        except (PacingWait, DailyBudgetReached):
+            with connect(db_path) as c:
+                c.execute('DELETE FROM plans WHERE id=?', (marker,))
+            return calls - 1
         except LLMError:
             emit(f"Daily planning unavailable for {a['name']}.",'error');continue
         with connect(db_path) as c:
@@ -137,7 +141,8 @@ def busy(c,agent_id):
         AND (a.kind!='player' OR EXISTS (SELECT 1 FROM messages m WHERE m.conversation_id=v.id AND julianday(m.created_at)>=julianday('now','-3 minutes')))""",(agent_id,agent_id)).fetchone() is not None
 
 
-def execute(client,now,db_path=DEFAULT_DB_PATH,auto=False):
+def execute(client,now,db_path=DEFAULT_DB_PATH,auto=False,phone_limit=None):
+    calls=0
     with connect(db_path) as c:
         rows=[dict(r) for r in c.execute("SELECT * FROM plans WHERE status IN ('planned','active') AND start_at<=? ORDER BY start_at,id",(now.strftime(DUE_FMT),))]
         agents={a['id']:a for a in npc_agents(c)}
@@ -148,13 +153,16 @@ def execute(client,now,db_path=DEFAULT_DB_PATH,auto=False):
         if p['action']=='visit' and blocked:
             status='missed';outcome='Could not make the visit because of today’s setback.'
         elif p['action']=='phone':
-            if not auto:continue
+            if not auto or (phone_limit is not None and calls>=phone_limit):continue
             other=agents.get(p['person_id'])
             with connect(db_path) as c:reachable=other and world.routine(other['name'],now)[1]!='asleep' and not busy(c,other['id']) and not busy(c,a['id'])
             if reachable:
                 from evorium.sim import run_conversation,get_conversation,turns_for
                 try:
-                    conversation_id=run_conversation(client,a['id'],other['id'],turns_for(a['id'],other['id'],db_path),db_path,location='On the phone')
+                    turns=turns_for(a['id'],other['id'],db_path)
+                    if not getattr(client,'can_converse',lambda _: True)(turns):continue
+                    conversation_id=run_conversation(client,a['id'],other['id'],turns,db_path,location='On the phone')
+                    calls+=1
                 except ValueError:reachable=False
                 if reachable:
                     conv=get_conversation(conversation_id,db_path)
@@ -180,3 +188,5 @@ def execute(client,now,db_path=DEFAULT_DB_PATH,auto=False):
                     if commitment and plan_supports(c, p, commitment, now, conversation_id):
                         resolve_commitment(c,p['fulfils_commitment_id'],'done',outcome,now,conversation_id)
                 timeline.record(c,now,'action',outcome,3 if status=='done' and p['fulfils_commitment_id'] else 2,a['id'],p['person_id'],conversation_id)
+
+    return calls

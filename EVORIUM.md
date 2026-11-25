@@ -107,7 +107,7 @@ and phone); it runs around the clock on the owner's HP G4 and is reachable over 
 | City pipeline | Five-street Ancoats city generated from surveyed terrain, kit materials and instanced facades; both package limits pass (§7, §10). |
 | Hosting | HP G4 home server, auto-updating from GitHub, nightly backups, public via a Cloudflare Tunnel; connection details kept private (§6) |
 | Model | DeepSeek `deepseek-flash`, JSON mode, temperature 0.8 (0.6 decisions, 0.2 structured calls) |
-| Cost | Estimated $0.65–$1.01 per real day at normal speed with auto on. Default daily cap $1.50 (§5) |
+| Cost | G4 cap $0.15 per real UK day. Auto uses up to 70%, busiest 17:00–23:00. Default cap $1.50 (§5) |
 | Tests | 421 Python tests + 19 city tests + Node map/navigation/city/night tests + Web3D Node checks and offline Chrome checks, all fake/offline |
 
 ### Tech stack and dependencies
@@ -156,18 +156,18 @@ view and controls; this is for trusted friends, not public registration or separ
    check due APC promises against database evidence (at most two per tick), settle overdue Sundays and evaluate
    Python-owned story outcomes. These continue during model outages and with auto mode off.
 4. Close idle player chats; scan Grace’s serious reports and expire unresolved spoken-to cases.
-5. In auto mode ("Let them live"): daily digest → daily plans → budgeted reactions →
-   optional ending narration → director check → check each eligible public place oldest served first. The Billet
-   waits eight sim minutes between automatic chats and the other places wait twelve. Each place can start one
-   conversation per heartbeat. Requests run serially. Grace's case approach and pairing priorities stay in place.
-   The two full chats per pair per game day and the existing recent-pair and quiet-character preferences still apply.
-   A capped pair can leave its own place quiet while eligible neighbours talk elsewhere.
+5. In auto mode ("Let them live"): Grace's case approach, due phone plans and eligible public places
+   share one paid conversation slot per heartbeat. An eligible case takes priority, then queued calls
+   and the oldest-served place. The Billet waits eight sim minutes between regular auto chats and other
+   places wait twelve. The two full chats per pair per game day and recent-pair protections still apply.
+   If the next conversation's rolling cost estimate exceeds the allowance, the heartbeat waits. Digests,
+   daily plans, reactions, narration and director calls share a smaller budget inside the autonomous share.
 
-Arrivals can trigger one short greeting between familiar APCs who share a place, including a pavement encounter
-on Henry Street. Each pair can do this once per game day, each APC waits thirty sim minutes, and the world tries
-at most 24 per game day. One request with a 90-token output limit returns one or two short lines. They appear in
-both maps as temporary bubbles. A line flagged as notable can be saved as an attributed statement. Routine
-gestures, activity labels and café seating are rendered without new calls.
+Arrivals can trigger a short, rule-based greeting between familiar APCs. The time of day and cached
+weather pick the two short lines. Both maps show the exchange and a gesture. Pair and daily limits
+keep it infrequent, with shorter cooldowns in the evening. Greetings use no model calls or memory
+writes and continue with auto on while paid work waits. Extra evening outings fill free time and the
+existing activity poses run more often from 17:00–23:00. Work, shifts, quiz and bad-day rules still apply.
 
 Provider outages use the existing real-time backoff. Routines, letters, settlement and deadlines carry on.
 The daily DeepSeek cap pauses new provider calls and leaves auto mode enabled for the next UK calendar day.
@@ -421,6 +421,7 @@ collision-verified A* graph. `?city=1` joins that graph to sampled OSM road/path
 | `evorium/accounts.py` | Request identity, account-owned players and per-account settings |
 | `evorium/player.py` | Each human player’s profile, presence, chats and promises |
 | `evorium/llm.py` | DeepSeek client, budget cap, usage and cost records |
+| `evorium/pacing.py` | UK daily allowance, player reserve and rolling conversation estimates |
 | `evorium/db.py` | Schema migrations (17 so far), connection helper |
 | `evorium/seed.py` | Cast, seed facts, scheduled events, starting relationships |
 | `evorium/rescore.py` | One-off importance scoring of old facts |
@@ -646,14 +647,22 @@ when accessing the game remotely. `GET /me` reports the current canonical accoun
   million tokens at peak: input $0.30 on a cache miss, $0.006 on a cache hit, output $1.20. Each call is priced
   from the `prompt_cache_hit_tokens` DeepSeek returns, and halved outside peak hours (01–04 and 06–10 UTC,
   Mon–Fri). Calls priced before 19 Nov used the old peak, uncached rate and overstate.
-- **Estimate at 1× with auto on:** **$0.65–$1.01 per real day**, based on the previous $0.40/day and the
-  20-to-12/8 minute frequency change. The pair caps, actual attendance, prompt size and cache hits affect the
-  bill. At 24 greetings per game day, 250 estimated input tokens and at most 90 output tokens each add about
-  $0.0044/day at the configured peak uncached rates.
-- **Enforcement:** the dashboard shows today's measured estimate against the $1.50 default cap. The budget
-  includes all counted provider calls, including billed invalid replies. Requests are serialized, and the limit is
-  checked before each request and retry. The final billed response may take the estimate just above the limit.
-  UK midnight uses real time even when the simulation is fast-forwarded. The separate all-time local cap still applies.
+- **G4 budget:** $0.15 per real UK day. Up to $0.105 pays for autonomous calls, including up to
+  20% of the scheduled auto allowance for non-dialogue work. The other $0.045 is reserved for player
+  chats. Players can also use any remaining headroom below the shared cap. Canned greetings, trips
+  and activity poses cost nothing. Background calls that have to wait retain their pending work.
+- **Pacing:** UK wall-clock bands have relative weights 5 / 15 / 20 / 50 / 5 for 00–07 / 07–12 /
+  12–17 / 17–23 / 23–24. The 19–22 rate is highest. Funds accrue within each band. Only 17–23 can use
+  unused earlier allowance. The ledger resets at UK midnight, including on clock-change days.
+- **Conversation estimate at $0.15:** roughly 0.3–0.8 per morning hour, 0.9–1.1 per afternoon hour,
+  and 1.8–2.3 per evening hour (2.4–2.9 per hour from 19–22). This assumes about $0.004 for an
+  off-peak four-turn chat with notes, about $0.008 at peak, and normal availability. Actual counts vary
+  with the recent cost of dialogue, longer chats, pair limits, attendance and prior underspend.
+- **Enforcement:** the dashboard shows total spend, the cumulative autonomous plan and the cap.
+  Before each serialized request or retry the client reserves a conservative input estimate plus its
+  output limit, then replaces that estimate with confirmed provider usage. For requests with unknown
+  usage it retains the estimate. Requests wait if the remaining allowance cannot cover a useful
+  response. The all-time local ceiling still applies. Simulation speed does not affect these limits.
 
 ### Logs
 
@@ -1627,6 +1636,15 @@ the key pool and open sign-ups.
 ---
 
 ## 14. History
+
+### 25 November 2026 — Evening-weighted DeepSeek budget
+
+- Added UK wall-clock pacing for the G4's $0.15 cap. Migration 19 attributes usage while preserving
+  existing records. Auto shares up to 70%, may catch up from 17:00–23:00, and starts at most one
+  conversation per heartbeat. The dashboard shows today's spend, planned allowance and cap.
+- Familiar neighbours now exchange free greetings based on the hour and weather. Added evening
+  outings and more frequent activity poses, with no extra model calls.
+
 
 ### 25 November 2026 — Grace's "wants a word" clears once she's spoken to you
 

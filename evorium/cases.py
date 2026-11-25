@@ -173,6 +173,7 @@ def player_view(c, player_id):
 def approach(client, now, db_path=DEFAULT_DB_PATH):
     """One ordinary dialogue call; use the existing player-first conversation representation."""
     from evorium import player, sim, backoff
+    from evorium.llm import DailyBudgetReached, PacingWait
     from evorium.memory import knowledge_for_prompt
     from evorium.prompts import build_messages
     if not on_beat(now) or backoff.paused():
@@ -209,6 +210,11 @@ def approach(client, now, db_path=DEFAULT_DB_PATH):
                 return False
         try:
             proposal = client.propose(g['id'], build_messages(g, me, [], knowledge, world.describe(now)), max_tokens=300)
+        except (PacingWait, DailyBudgetReached):
+            with connect(db_path) as c:
+                c.execute('UPDATE cases SET last_attempt_day=? WHERE id=?', (case['last_attempt_day'], case['id']))
+            sim._set_status(db_path, cid, 'failed')
+            raise
         except Exception:
             sim._set_status(db_path, cid, 'failed')
             raise

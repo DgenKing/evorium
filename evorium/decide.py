@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 from evorium import actions, economy, relationships
 from evorium.db import DEFAULT_DB_PATH, connect
 from evorium.memory import DUE_FMT, open_commitments
-from evorium.llm import LLMError
+from evorium.llm import LLMError, PacingWait, DailyBudgetReached
 from evorium.events import emit
 from evorium.configuration import load
 
@@ -48,6 +48,10 @@ Return JSON {{"action":"wait","args":{{}},"reason":"one sentence","evidence":[],
         called += 1
         try:
             result = client.propose(actor['id'], [{'role': 'user', 'content': prompt}], schema=actions.Decision, max_tokens=350)
+        except (PacingWait, DailyBudgetReached):
+            with connect(db_path) as c:
+                c.execute("UPDATE reactions SET status='pending',called_at=NULL WHERE id=?", (r['id'],))
+            return called - 1
         except LLMError:
             emit(f"{actor['name']} could not think through the news just now.", 'error')
             # Calls count even when they fail; leave other reactions pending for recovery.

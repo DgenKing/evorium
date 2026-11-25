@@ -200,7 +200,11 @@
   function drawSprite(context,person,time=0,scale=SPRITE_SCALE) {
     const d=spriteDefinition(person.agent), moving=person.route?.length>0;
     const step=moving?[0,2,0,-2][Math.floor(time*8+person.phase)%4]:0;
-    const gesture=!moving&&(person.idleUntil>time || (/buying|browsing|coffee|bar/.test(person.agent.activity||'') && (time+person.phase)%8<1.3));
+    const hour=Number(usage.sim_at?.slice(11,13)), evening=hour>=17&&hour<23;
+    const wall=Date.now()/1000;
+    const waving=!person.agent.isPlayer&&(usage.greetings||[]).some(line=>
+      line.id===person.agent.id&&line.start<=wall&&wall<line.start+3);
+    const gesture=!moving&&(waving || person.idleUntil>time || (/buying|browsing|coffee|bar|trying his luck|meeting friends/.test(person.agent.activity||'') && (time+person.phase)%(evening?5:8)<1.3));
     const bob=gesture?Math.round(Math.sin(time*7+person.phase)):0;
     const tie=d.tie||firstName(person.agent)==='Norman'&&person.agent.activity?.includes('in a tie');
     const cacheKey=`${person.agent.isPlayer?'Player':firstName(person.agent)}:${step}:${gesture}:${tie}`;

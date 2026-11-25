@@ -93,12 +93,12 @@ export class Actors{
  update(dt,camera){
  const eye=camera.position, now=Date.now()/1000;
  const greetings=new Map((this.snapshot?.greetings||[]).filter(line=>line.start<=now&&now<line.start+6).map(line=>[line.id,line]));
- for(const [id,a] of this.people){const p=a.person;let moving=false;
+ const hour=Number(this.snapshot?.sim_at?.slice(11,13)), evening=hour>=17&&hour<23;
+ for(const [id,a] of this.people){const p=a.person, hello=greetings.get(id);let moving=false;
  if(a.route.length&&!a.chatting){const next=new THREE.Vector3().fromArray(a.route[0]);const floorPlace=this.world.place(next);next.y=floorPlace==='pub'?0:floorPlace==='shop'?.055:this.world.ground(next.x,next.z);const dir=next.clone().sub(a.root.position);const speed=this.walkRate(p);
  if(dir.length()<speed*dt+.08){a.root.position.copy(next);a.route.shift();}else{dir.normalize();a.root.position.addScaledVector(dir,speed*dt);a.root.rotation.y=THREE.MathUtils.damp(a.root.rotation.y,Math.atan2(dir.x,dir.z),8,dt);moving=true;}}
  if(a.leaving&&!a.route.length){this.departures.set(id,a.journey);this.scene.remove(a.root);a.label.element.remove();this.people.delete(id);continue;}
- if(!moving&&p.visible){const other=this.people.get(p.talking_to);const yaw=a.chatting?Math.atan2(this.player.position.x-a.root.position.x,this.player.position.z-a.root.position.z):other?Math.atan2(other.root.position.x-a.root.position.x,other.root.position.z-a.root.position.z):this.data.waypoints[p.waypoint].yaw;a.root.rotation.y=THREE.MathUtils.damp(a.root.rotation.y,yaw,8,dt);}
- const hello=greetings.get(id);
+ if(!moving&&p.visible){const other=this.people.get(p.talking_to??(hello?.place===p.place?hello.to:null));const yaw=a.chatting?Math.atan2(this.player.position.x-a.root.position.x,this.player.position.z-a.root.position.z):other?Math.atan2(other.root.position.x-a.root.position.x,other.root.position.z-a.root.position.z):this.data.waypoints[p.waypoint].yaw;a.root.rotation.y=THREE.MathUtils.damp(a.root.rotation.y,yaw,8,dt);}
  if(hello&&hello.place===p.place&&!a.chatting&&!p.talking_to&&a.helloAt!==hello.start){
   this.say(a,hello.text);
   a.expires=performance.now()+1000*(hello.start+6-now);
@@ -106,7 +106,7 @@ export class Actors{
  }
  const sitting=['PUB_BOOTH','PUB_WINDOW'].includes(p.waypoint)||
   (p.place==='cafe'&&p.slot<=3);
- const gesturing=p.kind==='npc'&&/buying|browsing|counter|working the bar/.test(p.activity||'')&&(now+id)%11<1.5;
+ const gesturing=p.kind==='npc'&&/buying|browsing|counter|working the bar|trying his luck|meeting friends/.test(p.activity||'')&&(now+id)%(evening?6:11)<1.5;
  a.animate(moving?'walk':a.chatting||p.talking_to||(hello&&hello.place===p.place)?'talk':sitting?'sit':gesturing?'talk':'idle',dt);
  a.tag.title=p.activity||'';
  if(performance.now()>a.expires)a.bubble.hidden=true;

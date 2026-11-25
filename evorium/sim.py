@@ -7,7 +7,8 @@ from pathlib import Path
 from evorium import world, timeline, relationships
 from evorium.db import DEFAULT_DB_PATH, connect
 from evorium.events import emit
-from evorium.llm import InvalidProposal, LLMError
+from evorium import pacing
+from evorium.llm import DailyBudgetReached, InvalidProposal, LLMError, PacingWait
 from evorium.memory import DUE_FMT, knowledge_for_prompt, open_commitments, store_extraction
 from evorium.models import Extraction
 from evorium.prompts import build_extraction_messages, build_messages
@@ -154,7 +155,12 @@ def run_conversation(client, agent_a_id: int, agent_b_id: int, turns: int = 4,
             emit(f"Turn {turn + 1}/{turns}: {speaker['name']} (mood {speaker['mood']}; knows {len(knowledge['certain'])} facts, "
                  f"told {len(knowledge['told'])}, {len(knowledge['promises'])} open promises) — asking DeepSeek…")
             try:
-                proposal = client.propose(speaker["id"], messages)
+                with pacing.tracking(conversation_id):
+                    proposal = client.propose(speaker["id"], messages)
+            except (PacingWait, DailyBudgetReached):
+                if not transcript:
+                    raise
+                break
             except InvalidProposal:
                 emit(f"Turn {turn + 1} skipped — {speaker['name']} gave invalid JSON twice.", "error")
                 continue
@@ -174,7 +180,8 @@ def run_conversation(client, agent_a_id: int, agent_b_id: int, turns: int = 4,
     summary = None
     if transcript:
         try:
-            summary = _take_notes(client, db_path, conversation_id, a, b, transcript, sim_label)
+            with pacing.tracking(conversation_id):
+                summary = _take_notes(client, db_path, conversation_id, a, b, transcript, sim_label)
         except Exception as exc:  # bookkeeping must never leave a conversation stuck as 'running'
             logger.exception("Note-taking crashed for conversation %s", conversation_id)
             emit(f"Note-taking crashed ({type(exc).__name__}); conversation saved without notes.", "error")

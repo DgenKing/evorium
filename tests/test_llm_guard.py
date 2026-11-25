@@ -110,7 +110,7 @@ def test_budget_cap_blocks_new_requests(world):
         lambda request: (hit.append(1), response(json.dumps(GOOD)))[1]
     )) as http:
         with pytest.raises(LLMError, match="budget cap"):
-            DeepSeekClient(world, Settings("fake-test-key", max_spend_usd=4.00), http).propose(1, MESSAGES)
+            DeepSeekClient(world, Settings("fake-test-key", max_spend_usd=4.00, max_daily_spend_usd=5.00), http).propose(1, MESSAGES)
     assert hit == []                      # no network request was made
     assert len(calls(world)) == 1         # nothing new recorded
     assert get_usage(world)["estimated_remaining_usd"] == 1.0
@@ -212,14 +212,16 @@ def test_daily_cap_blocks_retry_and_resets_at_uk_midnight(world):
     requests = []
     def handler(request):
         requests.append(request)
-        return response('invalid' if len(requests) == 1 else json.dumps(GOOD))
+        if len(requests) == 1:
+            return response('invalid', usage={'prompt_tokens':100, 'completion_tokens':200})
+        return response(json.dumps(GOOD))
     with httpx.Client(transport=httpx.MockTransport(handler)) as http:
-        client = DeepSeekClient(world, Settings('fake', max_daily_spend_usd=0.00003), http)
+        client = DeepSeekClient(world, Settings('fake', max_daily_spend_usd=0.00015), http)
         client.clock = lambda: clock[0]
         with pytest.raises(DailyBudgetReached, match='UK midnight'):
             client.propose(1, MESSAGES)
         assert len(requests) == 1
-        assert get_usage(world, at=clock[0])['daily_spend_usd'] == pytest.approx(0.000033)
+        assert get_usage(world, at=clock[0])['daily_spend_usd'] == pytest.approx(0.000135)
         clock[0] = clock[0].replace(hour=23, minute=0)
         assert get_usage(world, at=clock[0])['daily_spend_usd'] == 0
         assert client.propose(1, MESSAGES).say == GOOD['say']

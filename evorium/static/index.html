@@ -156,7 +156,7 @@
 <footer>
   <span>API calls <b id="u-calls">0</b></span>
   <span>Tokens <b id="u-tokens">0</b></span>
-  <span>Today <b id="u-today">$0.00 / $1.50</b></span>
+  <span title="Total spent / autonomous allowance so far / shared cap">Today (spent / planned so far / cap) <b id="u-today">—</b></span>
   <span>All-time spend <b id="u-spend">$0.0000</b></span>
   <span>Cap <b id="u-cap">—</b></span>
   <span>Remaining (of $5) <b id="u-left">—</b></span>
@@ -255,7 +255,7 @@ async function loadUsage(){
   if(document.activeElement!==$('director'))$('director').checked=u.director;
   $('u-calls').textContent = u.api_calls;
   $('u-tokens').textContent = u.total_tokens;
-  $('u-today').textContent = '$'+u.daily_spend_usd.toFixed(2)+' / $'+u.daily_cap_usd.toFixed(2);
+  $('u-today').textContent = [u.daily_spend_usd,u.daily_planned_usd,u.daily_cap_usd].map(value=>'$'+value.toFixed(3)).join(' / ');
   $('u-spend').textContent = '$' + u.estimated_spend_usd.toFixed(4);
   $('u-cap').textContent = u.max_spend_usd==null ? 'no config' : '$'+u.max_spend_usd.toFixed(2);
   $('u-left').textContent = '$' + u.estimated_remaining_usd.toFixed(4);

@@ -275,6 +275,13 @@ CITY_OUTINGS = (
     ('Ronnie', (6,), 12, 13, 'towpath', 'taking a walk beside the canal'),
     ('Barry', (1, 3), 18, 18.5, 'offlicence', 'picking up a tin for later'),
     ('Liam', (1, 3), 18, 18.5, 'offlicence', 'picking up a tin on the way home'),
+    ('Pete', (1, 3), 17.5, 18, 'offlicence', 'buying something after his round'),
+    ('Gary', (1, 3), 17.5, 18, 'offlicence', 'buying a tin on the way home'),
+    ('Kirsty', (1, 4), 18, 18.5, 'square', 'taking an evening turn around the square'),
+    ('Hannah', (1, 4), 18, 18.5, 'square', 'stretching her legs after work'),
+    ('Barry', (2, 5), 20, 21, 'arcade', 'browsing the coin pushers'),
+    ('Ronnie', (2, 5), 20, 21, 'arcade', 'trying his luck on the fruit machines'),
+    ('Anjali', (0, 2), 19.5, 20, 'arcade', 'meeting friends by the claw crane'),
 )
 
 

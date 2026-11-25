@@ -255,6 +255,13 @@ MIGRATIONS = (
         fact_id INTEGER REFERENCES facts(id) ON DELETE SET NULL,
         PRIMARY KEY(account, slug)
     )""",),
+    # Migration 19: attribute provider usage without rewriting existing records.
+    (
+        "ALTER TABLE llm_calls ADD COLUMN budget_scope TEXT NOT NULL DEFAULT 'legacy'",
+        "ALTER TABLE llm_calls ADD COLUMN conversation_id INTEGER REFERENCES conversations(id) ON DELETE SET NULL",
+        "CREATE INDEX llm_calls_created_at ON llm_calls(created_at)",
+        "CREATE INDEX llm_calls_conversation ON llm_calls(conversation_id)",
+    ),
 )
 
 VISIBLE_IMPORTANCE = 3  # facts scored below this are kept in the database but never shown to characters

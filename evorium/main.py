@@ -9,6 +9,7 @@ import threading
 from logging.handlers import RotatingFileHandler
 import time
 from contextlib import asynccontextmanager
+from datetime import datetime, timezone
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
@@ -18,11 +19,11 @@ from fastapi.responses import FileResponse, Response
 from evorium.configuration import load
 from pydantic import BaseModel, Field
 
-from evorium import arcade_games
+from evorium import arcade_games, pacing, greetings
 from evorium import accounts, scene, economy, actions, decide, backoff, tick, world, timeline, player, relationships, places, plans, director
 from evorium.db import DEFAULT_DB_PATH, VISIBLE_IMPORTANCE, connect, init_db, npc_agents
 from evorium.events import emit, since
-from evorium.llm import DEFAULT_DAILY_SPEND_USD, DailyBudgetReached, InvalidProposal, DeepSeekClient, DeferredClient, LLMError, get_usage
+from evorium.llm import DEFAULT_DAILY_SPEND_USD, DailyBudgetReached, InvalidProposal, DeepSeekClient, DeferredClient, LLMError, PacingWait, get_usage
 from evorium.memory import open_commitments
 from evorium.seed import seed_agents, seed_events
 from evorium.sim import get_conversation, latest_conversation_id, mark_interrupted, run_conversation, turns_for
@@ -73,18 +74,42 @@ TICK_REAL_SECONDS = 5
 
 
 def _auto_conversations(client, now, gap, db_path):
-    """Service each eligible place in oldest-served order, serially under the conversation lock."""
-    spoken = set()
+    """Start at most one conversation, preferring Grace's cases and then the oldest-served place."""
     for key, present in places.opportunities(now, gap, db_path):
-        if hasattr(client, 'check_budget'):
-            client.check_budget()
         try:
-            a, b = world.pick_pair([p['id'] for p in present if p['id'] not in spoken], db_path)
-            run_conversation(client, a, b, turns_for(a, b, db_path), db_path, location=places.REGISTRY[key])
+            a, b = world.pick_pair([p['id'] for p in present], db_path)
         except ValueError:
             continue
-        spoken.update((a,b))
+        turns = turns_for(a, b, db_path)
+        if not getattr(client, 'can_converse', lambda _: True)(turns):
+            return set()
+        with pacing.spending('auto'):
+            run_conversation(client, a, b, turns, db_path, location=places.REGISTRY[key])
         _state['conversations'] += 1
+        return {a, b}
+    return set()
+
+
+def _paid_tick(client, now, gap, db_path):
+    from evorium import cases
+    spoken = set()
+    if _run_lock.acquire(blocking=False):
+        try:
+            with pacing.spending('auto'):
+                can_converse = getattr(client, 'can_converse', lambda _: True)
+                if not (can_converse(0) and cases.approach(client, now, db_path)):
+                    if not plans.execute(client, now, db_path, auto=True, phone_limit=1):
+                        spoken = _auto_conversations(client, now, gap, db_path)
+        finally:
+            _run_lock.release()
+    if not getattr(client, 'can_background', lambda: True)():
+        return spoken
+    with pacing.spending('background'):
+        timeline.daily_digest(client, now, db_path)
+        plans.daily(client, now, db_path)
+        decide.run(client, now, db_path)
+        economy.maintain(now, db_path, client)
+        director.check(client, now, db_path)
     return spoken
 
 
@@ -108,32 +133,13 @@ def _tick_loop():
             player.maintenance(DeferredClient(DEFAULT_DB_PATH), now, DEFAULT_DB_PATH)
             from evorium import cases
             cases.maintain(now, DEFAULT_DB_PATH)
+            spoken = set()
             if _state["auto"] and not backoff.paused():
                 try:
                     client = DeepSeekClient(DEFAULT_DB_PATH)
-                    if hasattr(client, "check_budget"):
-                        client.check_budget()
-                    timeline.daily_digest(client, now, DEFAULT_DB_PATH)
-                    if backoff.paused():raise LLMError('DeepSeek calls are paused while the service recovers.')
-                    plans.daily(client,now,DEFAULT_DB_PATH)
-                    if backoff.paused():raise LLMError('DeepSeek calls are paused while the service recovers.')
-                    decide.run(client,now,DEFAULT_DB_PATH)
-                    economy.maintain(now, DEFAULT_DB_PATH, client)
-                    director.check(client,now,DEFAULT_DB_PATH)
-                    if backoff.paused():raise LLMError('DeepSeek calls are paused while the service recovers.')
-                    if _run_lock.acquire(blocking=False):
-                        try:
-                            cases.approach(client,now,DEFAULT_DB_PATH)
-                            plans.execute(client,now,DEFAULT_DB_PATH,auto=True)
-                            spoken = _auto_conversations(client, now, _state['gap_minutes'], DEFAULT_DB_PATH)
-                            from evorium import greetings
-                            try:
-                                greetings.run(client, now, DEFAULT_DB_PATH, exclude=spoken)
-                            except InvalidProposal:
-                                pass  # A malformed greeting is skipped without affecting ordinary chats.
-                        finally:_run_lock.release()
-                except DailyBudgetReached:
-                    pass  # Keep auto enabled so the next UK day resumes by itself.
+                    spoken = _paid_tick(client, now, _state['gap_minutes'], DEFAULT_DB_PATH)
+                except (DailyBudgetReached, PacingWait):
+                    pass  # Clock and free activity continue while paid work waits.
                 except LLMError as exc:
                     backoff.failed(exc)
                     _last_error["message"] = str(exc)
@@ -141,6 +147,8 @@ def _tick_loop():
                         _state["auto"] = False
                         world.set_setting("auto", "0", DEFAULT_DB_PATH)
                         emit("Auto mode stopped: out of budget.", "error")
+            if _state["auto"]:
+                greetings.run(now, DEFAULT_DB_PATH, exclude=spoken)
             _state["last_tick"] = time.time()
         except Exception:  # the heartbeat must never die
             logging.getLogger(__name__).exception("tick failed")
@@ -311,7 +319,8 @@ async def events(after: int = 0):
 
 @app.get("/usage")
 async def usage():
-    data = get_usage(DEFAULT_DB_PATH)
+    real_at = datetime.now(timezone.utc)
+    data = get_usage(DEFAULT_DB_PATH, at=real_at)
     daily_cap = DEFAULT_DAILY_SPEND_USD
     try:
         settings = DeepSeekClient(DEFAULT_DB_PATH).settings
@@ -321,12 +330,11 @@ async def usage():
         cap = None
     now = world.now(DEFAULT_DB_PATH)
     from evorium import weather,calendar_uk
-    from evorium import greetings
     with connect(DEFAULT_DB_PATH) as c:
         weather_now = weather.read(c, now)
         hello = greetings.active(dict(c.execute('SELECT key,value FROM world WHERE key=?', (greetings.STATE_KEY,))))
     data.update({
-        "greetings": hello, "daily_cap_usd": daily_cap, "daily_cap_reached": data["daily_spend_usd"] >= daily_cap,
+        "greetings": hello, "daily_cap_usd": daily_cap, "daily_planned_usd": float(pacing.planned(real_at, daily_cap)), "daily_cap_reached": data["daily_spend_usd"] >= daily_cap,
         "weather": weather_now, "calendar": calendar_uk.state(now),
         "ledger": economy.ledger(DEFAULT_DB_PATH, now), "director": world.get_setting("director","1",DEFAULT_DB_PATH)=="1", "places": places.describe(now,DEFAULT_DB_PATH), "max_spend_usd": cap, "last_error": _last_error["message"], "running": _run_lock.locked(),
         "auto": _state["auto"], "auto_conversations": _state["conversations"], "gap_minutes": _state["gap_minutes"],
@@ -465,15 +473,18 @@ async def run(req: RunRequest):
                     if not available:
                         continue
                     pair = (selected, available[0]) if a is not None else (available[0], selected)
-            cid = await run_in_threadpool(run_conversation, client, *pair, req.turns, DEFAULT_DB_PATH,
-                                          location=places.REGISTRY[key])
+            if not getattr(client, 'can_converse', lambda _: True)(req.turns):
+                raise PacingWait('DeepSeek is waiting for the next conversation allowance.')
+            with pacing.spending('auto'):
+                cid = await run_in_threadpool(run_conversation, client, *pair, req.turns, DEFAULT_DB_PATH,
+                                              location=places.REGISTRY[key])
             break
         else:
             raise HTTPException(409, f"Choose two available neighbours at the same public place ({world.describe(now)}).")
         return get_conversation(cid, DEFAULT_DB_PATH)
     except ValueError as exc:
         raise HTTPException(409,str(exc))
-    except DailyBudgetReached as exc:
+    except (DailyBudgetReached, PacingWait) as exc:
         raise HTTPException(429, str(exc))
     except LLMError as exc:
         _last_error["message"] = str(exc)
@@ -569,7 +580,8 @@ def action_history(since: str | None = None):
 @app.get('/catchup')
 def catchup_data():
     from evorium import catchup
-    return catchup.get(DeferredClient(DEFAULT_DB_PATH), world.now(DEFAULT_DB_PATH), DEFAULT_DB_PATH)
+    with pacing.spending('background'):
+        return catchup.get(DeferredClient(DEFAULT_DB_PATH), world.now(DEFAULT_DB_PATH), DEFAULT_DB_PATH)
 
 @app.post('/catchup/seen')
 def catchup_seen():

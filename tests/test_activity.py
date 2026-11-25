@@ -1,6 +1,5 @@
 import json
 from datetime import datetime, timedelta, timezone
-from types import SimpleNamespace
 
 import pytest
 
@@ -29,7 +28,7 @@ def record(c, place, a, b, at):
                  VALUES (?,'completed',?,?,?)""", (places.REGISTRY[place],a,b,at.strftime('%Y-%m-%d %H:%M')))
 
 
-def test_round_checks_each_due_place_and_skips_capped_pairs(db, monkeypatch):
+def test_round_starts_one_due_place_and_skips_capped_pairs(db, monkeypatch):
     groups = dict(pub=people(1,3,location=world.PUB), shop=people(4,5,location=world.SHOP),
                   cafe=people(6,7,location=places.REGISTRY['cafe']))
     groups = {**dict.fromkeys(places.REGISTRY, ()), **groups}
@@ -49,7 +48,9 @@ def test_round_checks_each_due_place_and_skips_capped_pairs(db, monkeypatch):
         with connect(db_path) as c:
             record(c,key,a,b,NOW)
     monkeypatch.setattr(main, 'run_conversation', fake)
-    assert main._auto_conversations(object(), NOW, None, db) == {4,5,6,7}
+    assert main._auto_conversations(object(), NOW, None, db) == {4,5}
+    assert captured == ['shop']
+    assert main._auto_conversations(object(), NOW, None, db) == {6,7}
     assert captured == ['shop', 'cafe']
     assert main._state['conversations'] == 2
     assert places.conversation_gap('pub') == 8
@@ -57,35 +58,36 @@ def test_round_checks_each_due_place_and_skips_capped_pairs(db, monkeypatch):
     assert [key for key,_ in places.opportunities(NOW, db_path=db)] == ['pub']
 
 
-@pytest.mark.parametrize('notable', [None, 2])
-def test_short_hello_uses_arrival_once_and_only_saves_notable_line(db, monkeypatch, notable):
-    # Dez and Tommy have seeded familiarity through their relationship.
+@pytest.mark.parametrize('hour, condition, expected', [
+    (10, {}, 'Morning, Neighbour. All right?'),
+    (14, {'condition':'snow'}, 'Afternoon, Neighbour. Watch your step.'),
+    (19, {'raining':True}, 'Evening, Neighbour. Some rain, eh?'),
+])
+def test_short_hello_uses_no_model_or_memory(db, monkeypatch, hour, condition, expected):
     group = people(1,3,location=world.STREET)
-    group[0]['activity'] = 'heading to the pub'
     monkeypatch.setattr(places, 'present', lambda *_: {'street':group})
+    monkeypatch.setattr(greetings.weather, 'read', lambda *_:condition)
     with connect(db) as c:
         world._set(c, 'scene.travel.1', json.dumps({'to':world.STREET,'started':REAL.timestamp()}))
         facts = c.execute('SELECT count(*) FROM facts').fetchone()[0]
-    calls = []
-    def propose(a, messages, *, schema, max_tokens):
-        calls.append(a)
-        assert max_tokens == 90 and schema is greetings.Greeting
-        return schema(lines=['Morning.', 'Off to the pub.'], notable_line=notable)
-    fake = SimpleNamespace(propose=propose)
-    assert greetings.run(fake, NOW, db, real_at=REAL)
-    assert not greetings.run(fake, NOW, db, real_at=REAL)
-    assert calls == [1]
+    now=NOW.replace(hour=hour)
+    assert greetings.run(now, db, real_at=REAL)
+    assert not greetings.run(now, db, real_at=REAL)
     with connect(db) as c:
         settings = dict(c.execute('SELECT key,value FROM world'))
-        lines = greetings.active(settings, REAL)
-        assert [(line['id'], line['text']) for line in lines] == [(1,'Morning.'), (3,'Off to the pub.')]
+        first, reply = greetings.active(settings, REAL)
+        assert (first['id'], first['to'], first['text']) == (1,3,expected)
+        assert reply['id']==3 and reply['start']==first['start']+3
+        assert all(len(line['text'])<=96 and '\n' not in line['text'] for line in (first,reply))
         assert not greetings.active(settings, REAL+timedelta(seconds=10))
         assert c.execute('SELECT count(*) FROM conversations').fetchone()[0] == 0
-        assert c.execute('SELECT count(*) FROM facts').fetchone()[0] == facts + bool(notable)
+        assert c.execute('SELECT count(*) FROM llm_calls').fetchone()[0] == 0
+        assert c.execute('SELECT count(*) FROM facts').fetchone()[0] == facts
 
 
-@pytest.mark.parametrize('lines', [[], ['one','two','three'], ['one\ntwo'], ['a'*97]])
-def test_greeting_rejects_long_or_multiline_output(lines):
-    from pydantic import ValidationError
-    with pytest.raises(ValidationError):
-        greetings.Greeting(lines=lines)
+def test_evening_routines_add_trips_and_keep_work_and_quiz():
+    assert world.routine('Pete Lomax', NOW.replace(hour=17,minute=45))[0] == places.REGISTRY['offlicence']
+    assert world.routine('Pete Lomax', NOW.replace(hour=14,minute=30))[1] == 'on his delivery round'
+    assert world.routine('Kirsty Doyle', NOW.replace(hour=18,minute=15))[0] == places.REGISTRY['square']
+    assert world.routine('Kirsty Doyle', NOW.replace(hour=18,minute=15), {'_weather':{'raining':True}})[0] != places.REGISTRY['square']
+    assert world.routine('Tommy Shaw', NOW.replace(day=26,hour=20))[0] == world.PUB

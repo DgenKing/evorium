@@ -2,7 +2,7 @@
 from datetime import datetime, timedelta
 from pydantic import BaseModel, ConfigDict, Field
 from evorium.db import DEFAULT_DB_PATH, connect, system_id
-from evorium.llm import LLMError
+from evorium.llm import LLMError, PacingWait, DailyBudgetReached
 from evorium import world
 
 FMT = '%Y-%m-%d %H:%M'
@@ -64,6 +64,9 @@ def daily_digest(client, now, db_path=DEFAULT_DB_PATH):
         result=client.propose(aid,[{'role':'user','content':
             'Summarise this day in 3 to 5 sentences, plain past tense. Name people; invent nothing. Return JSON {"digest":"..."}.\n'+
             '\n'.join(r['sim_at']+' '+r['text'] for r in rows)}],schema=Digest,max_tokens=250)
+    except (PacingWait, DailyBudgetReached):
+        world.set_setting(key, attempts, db_path)
+        return False
     except LLMError:
         return False
     with connect(db_path) as c:

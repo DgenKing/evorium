@@ -78,7 +78,7 @@ def test_append_only_migration_preserves_world(monkeypatch, tmp_path):
     init_db(path)
     init_db(path)
     with connect(path) as c:
-        assert c.execute('PRAGMA user_version').fetchone()[0] == 18
+        assert c.execute('PRAGMA user_version').fetchone()[0] == len(MIGRATIONS)
         assert c.execute('SELECT mood FROM agents WHERE name=?', (NORMAN,)).fetchone()[0] == 'saved mood'
         assert c.execute('SELECT count(*) FROM arcade_scores').fetchone()[0] == 0
         assert c.execute('PRAGMA foreign_key_check').fetchall() == []

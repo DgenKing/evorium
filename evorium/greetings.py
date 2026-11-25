@@ -3,25 +3,25 @@ from datetime import datetime, timezone
 from itertools import combinations
 import json
 
-from pydantic import BaseModel, ConfigDict, Field, StringConstraints, ValidationError
-from typing import Annotated
-
-from evorium import places, world
+from evorium import places, weather, world
 from evorium.db import connect
 from evorium.plans import busy
 
-MAX_TOKENS = 90
-DAILY_LIMIT = 24
+DAY_LIMIT = 24
+EVENING_LIMIT = 40
 ARRIVAL_SECONDS = 60
 DISPLAY_SECONDS = 6
 STATE_KEY = 'scene.greetings'
-Line = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=96, pattern=r'^[^\r\n]+$')]
 
 
-class Greeting(BaseModel):
-    model_config = ConfigDict(extra='forbid')
-    lines: list[Line] = Field(min_length=1, max_length=2)
-    notable_line: int | None = Field(default=None, ge=1, le=2)
+def _lines(now, condition, listener):
+    first = listener.split()[0]
+    salutation = 'Morning' if now.hour < 12 else 'Afternoon' if now.hour < 17 else 'Evening'
+    if condition.get('raining'):
+        return f'{salutation}, {first}. Some rain, eh?', 'I know. Absolutely soaking.'
+    if condition.get('condition') == 'snow':
+        return f'{salutation}, {first}. Watch your step.', 'Aye. Slippy out there.'
+    return f'{salutation}, {first}. All right?', 'Not bad, ta. You?'
 
 
 def active(settings, real_at=None):
@@ -43,24 +43,25 @@ def _known(c, a, b):
                for ids in ((a,b), (b,a)))
 
 
-def run(client, now, db_path, *, exclude=(), real_at=None):
-    stamp = (real_at or datetime.now(timezone.utc)).timestamp()
+def run(now, db_path, *, exclude=(), real_at=None):
+    real_at = real_at or datetime.now(timezone.utc)
+    stamp = real_at.timestamp()
     day = now.date().isoformat()
     sim_stamp = (now - datetime(1970, 1, 1)).total_seconds()
-    with connect(db_path) as c:
-        settings = dict(c.execute('SELECT key,value FROM world'))
-        state = json.loads(settings.get(STATE_KEY, '{}'))
-    if state.get('day') != day:
-        state = {'day': day, 'pairs': [], 'last': {}, 'recent': []}
-    if len(state['pairs']) >= DAILY_LIMIT:
-        return False
-
+    evening = 17 <= now.hour < 23
+    limit, gap = (EVENING_LIMIT, 15) if evening else (DAY_LIMIT, 30)
     groups = places.present(now, db_path)
     with connect(db_path) as c:
         c.execute('BEGIN IMMEDIATE')
+        settings = dict(c.execute("SELECT key,value FROM world WHERE key=? OR key LIKE 'scene.travel.%'", (STATE_KEY,)))
+        state = json.loads(settings.get(STATE_KEY, '{}'))
+        if state.get('day') != day:
+            state = {'day': day, 'pairs': [], 'last': {}, 'recent': []}
+        if len(state['pairs']) >= limit:
+            return False
         for key, people in groups.items():
             available = [p for p in people if p['id'] not in exclude and not busy(c, p['id'])
-                         and sim_stamp - state['last'].get(str(p['id']), -1e12) >= 30*60]
+                         and sim_stamp - state['last'].get(str(p['id']), -1e12) >= gap*60]
             for a, b in combinations(available, 2):
                 pair = sorted((a['id'], b['id']))
                 if pair in state['pairs'] or not _known(c, *pair):
@@ -71,40 +72,11 @@ def run(client, now, db_path, *, exclude=(), real_at=None):
                     continue
                 state['pairs'].append(pair)
                 state['last'].update({str(i): sim_stamp for i in pair})
+                state['recent'] = active({STATE_KEY: json.dumps(state)}, real_at)
+                lines = _lines(now, weather.read(c, now, real_at), b['name'])
+                for index, (speaker, listener, text) in enumerate(((a,b,lines[0]), (b,a,lines[1]))):
+                    state['recent'].append({'id': speaker['id'], 'to': listener['id'], 'place': key,
+                                            'text': text, 'start': stamp + index * 3})
                 world._set(c, STATE_KEY, json.dumps(state))
-                break
-            else:
-                continue
-            break
-        else:
-            return False
-
-    prompt = (
-        f"{a['name']} ({a['activity']}) greets {b['name']} ({b['activity']}) at {places.PLACES[key].name}. "
-        "Write one short line from the first person and optionally a reply from the second. "
-        "Keep it natural. Don't introduce news, new world events, or promises. "
-        'Return JSON {"lines":["Morning.","All right?"],"notable_line":null}. '
-        "Use a 1-based notable_line only if that line shares meaningful personal information already given above."
-    )
-    proposal = client.propose(a['id'], [{'role': 'user', 'content': prompt}],
-                              schema=Greeting, max_tokens=MAX_TOKENS)
-    try:
-        result = Greeting.model_validate(proposal)
-    except ValidationError:
-        return False
-    shown = datetime.now(timezone.utc).timestamp() if real_at is None else stamp
-    with connect(db_path) as c:
-        state['recent'] = active({STATE_KEY: json.dumps(state)}, datetime.fromtimestamp(shown, timezone.utc))
-        for index, (speaker, line) in enumerate(zip((a,b), result.lines)):
-            state['recent'].append({'id': speaker['id'], 'place': key, 'text': line,
-                                    'start': shown + index * 3})
-        world._set(c, STATE_KEY, json.dumps(state))
-        if result.notable_line and result.notable_line <= len(result.lines):
-            index = result.notable_line - 1
-            speaker, listener = ((a,b), (b,a))[index]
-            content = f"{speaker['name']} said: {result.lines[index]}"
-            c.execute('''INSERT INTO facts(agent_id, subject, content, source, source_agent_id, importance)
-                         SELECT ?, 'street conversation', ?, 'told', ?, 3
-                         WHERE NOT EXISTS(SELECT 1 FROM facts WHERE agent_id=? AND content=?)''',
-                      (listener['id'], content, speaker['id'], listener['id'], content))
-    return True
+                return True
+    return False

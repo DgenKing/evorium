@@ -4,13 +4,14 @@ import logging
 import math
 import threading
 from dataclasses import dataclass
-from datetime import datetime, time, timedelta, timezone
+from datetime import datetime, timezone
 from decimal import Decimal
 from pathlib import Path
 
 import httpx
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
+from evorium import pacing
 from evorium.db import DEFAULT_DB_PATH, connect
 from evorium.configuration import load
 from evorium.events import emit
@@ -29,6 +30,10 @@ class LLMError(RuntimeError):
 
 class DailyBudgetReached(LLMError):
     pass
+
+
+class PacingWait(LLMError):
+    """An automatic or background request must wait for the next allowance."""
 
 
 class InvalidProposal(LLMError):
@@ -103,21 +108,21 @@ def estimate_cost(input_tokens: int, output_tokens: int, settings: Settings,
 
 
 def get_usage(db_path: str | Path = DEFAULT_DB_PATH, initial_credit_usd: float = 5.00, *, at=None) -> dict:
-    from evorium.world import TZ
-    day = (at or datetime.now(timezone.utc)).astimezone(TZ).date()
-    start, end = (datetime.combine(d, time.min, TZ).astimezone(timezone.utc)
-                  .isoformat(timespec="milliseconds").replace("+00:00", "Z")
-                  for d in (day, day + timedelta(days=1)))
+    at = at or datetime.now(timezone.utc)
+    day = at.astimezone(pacing.UK).date()
+    start, end = pacing.day_bounds(at)
     with connect(db_path) as connection:
-        rows = connection.execute(
-            "SELECT input_tokens, output_tokens, est_cost_usd, created_at FROM llm_calls"
-        ).fetchall()
-    spend = sum((Decimal(str(row["est_cost_usd"])) for row in rows), Decimal(0))
-    today = sum((Decimal(str(row["est_cost_usd"])) for row in rows if start <= row["created_at"] < end), Decimal(0))
-    input_tokens = sum(row["input_tokens"] for row in rows)
-    output_tokens = sum(row["output_tokens"] for row in rows)
+        count, input_tokens, output_tokens, lifetime = connection.execute(
+            """SELECT count(*), coalesce(sum(input_tokens),0), coalesce(sum(output_tokens),0),
+                      round(coalesce(sum(est_cost_usd),0),12) FROM llm_calls"""
+        ).fetchone()
+        today = connection.execute(
+            """SELECT round(coalesce(sum(est_cost_usd),0),12) FROM llm_calls
+               WHERE created_at>=? AND created_at<?""", (start, end)
+        ).fetchone()[0]
+    spend = Decimal(str(lifetime))
     return {
-        "api_calls": len(rows), "input_tokens": input_tokens,
+        "api_calls": count, "input_tokens": input_tokens,
         "output_tokens": output_tokens, "total_tokens": input_tokens + output_tokens,
         "estimated_spend_usd": float(spend), "daily_spend_usd": float(today), "budget_day": day.isoformat(), "initial_credit_usd": initial_credit_usd,
         "estimated_remaining_usd": float(max(Decimal(0), Decimal(str(initial_credit_usd)) - spend)),
@@ -146,9 +151,10 @@ class DeepSeekClient:
                     if backoff.paused():
                         raise LLMError('DeepSeek calls are paused while the service recovers.')
                     started = self.clock()
-                    self.check_budget(started)
+                    max_output, reservation = self._request_budget(started, messages, max_tokens)
                     try:
-                        result = self._attempt(agent_id, messages, schema, max_tokens, started_at=started)
+                        result = self._attempt(agent_id, messages, schema, max_output,
+                                               started_at=started, reservation=reservation)
                     except InvalidProposal:
                         raise
                     except LLMError as exc:
@@ -166,36 +172,83 @@ class DeepSeekClient:
         usage = get_usage(self.db_path, at=at or self.clock())
         daily_cap = self.settings.max_daily_spend_usd
         if usage["daily_spend_usd"] >= daily_cap:
-            raise DailyBudgetReached(f"Daily DeepSeek budget cap reached (${daily_cap:.2f}). Resumes at UK midnight.")
+            raise DailyBudgetReached("They're too tired to talk just now. DeepSeek budget resumes at UK midnight.")
         spent = usage["estimated_spend_usd"]
         if spent >= self.settings.max_spend_usd:
             raise LLMError(
                 f"Local budget cap reached (${spent:.2f} of ${self.settings.max_spend_usd:.2f}). "
                 "Raise MAX_SPEND_USD in config.py to continue."
             )
+        return usage
 
-    def _start_call(self, agent_id: int, started_at: datetime) -> int:
-        # Record attempts before network I/O, including interrupted requests.
+    def can_background(self):
+        at = self.clock()
+        usage = get_usage(self.db_path, at=at)
+        cap = Decimal(str(self.settings.max_daily_spend_usd))
+        with connect(self.db_path) as c:
+            return min(cap - Decimal(str(usage['daily_spend_usd'])),
+                       pacing.available(c, at, cap, 'background')) >= Decimal('.0005')
+
+    def can_converse(self, turns):
+        at = self.clock()
+        cap = Decimal(str(self.settings.max_daily_spend_usd))
+        usage = get_usage(self.db_path, at=at)
+        with connect(self.db_path) as c:
+            left = min(pacing.available(c, at, cap, 'auto'),
+                       cap - Decimal(str(usage['daily_spend_usd'])),
+                       Decimal(str(self.settings.max_spend_usd)) - Decimal(str(usage['estimated_spend_usd'])))
+            return left >= pacing.conversation_estimate(c, at, turns, is_peak)
+
+    def _request_budget(self, at, messages, max_tokens):
+        usage = self.check_budget(at)
+        daily_left = Decimal(str(self.settings.max_daily_spend_usd)) - Decimal(str(usage['daily_spend_usd']))
+        total_left = Decimal(str(self.settings.max_spend_usd)) - Decimal(str(usage['estimated_spend_usd']))
+        kind = pacing.scope.get()
+        paced_left = daily_left
+        if kind != 'player':
+            with connect(self.db_path) as c:
+                paced_left = pacing.available(c, at, self.settings.max_daily_spend_usd, kind)
+
+        # Byte-summed input plus a margin for the provider's chat framing. Assume no cache discount.
+        input_bound = 64 + sum(16 + sum(len(value.encode('utf-8')) for value in message.values())
+                               for message in messages)
+        rate = max(self.settings.input_usd_per_million, self.settings.cached_input_usd_per_million)
+        discount = Decimal(1) if is_peak(at) else Decimal('.5')
+        input_cost = input_bound * Decimal(str(rate)) * discount / 1_000_000
+        output_rate = Decimal(str(self.settings.output_usd_per_million)) * discount / 1_000_000
+        minimum_cost = input_cost + min(64, max_tokens) * output_rate
+        if daily_left < minimum_cost:
+            raise DailyBudgetReached("They're too tired to talk just now. DeepSeek budget resumes at UK midnight.")
+        if total_left < minimum_cost:
+            raise LLMError("Local budget cap reached. Raise MAX_SPEND_USD in config.py to continue.")
+        if paced_left < minimum_cost:
+            raise PacingWait('Waiting for the next DeepSeek allowance.')
+        output_limit = min(max_tokens, int((min(daily_left, total_left, paced_left) - input_cost) / output_rate))
+        return output_limit, input_cost + output_limit * output_rate
+
+    def _start_call(self, agent_id: int, started_at: datetime, reservation: Decimal) -> int:
+        # Hold the upper estimate until confirmed usage replaces it.
         with connect(self.db_path) as connection:
             cursor = connection.execute(
                 """INSERT INTO llm_calls
-                (agent_id, model, input_tokens, output_tokens, est_cost_usd, ok, error, created_at)
-                VALUES (?, ?, ?, ?, ?, 0, ?, ?)""",
-                (agent_id, self.settings.model, 0, 0, 0,
-                 "Pending or interrupted call; usage unavailable, cost unknown.",
-                 started_at.astimezone(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")),
+                (agent_id, model, input_tokens, output_tokens, est_cost_usd, ok, error,
+                 created_at, budget_scope, conversation_id)
+                VALUES (?, ?, 0, 0, ?, 0, ?, ?, ?, ?)""",
+                (agent_id, self.settings.model, float(reservation),
+                 "Pending or interrupted call; usage unavailable, cost unknown. Upper estimate held.",
+                 pacing.stamp(started_at), pacing.scope.get(), pacing.conversation_id.get()),
             )
             return cursor.lastrowid
 
     def _attempt(self, agent_id: int, messages: list[dict[str, str]],
-                 schema: type[BaseModel], max_tokens: int, *, started_at: datetime):
+                 schema: type[BaseModel], max_tokens: int, *, started_at: datetime, reservation: Decimal):
         payload = {
             "model": self.settings.model, "messages": messages,
             "temperature": 0.8 if schema is ActionProposal else 0.6 if schema.__name__ == "Decision" else 0.2, "max_tokens": max_tokens,
             "response_format": {"type": "json_object"},
             "thinking": {"type": "disabled"},
         }
-        call_id = self._start_call(agent_id, started_at)
+        call_id = self._start_call(agent_id, started_at, reservation)
         input_tokens, output_tokens, cached = 0, 0, 0
         usage_available = False
         proposal, failure = None, None
@@ -232,10 +285,11 @@ class DeepSeekClient:
             failure = LLMError("DeepSeek connection failed or timed out; no automatic network retry.")
         except (KeyError, IndexError, TypeError, ValueError, ValidationError):
             failure = LLMError("DeepSeek response lacks valid usage data; tokens and cost unknown.")
-        cost = estimate_cost(input_tokens, output_tokens, self.settings, cached, started_at)
+        cost = (estimate_cost(input_tokens, output_tokens, self.settings, cached, started_at)
+                if usage_available else reservation)
         error = str(failure) if failure else None
         if failure and not usage_available:
-            error += " Usage unavailable; recorded token/cost zeros are placeholders."
+            error += " Usage unavailable; upper cost estimate retained."
         # Never persist provider response bodies, prompts, headers, or exception text.
         with connect(self.db_path) as connection:
             connection.execute(
