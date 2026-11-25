@@ -182,8 +182,8 @@ export function createArcade(world, data, layout, catalogue=[]) {
    map.needsUpdate=true;
   };
   drawBest('Your best: —');
-  // Standing point is in the aisle beside the pool table, not inside its collision box.
-  const position=new THREE.Vector3(x+(pool?.86:0),0,z);
+  // The pool table is measured from its centre, so "E to play" shows from any side or end of the table.
+  const position=new THREE.Vector3(x,0,z);
   games.set(entry.placement,{...entry,position,drawBest});
  }
  const home=layout.spots['arcade-home'];

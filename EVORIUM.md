@@ -1620,6 +1620,12 @@ the key pool and open sign-ups.
 
 ## 14. History
 
+### 25 November 2026 — Pool table prompt from any side
+
+- "E to play" never showed on the far side of the pool table: the trigger point sat 0.86 m off the table's
+  east side, so from the west side the player was more than 1.65 m away. It's now measured from the table's
+  centre (`arcade.js`), so the prompt shows along both sides and both ends. Node tests pass.
+
 ### 25 November 2026 — Playable arcade cabinets and pool
 
 - Installed the five supplied games and added a cabinet launcher with keyboard and touch entry, an Exit button
