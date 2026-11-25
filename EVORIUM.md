@@ -1093,12 +1093,15 @@ when you leave". It describes the Three.js browser game on desktop and phone. Pr
 python3 -m http.server 8080 --bind 127.0.0.1 --directory website
 ```
 
-Images are generated, labelled concept art; full-size masters stay in the git-ignored `website/images/src/`.
+Most website art is generated, labelled concept art; full-size masters stay in the git-ignored `website/images/src/`.
+The compact APC grid uses optimised WebP/JPG copies of the in-game portraits.
 Some image filenames keep their original names (`unreal-hero`). The waitlist still uses the placeholder
 `hello@example.com`. The game server serves it at `/` with no login (`main.py`: `/`, `/styles.css`, `/images/`), so pushing to `main`
 publishes it through the G4's auto-update. Its Play buttons (nav and hero) link to `/game`. Personal contact details remain deferred. A **"What's new"** section (nav link "What's new", before the waitlist) lists
-features newest first; see rule 12 in §15. The characters
-section is **"Meet the APCs"** (nav label "The APCs"), and the hero and share descriptions use "APC".
+features newest first; see rule 12 in §15. The **"Meet the APCs"** section (nav label "The APCs") now shows
+all eighteen: eight large cards and a responsive ten-person **"More of the street"** grid with portraits,
+roles and spoiler-free hooks. Grid portraits use optimised local WebP files with JPG fallbacks. The hero and
+share descriptions use "APC".
 
 **Briefing website changes** (the old `CODEX_PROMPT_WEBSITE.md`, merged here and deleted 20 Nov): describe it as
 a Three.js browser game for desktop and phone; plain HTML/CSS with at most ~30 lines of JS; no frameworks or
@@ -1499,6 +1502,15 @@ the key pool and open sign-ups.
 ---
 
 ## 14. History
+
+### 25 November 2026 — All eighteen APCs on the website
+
+- **What:** added the ten remaining APCs to the website's "Meet the APCs" section in a compact responsive grid,
+  with local WebP/JPG portraits, roles and short hooks. Updated the section copy and added a What's new entry.
+- **Why / learned:** the supplied 256 × 256 portraits fit the square grid and compress well as local WebP with
+  JPG fallbacks. The grid shows five cards on desktop, three at 768 px and two at 375 px.
+- **Checks:** HTML structure and image paths checked; one desktop and one 375 px screenshot captured. No tests
+  or other app files changed. No push.
 
 ### 25 November 2026 — Portraits for every APC
 

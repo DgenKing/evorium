@@ -252,6 +252,146 @@
     "quality": 80
   },
   {
+    "file": "char-peggy.webp",
+    "width": 256,
+    "height": 256,
+    "bytes": 10768,
+    "quality": 84
+  },
+  {
+    "file": "char-peggy.jpg",
+    "width": 256,
+    "height": 256,
+    "bytes": 19907,
+    "quality": 88
+  },
+  {
+    "file": "char-liam.webp",
+    "width": 256,
+    "height": 256,
+    "bytes": 9784,
+    "quality": 84
+  },
+  {
+    "file": "char-liam.jpg",
+    "width": 256,
+    "height": 256,
+    "bytes": 20447,
+    "quality": 88
+  },
+  {
+    "file": "char-anjali.webp",
+    "width": 256,
+    "height": 256,
+    "bytes": 10514,
+    "quality": 84
+  },
+  {
+    "file": "char-anjali.jpg",
+    "width": 256,
+    "height": 256,
+    "bytes": 20568,
+    "quality": 88
+  },
+  {
+    "file": "char-pete.webp",
+    "width": 256,
+    "height": 256,
+    "bytes": 9054,
+    "quality": 84
+  },
+  {
+    "file": "char-pete.jpg",
+    "width": 256,
+    "height": 256,
+    "bytes": 17957,
+    "quality": 88
+  },
+  {
+    "file": "char-hannah.webp",
+    "width": 256,
+    "height": 256,
+    "bytes": 10392,
+    "quality": 84
+  },
+  {
+    "file": "char-hannah.jpg",
+    "width": 256,
+    "height": 256,
+    "bytes": 20248,
+    "quality": 88
+  },
+  {
+    "file": "char-gary.webp",
+    "width": 256,
+    "height": 256,
+    "bytes": 9576,
+    "quality": 84
+  },
+  {
+    "file": "char-gary.jpg",
+    "width": 256,
+    "height": 256,
+    "bytes": 20343,
+    "quality": 88
+  },
+  {
+    "file": "char-kirsty.webp",
+    "width": 256,
+    "height": 256,
+    "bytes": 9966,
+    "quality": 84
+  },
+  {
+    "file": "char-kirsty.jpg",
+    "width": 256,
+    "height": 256,
+    "bytes": 19434,
+    "quality": 88
+  },
+  {
+    "file": "char-grace.webp",
+    "width": 256,
+    "height": 256,
+    "bytes": 10042,
+    "quality": 84
+  },
+  {
+    "file": "char-grace.jpg",
+    "width": 256,
+    "height": 256,
+    "bytes": 20047,
+    "quality": 88
+  },
+  {
+    "file": "char-barry.webp",
+    "width": 256,
+    "height": 256,
+    "bytes": 11096,
+    "quality": 84
+  },
+  {
+    "file": "char-barry.jpg",
+    "width": 256,
+    "height": 256,
+    "bytes": 20246,
+    "quality": 88
+  },
+  {
+    "file": "char-ronnie.webp",
+    "width": 256,
+    "height": 256,
+    "bytes": 12334,
+    "quality": 84
+  },
+  {
+    "file": "char-ronnie.jpg",
+    "width": 256,
+    "height": 256,
+    "bytes": 20735,
+    "quality": 88
+  },
+  {
     "file": "catchup-bg.webp",
     "width": 2000,
     "height": 1200,
