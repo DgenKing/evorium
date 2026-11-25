@@ -15,10 +15,10 @@ assert.match(assets, /if\(cityEnabled\)\s*\{[^}]*city-collision/s);
 assert.ok(assets.includes("if(cityEnabled){const [city,cityCollision]") && assets.includes("city-props.glb"));
 assert.match(world, /assets\.cityProps\?\.scene/);
 
-// A city-mode scene must show the manifest's attribution as text, not HTML.
-assert.match(world, /city-attribution/);
-assert.match(world, /badge\.textContent\s*=\s*attribution/);
-assert.match(world, /OpenStreetMap contributors/);
-assert.match(world, /Open Government Licence/);
+// Map credits are kept off the game screen: as text in the settings panel, the guide and the website.
+const page = read('../evorium/static/world3d/index.html'), guide = read('../evorium/static/guide.html'), site = read('../website/index.html');
+assert.ok(!world.includes("badge.id='city-attribution'"), 'no attribution badge over the game');
+assert.match(world, /credit\.textContent\s*=\s*attribution/);
+for (const text of [page, guide, site]) { assert.match(text, /OpenStreetMap contributors/); assert.match(text, /Open Government Licence/); }
 
 console.log('City opt-in wiring and text attribution assertions passed.');

@@ -75,7 +75,8 @@ export class World{
  if(assets.cityProps?.scene){this.cityProps=assets.cityProps.scene;const heads=new Set();this.cityProps.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true;for(const m of [o.material].flat())if(/lamp_head/i.test(m.name||''))heads.add(m);}});this.scene.add(this.cityProps);this.night.addLamps(manifest.lamps,[...heads]);}
  this.bounds=manifest.bounds||null;
  const attribution=Array.isArray(manifest.attribution)?manifest.attribution.join(' · '):String(manifest.attribution||'© OpenStreetMap contributors · Contains public sector information licensed under the Open Government Licence v3.0.');
- const badge=document.createElement('div');badge.id='city-attribution';badge.textContent=attribution;document.body.append(badge);this.cityAttribution=badge;
+ // The credit lives in the ⚙ settings panel, not on the game screen (owner, 25 Nov).
+ const credit=document.getElementById('map-credits');if(credit)credit.textContent=attribution;
  }
  updateSnapshot(s){this.festive.visible=!!s.calendar?.decorations;this.weather.set(s.weather);for(const [material,roughness] of this.wetMaterials)material.roughness=this.weather.style.wet?.35:roughness;this.target=s.daylight;this.open={pub:s.pub_open,shop:s.shop_open};}
  update(dt){this.daylight=THREE.MathUtils.damp(this.daylight,this.target,.3,dt);const d=this.daylight,w=this.weather.style;this.weather.update(dt);

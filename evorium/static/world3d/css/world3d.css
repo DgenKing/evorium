@@ -4,4 +4,4 @@
 @media(pointer:coarse){#controls{left:16px;transform:none;width:calc(100vw - 130px);font-size:13px}#portrait-hint{bottom:85px;max-width:210px}}
 
 #police-notice{position:fixed;top:64px;left:50%;transform:translateX(-50%);z-index:5;background:#17232eed;color:#fff;padding:8px 14px;border-radius:6px;max-width:85vw;text-align:center}
-#city-attribution{position:fixed;right:max(8px,env(safe-area-inset-right));top:max(70px,calc(env(safe-area-inset-top) + 60px));z-index:5;max-width:min(72vw,620px);padding:5px 8px;border-radius:4px;background:#0d0e11cc;color:#efe7d6;font:11px/1.35 system-ui,sans-serif;pointer-events:none}
+#settings .credits{margin:14px 0 0;font-size:11px;line-height:1.4;color:#a8adb5}

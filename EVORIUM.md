@@ -809,8 +809,9 @@ ten animation clips and baked lighting are served by FastAPI. The EVORIUM wordma
 `/world3d` opens the generated Ancoats streets by default. `/world3d?city=0` opens the original Shuttle Street;
 test harness pages stay on Shuttle Street unless explicitly passed `?city=1`. City mode conditionally
 loads `data/city.json`, `city.glb`, `city-collision.glb` and, when present, `city-props.glb`; it places Shuttle
-Street at the transform in `tools/city/config.yaml`, joins its street exits to the generated walk graph, and shows
-OpenStreetMap and Environment Agency attribution. The local review build is available in this mode.
+Street at the transform in `tools/city/config.yaml`, joins its street exits to the generated walk graph, and credits
+OpenStreetMap and the Environment Agency in the ⚙ settings panel (not on the game screen), the guide and the
+website footer, as the ODbL and OGL licences require. The local review build is available in this mode.
 
 Night uses a phase-correct moon sprite, stars that fade in cloud, rain, snow or fog, emissive lamp heads and
 ground pools for all 74 city lamps. Up to four nearby PointLights run on medium/high; low uses only the emissive
@@ -1489,6 +1490,13 @@ the key pool and open sign-ups.
 ---
 
 ## 14. History
+
+### 25 November 2026 — Map credits moved off the game screen
+
+- **What:** at the owner's request, the OpenStreetMap / Environment Agency credit no longer sits over the 3D game.
+  The same credit now appears at the bottom of the ⚙ settings panel in `/world3d`, at the end of the guide, and in
+  the website footer, which still meets the ODbL and OGL attribution terms. `tests/city_opt_in.test.mjs` checks all
+  three and that no badge is drawn over the game. Python 401 and Node 13 tests pass.
 
 ### 25 November 2026 — Ancoats city becomes the normal map; night lighting
 
