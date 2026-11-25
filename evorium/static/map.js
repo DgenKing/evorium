@@ -38,6 +38,8 @@
     Simon:{hair:'#38302c',top:'#7c7f80',trousers:'#515960',skin:'#cfad90',tie:true},
     Brenda:{hair:'#b7b5aa',top:'#a18bab',trousers:'#565269',skin:'#d1a78f',curly:true,short:true},
     Mohammed:{hair:'#24252a',top:'#333d50',trousers:'#34363b',skin:'#ab7753',beard:true},
+    Norman:{hair:'#a6a19a',top:'#576576',trousers:'#292832',skin:'#cba589'},
+    Maxine:{hair:'#723a32',top:'#893941',trousers:'#353242',skin:'#cfac94',curly:true},
     Player:{hair:'#483b33',top:'#e9dfc9',trousers:'#536c7d',skin:'#c79d7a'},
     Default:{hair:'#615346',top:'#a87553',trousers:'#49545b',skin:'#bf9675'}
   };
@@ -200,7 +202,8 @@
     const step=moving?[0,2,0,-2][Math.floor(time*8+person.phase)%4]:0;
     const gesture=!moving&&(person.idleUntil>time || (/buying|browsing|coffee|bar/.test(person.agent.activity||'') && (time+person.phase)%8<1.3));
     const bob=gesture?Math.round(Math.sin(time*7+person.phase)):0;
-    const cacheKey=`${person.agent.isPlayer?'Player':firstName(person.agent)}:${step}:${gesture}`;
+    const tie=d.tie||firstName(person.agent)==='Norman'&&person.agent.activity?.includes('in a tie');
+    const cacheKey=`${person.agent.isPlayer?'Player':firstName(person.agent)}:${step}:${gesture}:${tie}`;
     let sprite=spriteFrames.get(cacheKey);
     if(!sprite) {
       sprite=document.createElement('canvas');sprite.width=24;sprite.height=36;
@@ -223,7 +226,7 @@
       if(d.curly) { block(-6,-25+height,12,3,d.hair);block(-5,-28+height,3,3,d.hair);block(0,-28+height,4,3,d.hair); }
       block(3,-21+height,1,1,'#252625');
       if(d.beard) block(-4,-19+height,8,3,d.hair);
-      if(d.tie) { block(-1,-17,2,9,'#4c3844');block(-3,-17,2,3,'#d4d4c7'); }
+      if(tie) { block(-1,-17,2,9,'#4c3844');block(-3,-17,2,3,'#d4d4c7'); }
       if(d.checks) { block(-3,-16,6,8,'#b4a187');block(-1,-16,1,8,'#656b6a');block(-3,-13,6,1,'#656b6a'); }
       spriteFrames.set(cacheKey,sprite);
     }

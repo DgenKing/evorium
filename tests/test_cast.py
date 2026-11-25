@@ -54,7 +54,7 @@ def test_note_taker_cast_excludes_player_and_system(tmp_path):
 
 def test_new_apcs_join_an_existing_world_without_duplicating_facts(tmp_path, monkeypatch):
     # The live world was seeded with the original 8 characters and 26 facts. Restarting on the new code must
-    # add the 5 newcomers and their facts only: seed keys are list positions, so old facts must not repeat.
+    # add the newcomers and their facts only: seed keys are list positions, so old facts must not repeat.
     from evorium import seed as seedmod
     path=tmp_path/'world.sqlite3';init_db(path)
     monkeypatch.setattr(seedmod,'CHARACTERS',seedmod.CHARACTERS[:8]);monkeypatch.setattr(seedmod,'SEED_FACTS',seedmod.SEED_FACTS[:26])
@@ -64,7 +64,8 @@ def test_new_apcs_join_an_existing_world_without_duplicating_facts(tmp_path, mon
     with connect(path) as c:
         names=[a['name'] for a in npc_agents(c)]
         assert names[8:]==['Peggy Coyle','Liam Byrne','Anjali Patel','Pete Lomax','Hannah Kerr',
-                           'Gary Walsh','Kirsty Doyle','Grace Adeyemi','Barry Hughes','Ronnie Clegg']
+                           'Gary Walsh','Kirsty Doyle','Grace Adeyemi','Barry Hughes','Ronnie Clegg',
+                           'Norman Pilling','Maxine Stott']
         assert c.execute('select count(*) from facts').fetchone()[0]==len(seedmod.SEED_FACTS)
         assert c.execute('select count(*) from (select content from facts group by agent_id,content having count(*)>1)').fetchone()[0]==0
         ids={a['name']:a['id'] for a in npc_agents(c)}

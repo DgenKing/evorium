@@ -1,0 +1,46 @@
+{
+  "osm_id": "way/1127565112",
+  "origin": [-17.627, -10.909],
+  "yaw": 0.731624,
+  "height": 5.1,
+  "outline": [[-11.57,11.17],[-10.15,11.18],[-10.22,19.56],[-10.27,24.65],[-3.86,24.62],[2.79,24.6],[2.87,14.39],[6.55,14.44],[6.67,10.39],[6.73,0],[-6.73,0],[-11.47,-0.06],[-11.57,11.17]],
+  "room_outline": [[-11.57,11.17],[-10.15,11.18],[-10.22,19.56],[-10.27,24.65],[-3.86,24.62],[-3.8,19.25],[2.83,19.25],[2.87,14.39],[6.55,14.44],[6.67,10.39],[6.73,0],[-6.73,0],[-11.47,-0.06],[-11.57,11.17]],
+  "door_segment": 10,
+  "external_node": "r589",
+  "spots": {
+    "arcade-booth": [3.5,3.8],
+    "arcade-handover": [2.1,3.8],
+    "arcade-coin-a": [-3.2,8],
+    "arcade-coin-b": [-7.5,11.55],
+    "arcade-fruit": [2.8,11.5],
+    "arcade-claw": [2.2,7],
+    "arcade-hockey": [-4.5,16],
+    "arcade-home": [-8.2,22],
+    "cabinet-1": [-7.8,14],
+    "cabinet-2": [-7.8,15.5],
+    "cabinet-3": [-7.8,17],
+    "cabinet-4": [-7.8,18.5],
+    "pool-table": [-6.0,22.7]
+  },
+  "nodes": {
+    "arcade-approach": [0,-2.7],
+    "arcade-threshold": [0,0],
+    "arcade-lobby": [0,3.8],
+    "arcade-mid": [0,8],
+    "arcade-cross": [0,12.6],
+    "arcade-back": [-1,16],
+    "arcade-rear": [-5.5,21.5],
+    "arcade-west": [-6.4,12.6],
+    "arcade-west-rear": [-6.4,21.5]
+  },
+  "edges": [
+    ["r589","arcade-approach"],["arcade-approach","arcade-threshold"],["arcade-threshold","arcade-lobby"],
+    ["arcade-lobby","arcade-booth"],["arcade-lobby","arcade-handover"],["arcade-lobby","arcade-mid"],
+    ["arcade-mid","arcade-coin-a"],["arcade-mid","arcade-claw"],["arcade-mid","arcade-cross"],
+    ["arcade-cross","arcade-fruit"],["arcade-cross","arcade-west"],["arcade-cross","arcade-back"],
+    ["arcade-west","arcade-coin-b"],["arcade-west","arcade-west-rear"],["arcade-west","cabinet-1"],
+    ["arcade-west","cabinet-2"],["arcade-west-rear","cabinet-3"],["arcade-west-rear","cabinet-4"],
+    ["arcade-west-rear","arcade-home"],["arcade-west-rear","arcade-rear"],
+    ["arcade-back","arcade-hockey"],["arcade-rear","pool-table"]
+  ]
+}

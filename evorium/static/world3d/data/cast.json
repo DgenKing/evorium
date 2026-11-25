@@ -115,5 +115,34 @@
     "height": 1.76,
     "labelOffset": 0.22,
     "sitOffset": 0
+  },
+  "Norman Pilling": {
+    "body": "male",
+    "scale": 0.96,
+    "width": 1,
+    "tint": "#576576",
+    "skin": "#d2aa8c",
+    "trousers": "#292832",
+    "hair": "#c9c9bf",
+    "model": null,
+    "height": 1.68,
+    "labelOffset": 0.22,
+    "sitOffset": 0,
+    "fallback": true,
+    "nightTie": true
+  },
+  "Maxine Stott": {
+    "body": "female",
+    "scale": 0.98,
+    "width": 1.06,
+    "tint": "#893941",
+    "skin": "#d1a184",
+    "trousers": "#353242",
+    "hair": "#49362d",
+    "model": null,
+    "height": 1.69,
+    "labelOffset": 0.22,
+    "sitOffset": 0,
+    "fallback": true
   }
 }

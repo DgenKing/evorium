@@ -7,14 +7,17 @@ for(const end of ['STREET_LEFT','STREET_RIGHT'])for(const waypoint of [...Object
 for(const [values,expected] of [[{},'idle'],[{speed:1.6},'walk'],[{speed:4},'run'],[{grounded:false,verticalSpeed:2},'jump_start'],[{grounded:false,verticalSpeed:-1},'fall'],[{wasGrounded:false},'land'],[{sitting:true},'sit'],[{talking:true},'talk']])assert.equal(selectAnimation(values),expected);
 assert.equal(detectQuality({touch:true}),'low');assert.equal(detectQuality({width:390}),'low');assert.equal(detectQuality({maxTextureSize:16384,pixelRatio:2}),'high');assert.equal(detectQuality({maxTextureSize:8192}),'medium');
 assert.deepEqual(slotPosition({position:[1,2,3],yaw:0},2),[2.4,2,3]);assert.ok(Math.abs(slotPosition({position:[0,0,0],yaw:Math.PI/2},1)[2]+.7)<1e-8);
-const cast=data('cast');assert.equal(Object.keys(cast).length,9);assert.equal(lookupCast(cast,'Jess Hartley').body,'female');assert.equal(lookupCast(cast,'unknown'),cast.player);
+const cast=data('cast');assert.equal(Object.keys(cast).length,11);assert.equal(lookupCast(cast,'Jess Hartley').body,'female');assert.equal(lookupCast(cast,'unknown'),cast.player);
 const watchdog=new Watchdog();let preset='high';for(let i=0;i<110;i++)preset=watchdog.update(.1,preset);assert.equal(preset,'low');assert.equal(watchdog.drops,2);
 console.log('Web3D: graph, all waypoint routes, animation, quality, watchdog, slots and cast passed.');
 
-for(const [name,config] of Object.entries(cast)){assert.match(config.model,/^cast\/[a-z]+\.glb$/);assert.ok(config.height>1.4&&config.height<2);for(const quality of ['low','high'])assert.ok(fs.existsSync(new URL('../evorium/static/world3d/assets/'+quality+'/'+config.model,import.meta.url)),name);}
+for(const [name,config] of Object.entries(cast)){assert.ok(config.height>1.4&&config.height<2);if(config.fallback){assert.equal(config.model,null);continue;}assert.match(config.model,/^cast\/[a-z]+\.glb$/);for(const quality of ['low','high'])assert.ok(fs.existsSync(new URL('../evorium/static/world3d/assets/'+quality+'/'+config.model,import.meta.url)),name);}
 const clips=data('clips');assert.equal(new Set(Object.values(clips)).size,10);assert.equal(clips.walk,'Walk_Loop');assert.equal(clips.sit,'Sitting_Idle_Loop');
 let loaded=[],fallbacks=[];const cache=createCastCache(cast,async model=>{loaded.push(model);if(model.includes('jess'))throw Error('test missing model');return{model};},async()=>({gltf:{fallback:true},animations:{}}),item=>fallbacks.push(item));
-assert.equal(loaded.length,0);const rob=await cache.get('player');assert.equal(rob.fallback,false);await cache.get('unknown');assert.equal(loaded.length,1);const jess=await cache.get('Jess Hartley');assert.equal(jess.fallback,true);assert.equal(fallbacks.length,1);await cache.get('Jess Hartley');assert.equal(fallbacks.length,1);assert.equal(loaded.length,2);console.log('MPFB cast: all models, dimensions, ten clips, lazy caching and fallback passed.');
+assert.equal(loaded.length,0);const rob=await cache.get('player');assert.equal(rob.fallback,false);await cache.get('unknown');assert.equal(loaded.length,1);const jess=await cache.get('Jess Hartley');assert.equal(jess.fallback,true);assert.equal(fallbacks.length,1);await cache.get('Jess Hartley');assert.equal(fallbacks.length,1);assert.equal(loaded.length,2);for(const name of ['Norman Pilling','Maxine Stott'])assert.equal((await cache.get(name)).fallback,true);
+assert.deepEqual(fallbacks.filter(item=>item.planned).map(item=>item.name),['Norman Pilling','Maxine Stott']);
+assert.equal(loaded.length,2,'planned fallback makes no request for a missing dedicated model');
+console.log('MPFB cast: all models, dimensions, ten clips, lazy caching and fallback passed.');
 
 const {schedule,allowed,limits,separation,streetGraph,visibleStep,intervals,facing}=await import('../evorium/static/world3d/js/ambient.js');
 for(const [kind,[min,max]] of Object.entries(intervals)){assert.equal(schedule(kind,20,()=>0),20+min);assert.equal(schedule(kind,20,()=>1),20+max);assert.equal(schedule(kind,20,()=>.5),20+(min+max)/2);}

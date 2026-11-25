@@ -136,6 +136,20 @@ CHARACTERS = (
         "Get Tommy out of himself again, and pick a winner at Haydock before Christmas.",
         "wry", "Flat, Ancoats",
     ),
+    (
+        "Norman Pilling", 63, "Arcade attendant",
+        "Has worked at Gun Street Amusements since 1987. Lives alone in the flat above the arcade with Gerald, his tortoise.",
+        "Very formal. Names the machines, addresses them by name, and wears a tie on nights. Keeps a notebook of every jackpot.",
+        "Reconcile every jackpot in the notebook and put enough aside for Gerald's vet bills.",
+        "meticulous", "Flat above Gun Street Amusements, Gun Street",
+    ),
+    (
+        "Maxine Stott", 44, "Arcade attendant and machine fixer",
+        "Grew up in a fairground family. Keeps the lost property and reads tarot at the change booth on slow nights. Lives in a flat on Blossom Street.",
+        "Blunt, superstitious and kind. Fixes a jammed machine with a shoe when a screwdriver won't do.",
+        "Keep the old machines running and clear the electricity arrears without borrowing from her family.",
+        "wry", "Flat, Blossom Street",
+    ),
 )
 
 
@@ -195,6 +209,14 @@ SEED_FACTS = (
     ("Barry Hughes","round","I do the terrace on Monday and Thursday mornings and have my dinner at the Billet after."),
     ("Ronnie Clegg","people","Tommy Shaw and I drove the 216 together for twenty years. He's not been the same since Maureen died."),
     ("Ronnie Clegg","quiz","I'd join a quiz team if Tommy captained it. We'd beat anyone on buses and horses."),
+    ("Norman Pilling", "arcade", "I have kept the jackpot notebook since 1987. The old fruit machine is called Mr. Peel."),
+    ("Norman Pilling", "money", "Gerald needs a vet appointment and the night allowance barely covers it."),
+    ("Norman Pilling", "private", "I once covered a short till out of my own pocket. I have never told Maxine or the owner."),
+    ("Norman Pilling", "neighbours", "Ronnie Clegg has the patience for the fruit machines. Dez lets me have a quiet half after a shift."),
+    ("Maxine Stott", "arcade", "The lost property is under the change booth. I read tarot there when the floor goes quiet."),
+    ("Maxine Stott", "money", "I am behind on my electricity bill and won't ask my fairground family to bail me out."),
+    ("Maxine Stott", "private", "I slip fake jackpots into Norman's notebook when he isn't looking. Nobody else knows."),
+    ("Maxine Stott", "neighbours", "Anjali is good at spotting which prizes will move in the claw. Mo takes a break here when he's on nights."),
 )
 
 
@@ -228,20 +250,11 @@ def seed_events(db_path: str | Path = DEFAULT_DB_PATH, now: datetime | None = No
 
 def seed_agents(db_path: str | Path = DEFAULT_DB_PATH) -> None:
     with connect(db_path) as connection:
-        connection.executemany(
-            """INSERT INTO agents
+        insert_cast = """INSERT INTO agents
                (name, age, occupation, background, personality, current_goal, mood, location)
                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-               ON CONFLICT(name) DO NOTHING""",
-            CHARACTERS,
-        )
-        ids = {r["name"]: r["id"] for r in connection.execute("SELECT id, name FROM agents")}
-        connection.executemany(
-            """INSERT INTO facts (agent_id, subject, content, source, seed_key, importance)
-               VALUES (?, ?, ?, 'seed', ?, 4) ON CONFLICT(seed_key) DO NOTHING""",
-            [(ids[name], subject, content, f"{name}|{i}") for i, (name, subject, content) in enumerate(SEED_FACTS)],
-        )
-
+               ON CONFLICT(name) DO NOTHING"""
+        connection.executemany(insert_cast, CHARACTERS[:18])
         connection.execute("""INSERT INTO agents
             (name, age, occupation, background, personality, current_goal, mood, location, kind)
             VALUES ('World', 0, 'World bookkeeping', 'System', 'Neutral', 'Record events', 'neutral', 'World', 'system')
@@ -257,6 +270,15 @@ def seed_agents(db_path: str | Path = DEFAULT_DB_PATH) -> None:
                 (name,age,occupation,background,personality,current_goal,mood,location,kind{account_column})
                 VALUES ('Stranger',0,'New face in Ancoats','Known only through conversation','Human player',
                 'Meet the neighbours','curious','Not in the world','player'{account_value})""")
+
+        # Preserve the original system and owner IDs in freshly seeded worlds as well.
+        connection.executemany(insert_cast, CHARACTERS[18:])
+        ids = {r["name"]: r["id"] for r in connection.execute("SELECT id, name FROM agents")}
+        connection.executemany(
+            """INSERT INTO facts (agent_id, subject, content, source, seed_key, importance)
+               VALUES (?, ?, ?, 'seed', ?, 4) ON CONFLICT(seed_key) DO NOTHING""",
+            [(ids[name], subject, content, f"{name}|{i}") for i, (name, subject, content) in enumerate(SEED_FACTS)],
+        )
 
         from evorium.relationships import seed
         seed(connection)

@@ -6,7 +6,7 @@ from collections import Counter
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from evorium import accounts, greetings, places, world
+from evorium import accounts, arcade, greetings, places, world
 from evorium.db import DEFAULT_DB_PATH
 
 PORTRAITS = Path(__file__).parent / 'static' / 'portraits'
@@ -41,6 +41,19 @@ def assign_spots(characters):
             else:
                 waypoint = places.PLACES[place].spots[pools[place] % len(places.PLACES[place].spots)]
                 pools['shop'] += 1
+        elif place == 'arcade':
+            for phrase, spot in (
+                ('working the change booth', 'arcade-booth'), ('handing over', 'arcade-handover'),
+                ('coin pushers', 'arcade-coin-a'), ('fruit machines', 'arcade-fruit'),
+                ('claw crane', 'arcade-claw'), ('air hockey', 'arcade-hockey'),
+            ):
+                if phrase in activity:
+                    waypoint = spot
+                    break
+            if waypoint is None:
+                spots = places.PLACES[place].spots
+                waypoint = spots[pools[place] % len(spots)]
+                pools[place] += 1
         elif place in places.PLACES:
             spots = places.PLACES[place].spots
             waypoint = spots[pools[place] % len(spots)]
@@ -67,6 +80,9 @@ def snapshot(db_path=DEFAULT_DB_PATH, *, real_at=None):
             now = real_at.astimezone(world.TZ).replace(tzinfo=None)
         from evorium import weather
         weather_now = weather.from_settings(settings, now, real_at)
+        from evorium import bad_days
+        records = {row['name']:row for row in bad_days.records(c, now).values()}
+        booth_open = arcade.on_shift(now) in arcade.staff_present(now, records)
         stamp = now.strftime('%Y-%m-%d %H:%M')
         values = dict(c.execute('SELECT key,value FROM stats').fetchall())
         cutoff = (real_at - timedelta(minutes=2)).isoformat()
@@ -122,7 +138,7 @@ def snapshot(db_path=DEFAULT_DB_PATH, *, real_at=None):
     from evorium import calendar_uk
     return {'calendar':calendar_uk.state(now),'weather':weather_now,'sim_at': stamp, 'sim_time': world.describe(now), 'speed': speed, 'daylight': daylight,
             'pub_open': places.is_open('pub', now, values), 'shop_open': places.is_open('shop', now, values),
-            'greetings': greetings.active(settings, real_at), 'notices': notices, 'places': public_places(now, {**values, '_weather': weather_now}), 'characters': assign_spots(characters), 'player': player}
+            'greetings': greetings.active(settings, real_at), 'arcade_booth_open': booth_open, 'notices': notices, 'places': public_places(now, {**values, '_weather': weather_now}), 'characters': assign_spots(characters), 'player': player}
 
 
 def public_places(now, values):

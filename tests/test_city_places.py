@@ -24,7 +24,8 @@ def test_places_use_connected_city_spots():
     manifest = Path(scene.__file__).parent / 'static/world3d/data/city.json'
     neighbors = defaultdict(list)
     graph = json.loads(manifest.read_text())['navmesh']['graph']
-    for a, b in graph['edges']:
+    from evorium.arcade import LAYOUT
+    for a, b in graph['edges'] + LAYOUT['edges']:
         neighbors[a].append(b)
         neighbors[b].append(a)
     start = min(city_nodes(), key=lambda node: sum((a-b)**2 for a, b in zip(city_nodes()[node], (4.9, 0, 5.48))))

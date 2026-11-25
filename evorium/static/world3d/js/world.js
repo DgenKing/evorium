@@ -71,7 +71,7 @@ export class World{
   });
   this.scene.add(this.city);
  }
- if(assets.cityCollision?.scene){this.cityCollision=assets.cityCollision.scene;this.cityCollision.updateMatrixWorld(true);}const collisionRoot=new THREE.Group();collisionRoot.add(this.debug.clone(true));if(this.cityCollision)collisionRoot.add(this.cityCollision);collisionRoot.updateMatrixWorld(true);this.octree=new Octree().fromGraphNode(collisionRoot);
+ if(assets.cityCollision?.scene){this.cityCollision=assets.cityCollision.scene;this.cityCollision.updateMatrixWorld(true);}const collisionRoot=this.collisionRoot=new THREE.Group();collisionRoot.add(this.debug.clone(true));if(this.cityCollision)collisionRoot.add(this.cityCollision);collisionRoot.updateMatrixWorld(true);this.octree=new Octree().fromGraphNode(collisionRoot);
  if(assets.cityProps?.scene){this.cityProps=assets.cityProps.scene;const heads=new Set();this.cityProps.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true;for(const m of [o.material].flat())if(/lamp_head/i.test(m.name||''))heads.add(m);}});this.scene.add(this.cityProps);this.night.addLamps(manifest.lamps,[...heads]);}
  this.bounds=manifest.bounds||null;
  const attribution=Array.isArray(manifest.attribution)?manifest.attribution.join(' · '):String(manifest.attribution||'© OpenStreetMap contributors · Contains public sector information licensed under the Open Government Licence v3.0.');
@@ -88,10 +88,10 @@ export class World{
  publicPlace(p){
   if(!this.cityTransform)return null;
   for(const place of this.cityPlaces||[]){
-   if(place.open && place.positions.some(([x,,z])=>Math.hypot(p.x-x,p.z-z)<4.5))return place.key;
+   if(place.key!=='arcade'&&place.open && place.positions.some(([x,,z])=>Math.hypot(p.x-x,p.z-z)<4.5))return place.key;
   }
   return null;
  }
- place(p){let x=p.x,z=p.z;if(this.cityTransform){const t=this.cityTransform,dx=x-t.x,dz=z-t.z,c=Math.cos(t.yaw),s=Math.sin(t.yaw);x=dx*c-dz*s;z=dx*s+dz*c;}if(z<-.3&&z>-10&&x>-9.1&&x<.1)return 'pub';if(z<-.3&&z>-10&&x>.3&&x<8.3)return 'shop';return this.publicPlace(p)||'street';}
+ place(p){if(this.arcade?.contains(p))return 'arcade';let x=p.x,z=p.z;if(this.cityTransform){const t=this.cityTransform,dx=x-t.x,dz=z-t.z,c=Math.cos(t.yaw),s=Math.sin(t.yaw);x=dx*c-dz*s;z=dx*s+dz*c;}if(z<-.3&&z>-10&&x>-9.1&&x<.1)return 'pub';if(z<-.3&&z>-10&&x>.3&&x<8.3)return 'shop';return this.publicPlace(p)||'street';}
  cameraDistance(origin,direction,max){const hit=this.octree.rayIntersect(new THREE.Ray(origin,direction));return hit?Math.min(max,Math.max(.15,hit.distance-.18)):max;}
 }

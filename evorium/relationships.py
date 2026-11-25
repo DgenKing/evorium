@@ -60,7 +60,10 @@ def seed(c):
            ('Kirsty Doyle','Jess Hartley',85,90),('Kirsty Doyle','Peggy Coyle',55,65),
            ('Grace Adeyemi','Dez Whitworth',60,60),('Grace Adeyemi','Raj Patel',60,60),('Grace Adeyemi','Brenda Ashworth',65,60),
            ('Barry Hughes','Dez Whitworth',65,65),('Barry Hughes','Peggy Coyle',60,70),
-           ('Ronnie Clegg','Tommy Shaw',85,85),('Ronnie Clegg','Peggy Coyle',60,65),('Ronnie Clegg','Dez Whitworth',65,65)]
+           ('Ronnie Clegg','Tommy Shaw',85,85),('Ronnie Clegg','Peggy Coyle',60,65),('Ronnie Clegg','Dez Whitworth',65,65),
+           ('Norman Pilling','Maxine Stott',65,62),('Norman Pilling','Ronnie Clegg',62,65),
+           ('Norman Pilling','Dez Whitworth',66,62),('Maxine Stott','Anjali Patel',62,67),
+           ('Maxine Stott','Mohammed "Mo" Iqbal',60,64)]
     for a,b,t,w in pairs:insert(a,b,t,w);insert(b,a,t,w)
     insert('Dez Whitworth','Jess Hartley',75,65);insert('Jess Hartley','Dez Whitworth',65,65)
     for name in names:

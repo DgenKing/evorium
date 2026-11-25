@@ -4,6 +4,8 @@ from functools import lru_cache
 import json
 from pathlib import Path
 
+from evorium.arcade import LAYOUT
+
 
 @dataclass(frozen=True)
 class Place:
@@ -33,6 +35,9 @@ PLACES = {
                       False, ('r457', 'r456'), (8, 18), 'way/1429556814', rain_closes=True),
     'offlicence': Place('Spindle Off-Licence, Ancoats', 'Spindle Off-Licence', 'off-licence',
                         True, ('r4a5',), (12, 21), 'way/679024763', holiday_hours=(12, 17)),
+    'arcade': Place('Gun Street Amusements, Ancoats', 'Gun Street Amusements', 'arcade', True,
+                    ('arcade-coin-a', 'arcade-coin-b', 'arcade-fruit', 'arcade-claw', 'arcade-hockey'),
+                    landmark=LAYOUT['osm_id']),
 }
 REGISTRY = {key: place.location for key, place in PLACES.items()}
 BY_LOCATION = {location: key for key, location in REGISTRY.items()}
@@ -46,6 +51,10 @@ HOME_DOORS = {
 
 
 def home_door(first):
+    if first == 'Norman':
+        return 'arcade-home'
+    if first == 'Maxine':
+        return HOME_DOORS['Blossom Street'][1]
     if first == 'Dez':
         return 'UPSTAIRS'
     if first in ('Tommy', 'Brenda', 'Peggy', 'Ronnie', 'Kirsty', 'Jess'):
@@ -63,4 +72,6 @@ def city_nodes():
 def map_entry(place):
     if place.landmark == 'henry':
         return {}
+    if place.kind == 'arcade':
+        return {'osmId': place.landmark}
     return {'osmId': place.landmark, 'position': city_nodes()[place.spots[0]][::2]}

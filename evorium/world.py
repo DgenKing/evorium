@@ -109,6 +109,9 @@ def _base_routine_location(name: str, dt: datetime, stats=None) -> tuple[str, st
     """(location, activity) for a character at a sim datetime. Deterministic."""
     stats = stats or {}
     first = name.split()[0]
+    from evorium import arcade
+    if name in arcade.STAFF:
+        return arcade.staff_routine(name, dt, stats)
     if stats.get('pub.closed') and first in ('Dez', 'Jess'):
         return home_location(name), 'at home after the pub closed'
     if stats.get('shop.open', 1) == 0 and first == 'Raj':
@@ -292,7 +295,12 @@ def _routine_location(name,dt,stats=None):
             if previous==PUB and doing not in ('behind the bar','working the bar'):
                 location,activity=PUB,'staying a little longer for payday company'
                 break
-    from evorium import places
+    from evorium import arcade, places
+    visit = arcade.VISITS.get(name.split()[0])
+    if visit and (location == home_location(name) or activity == 'driving') and activity != 'asleep':
+        days, start, end, doing = visit
+        if dt.weekday() in days and _between(dt, start, end):
+            location, activity = REGISTRY['arcade'], doing
     if location == home_location(name) and activity != 'asleep':
         for who, days, start, end, key, doing in CITY_OUTINGS:
             if name.split()[0] == who and dt.weekday() in days and _between(dt, start, end):
@@ -330,7 +338,7 @@ def routine_inputs(c,at,real_at=None):
 def _routine(name,dt,stats=None):
     location,activity=_routine_location(name,dt,stats)
     free=activity not in ('off sick at home','running late getting ready','covering Jess behind the bar','asleep','behind the bar',"doing the pub's shopping",'working the bar','cleaning shift','behind the counter','at work','at the office','driving','on the scaffold','helping on the counter','at lectures','delivering the barrels','on his delivery round','working on her story','on his post round','on patrol','cleaning windows','doing his round along the terrace','cleaning the windows along the terrace')
-    return location,activity,free
+    return location,activity,free and 'change booth' not in activity
 
 
 def routine(name,dt,stats=None):
@@ -342,6 +350,11 @@ def is_free(name,dt,stats=None):
 
 
 def home_location(name):
+    from evorium import arcade
+    if name == arcade.NORMAN:
+        return arcade.NORMAN_HOME
+    if name == arcade.MAXINE:
+        return arcade.MAXINE_HOME
     return {'Dez':'Flat above The Crooked Billet','Jess':'Flat, Miles Platting','Tommy':'Flat, Blossom Street',
             'Raj':'Home, Cheetham Hill','Chloe':'Rented room, Stockport','Simon':'Home, Hale','Brenda':'Home, Blossom Street','Mohammed':'Home, Manchester','Peggy':'Sheltered flat, Ancoats','Liam':'Flat, Clayton',
             'Anjali':'Home, Cheetham Hill','Pete':'Home, Failsworth','Hannah':'Flat, Northern Quarter',

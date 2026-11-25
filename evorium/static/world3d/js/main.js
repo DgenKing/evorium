@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import {CSS2DObject,CSS2DRenderer} from 'three/addons/renderers/CSS2DRenderer.js';
+import {createArcade} from './arcade.js';
 import {loadAssets,loadData} from './assets.js';
 import {presets,detectQuality,Watchdog} from './quality.js';
 import {World} from './world.js';import {Input} from './input.js';import {FollowCamera} from './camera.js';import {Player} from './player.js';import {Actors} from './npcs.js';import {Network,request} from './net.js';import {UI,$} from './ui.js';import {pathfind,nearest,distance,transformRoutes,buildCityRouteGraph} from './graph.js';
@@ -21,7 +22,7 @@ async function boot(){
  const data=await loadData(cityEnabled),assets=await loadAssets(presets[preset].assets,p=>{$('progress').value=p;},data.cast,cityEnabled);
  if(cityEnabled){const shuttle=data.city.shuttle_street||{};transformRoutes(data,shuttle.position||[0,0],shuttle.rotation_degrees||0);data.routes=buildCityRouteGraph(data.city.navmesh,data.waypoints,data.routes);
  for(const [id,position] of Object.entries(data.city.navmesh.graph.nodes))data.waypoints[id]={position,yaw:0};}
- const world=new World(scene,assets,presets[preset]);world.camera=camera;if(cityEnabled)world.addCity(assets,data.city);
+ const world=new World(scene,assets,presets[preset]);world.camera=camera;if(cityEnabled){world.addCity(assets,data.city);world.arcade=createArcade(world,data,data.arcade);}
  const actors=new Actors(scene,assets,data,world),player=new Player(await actors.create('player'),world),follow=new FollowCamera(camera,world);actors.player=player;if(cityEnabled){const t=world.cityTransform,c=Math.cos(t.yaw),s=Math.sin(t.yaw);player.position.set(t.x-4.62*c+2*s,player.position.y,t.z+4.62*s+2*c);player.actor.root.position.copy(player.position);}
  const input=new Input(canvas,async(action,event)=>{if(action==='KeyE'&&!input.blocked)await ui.chat(actors.nearestTalk(player));if(action==='KeyN'){actors.tags=!actors.tags;$('tags').checked=actors.tags;save('tags',actors.tags);}if(action==='KeyC')world.debug.visible=!world.debug.visible;if(action==='F1')$('debug').hidden=!$('debug').hidden;if(action==='Escape'){await ui.closeChat();$('settings').hidden=true;input.blocked=false;}$('card').hidden=action==='Escape'||$('card').hidden;if(action==='pick'&&!input.blocked){const ray=new THREE.Raycaster();ray.setFromCamera(new THREE.Vector2(event.clientX/innerWidth*2-1,1-event.clientY/innerHeight*2),camera);const candidates=[...actors.people.values()];for(const hit of ray.intersectObjects(candidates.map(a=>a.body),true)){const a=candidates.find(a=>{let n=hit.object;while(n){if(n===a.root)return true;n=n.parent;}return false;});if(a){ui.card(a.person);break;}}}});
  const ui=new UI(input,actors);actors.onSelect=p=>ui.card(p);actors.tags=stored('tags','true')!=='false';follow.invert=stored('invert','false')==='true';follow.sensitivity=Number(stored('sensitivity','1'));
@@ -32,11 +33,12 @@ async function boot(){
  $('street-life').checked=stored('street-life','true')!=='false'&&params.get('ambient')!=='off';if(ambientType)$('street-life').checked=true;$('street-life').onchange=e=>{save('street-life',e.target.checked);ambient?.setEnabled(e.target.checked&&params.get('ambient')!=='off');};
  const placeLabels=new Map();
  function applyPresence(snapshot){
+  world.arcade?.setBooth(snapshot.arcade_booth_open);
   world.cityPlaces=(snapshot.places||[]).filter(place=>place.landmark!=='henry').map(place=>({
    ...place,positions:place.spots.map(id=>data.waypoints[id]?.position).filter(Boolean)
   }));
   if(cityEnabled)for(const place of world.cityPlaces){
-   if(!place.positions.length)continue;
+   if(!place.positions.length||place.key==='arcade')continue;
    let label=placeLabels.get(place.key);
    if(!label){
     const element=document.createElement('span');
@@ -70,7 +72,7 @@ async function boot(){
  if(studio){
  world.set.visible=false;world.daylight=1;world.target=1;world.scene.fog.near=45;world.sun.position.set(-5,10,8);
  const floor=new THREE.Mesh(new THREE.PlaneGeometry(40,40),new THREE.MeshStandardMaterial({color:0x9da6a7,roughness:1}));floor.rotation.x=-Math.PI/2;floor.receiveShadow=true;scene.add(floor);
- for(const [index,[name,config]] of Object.entries(data.cast).entries()){
+ for(const [index,[name,config]] of Object.entries(data.cast).filter(([,config])=>!config.fallback).entries()){
  let actor=name==='player'?player.actor:[...actors.people.values()].find(a=>a.person.name===name);if(!actor)actor=await actors.create(name);
  actor.root.position.set((index-4)*1.65,0,2);actor.root.rotation.y=0;
  if(!actor.label)actors.label(actor,{first:name==='player'?'Rob':name.startsWith('Mohammed')?'Mo':name.split(' ')[0],name});
@@ -88,7 +90,7 @@ async function boot(){
  function frame(now){requestAnimationFrame(frame);const wallDt=(now-last)/1000,dt=Math.min(wallDt,.05);last=now;elapsed+=wallDt;frames++;if(elapsed>1){fps=frames/elapsed;elapsed=0;frames=0;}
  if(document.hidden)return;
  const controls=input.sample();if(!test){player.update(dt,controls,follow.yaw);follow.update(dt,player.position,controls);doors();}else if(!studio)player.actor.animate('idle',dt);
- world.update(test?1/60:dt);if(!studio)actors.update(test?1/60:dt,camera);else for(const entry of lineup){entry.actor.animate(pose,1/60);entry.actor.mixer.setTime(Number(params.get('frame')||.5));entry.actor.ground(pose);entry.actor.label.visible=entry.actor.root.visible;}if(test){if(!studio){player.actor.mixer.setTime(.5);player.actor.ground();}player.actor.root.position.copy(player.position);if(!studio)for(const a of actors.people.values()){a.mixer.setTime(.5);a.ground();}}ambient?.update(dt,snapshot.daylight,document.hidden);visibleTriangles=0;visibleDrawCalls=0;scene.traverse(o=>{if(o.isMesh&&!o.userData.counted){o.userData.counted=true;o.onBeforeRender=(_renderer,_scene,_camera,geometry,_material,group)=>{visibleDrawCalls++;visibleTriangles+=(group?.count??geometry.index?.count??geometry.attributes.position.count)/3*(o.isInstancedMesh?o.count:1);};}});renderer.render(scene,camera);for(const label of placeLabels.values())label.visible=label.position.distanceTo(camera.position)<22;labels.render(scene,camera);
+ world.arcade?.update(now);world.update(test?1/60:dt);if(!studio)actors.update(test?1/60:dt,camera);else for(const entry of lineup){entry.actor.animate(pose,1/60);entry.actor.mixer.setTime(Number(params.get('frame')||.5));entry.actor.ground(pose);entry.actor.label.visible=entry.actor.root.visible;}if(test){if(!studio){player.actor.mixer.setTime(.5);player.actor.ground();}player.actor.root.position.copy(player.position);if(!studio)for(const a of actors.people.values()){a.mixer.setTime(.5);a.ground();}}ambient?.update(dt,snapshot.daylight,document.hidden);visibleTriangles=0;visibleDrawCalls=0;scene.traverse(o=>{if(o.isMesh&&!o.userData.counted){o.userData.counted=true;o.onBeforeRender=(_renderer,_scene,_camera,geometry,_material,group)=>{visibleDrawCalls++;visibleTriangles+=(group?.count??geometry.index?.count??geometry.attributes.position.count)/3*(o.isInstancedMesh?o.count:1);};}});renderer.render(scene,camera);for(const label of placeLabels.values())label.visible=label.position.distanceTo(camera.position)<22;labels.render(scene,camera);
  const nearby=actors.nearestTalk(player);$('talk').hidden=!nearby||input.blocked;$('talk-hint').hidden=!nearby||input.blocked;if(nearby)$('talk-hint').textContent='Press E to talk to '+nearby.person.first;
  if(!test){const next=watchdog.update(dt,preset);if(next!==preset){preset=next;ambient?.setQuality(preset);world.weather.setQuality(preset);world.preset=presets[preset];world.sun.castShadow=!!presets[preset].shadows;applyPreset();ui.toast('Quality adjusted for smoother walking.');}}
  if(!$('debug').hidden)$('debug').textContent=JSON.stringify({...report(),lastPoll:net.lastPoll},null,2);

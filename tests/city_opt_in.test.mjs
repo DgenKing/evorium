@@ -10,7 +10,7 @@ const world = read('../evorium/static/world3d/js/world.js');
 assert.ok(main.includes("const cityEnabled=params.has('city')?params.get('city')==='1':!test;"), 'city is the default outside tests');
 assert.match(main, /loadData\(cityEnabled\)/);
 assert.ok(main.includes('data.cast,cityEnabled)'), 'city flag reaches the asset loader');
-assert.match(assets, /cityEnabled\?\[['"]city['"]\]/);
+assert.match(assets, /cityEnabled\?\[['"]city['"],['"]arcade['"]\]/);
 assert.match(assets, /if\(cityEnabled\)\s*\{[^}]*city-collision/s);
 assert.ok(assets.includes("if(cityEnabled){const [city,cityCollision]") && assets.includes("city-props.glb"));
 assert.match(world, /assets\.cityProps\?\.scene/);

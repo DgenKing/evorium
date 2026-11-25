@@ -77,15 +77,15 @@ decides how the world treats you.
 
 ## 2. Where it stands today
 
-**One sentence:** eighteen AI characters live real-time daily routines around a pub and a newsagent in Ancoats,
+**One sentence:** twenty AI characters live real-time daily routines around Ancoats,
 Manchester; they talk, gossip, remember, make plans and take validated decisions with financial and social
 consequences; you can walk in and talk to them in a dashboard, a 2D map or a 3D world in the browser (desktop
 and phone); it runs around the clock on the owner's HP G4 and is reachable over the internet.
 
 | Area | State |
 |---|---|
-| Characters | 18 APCs, all with portraits + one player per account (existing owner Rob retained; friends created at first login) + 1 system ("World") row |
-| Places | Seven public places (§4). Billet normally 09:00–24:00; Patel's normally Mon–Sat 07:00–19:00; festive/bank-holiday hours apply (§4); street always |
+| Characters | 20 APCs, 18 with portraits + one player per account (existing owner Rob retained; friends created at first login) + 1 system ("World") row |
+| Places | Eight public places (§4). Gun Street Amusements is open 24 hours. Billet normally 09:00–24:00; Patel's normally Mon–Sat 07:00–19:00; festive/bank-holiday hours apply (§4); street always |
 | Clock | Real UK time × speed multiplier (0 = paused, 1 = real, up to 600×+) |
 | Conversations | 4/6 lines; automatic pairs capped at two per game day, with quiet-APC priority and at least three hours of shared free time per normal week |
 | Memory | Facts (seed / observed / told / claim) scored 1–5 for importance; only ≥3 saved or shown |
@@ -266,7 +266,7 @@ promise itself is never silently discarded.
 All routines remain pure functions of `(name, datetime, stats)`. `world.routine_inputs` assembles ledger,
 weather and daily-condition inputs outside the routine. No routine reads settings, calls the network, hashes
 random choices or invokes a model. `world.shared_free_hours` counts complete shared 30-minute slots in a normal week, checking every minute against
-real opening/free rules; all eighteen APCs have at least three hours of shared free time. Existing story beats
+real opening/free rules; all twenty APCs have at least three hours of shared free time. Existing story beats
 remain, with tea breaks/lunches/after-work visits for isolated people. The complete-slot audit additionally extended
 Gary’s afternoon visits and Grace’s community stops, avoiding over-counted brief encounters.
 
@@ -462,11 +462,28 @@ collision-verified A* graph. `?city=1` joins that graph to sampled OSM road/path
 | Cutting Room Square | OSM way 198725251 | All day when dry |
 | Rochdale Canal towpath | North-bank path OSM way 1429556814 by Redhill Street | 08:00–18:00 when dry |
 | Spindle Off-Licence (fictional) | Retail footprint OSM way 679024763 on the Great Ancoats Street side | 12:00–21:00, 12:00–17:00 on bank holidays and Boxing Day, closed Christmas Day |
+| Gun Street Amusements (fictional) | Single-storey industrial footprint beside the Billet, Gun Street, OSM way 1127565112 | 24 hours, every day including Christmas |
 
 Chloe has coffee before work on Monday, Wednesday and Friday. Jess stops for coffee after cleaning on those
 days. Brenda and Peggy meet for tea on Tuesday and Thursday. Gary and Kirsty take lunch on the square on
 Tuesday and Thursday. Tommy and Ronnie walk the towpath before their Sunday pint. Barry and Liam stop at
 Spindle on Tuesday and Thursday evenings. These outings fill spare time alongside the existing routines.
+Mo takes a 01:00–01:20 break by the pushers on Friday, Saturday and Sunday. Ronnie visits the fruit machines
+on Tuesdays and Saturdays from 15:00–16:00. Liam plays air hockey after his Friday pub visit from 21:00–22:00.
+Anjali visits the claw crane on Friday and Sunday from 19:00–20:00. Kirsty joins her during Sunday's first half hour.
+
+### Arcade rota
+
+| Week from Monday 07:00 (UK local time) | Day 07:00–19:00 | Night 19:00–07:00 |
+|---|---|---|
+| Starting 23 Nov 2026, then every other week | Norman | Maxine |
+| Starting 30 Nov 2026, then every other week | Maxine | Norman |
+
+Both attend 06:50–07:10 and 18:50–19:10, with one responsible for the change booth. The Sunday night worker
+rolls into Monday day duty at the weekly swap. UK summer-time changes follow local clock hours. Night workers
+sleep 08:00–15:00 off shift. Both have time for errands, the Billet and Bobbin Café. If a bad day keeps the
+responsible worker away, the floor stays open with the booth shuttered.
+
 Rain closes the square and towpath to encounters. A promise to meet someone at a named place can use a
 `talk` target with both a person and a place key, and requires a completed conversation there.
 
@@ -499,6 +516,8 @@ Grace follows serious reports up through cases (§3), using her existing patrol 
 | **Grace Adeyemi**, 33 | PCSO for Ancoats. Calm, observant, approachable; doesn't gossip. | Patrols past the terrace 10:00, 13:30, 16:00 weekdays, with community stops 10–11 Mon/Wed/Fri, 10–10:30 Tue/Thu and short pauses at 16:00; looks in at the Billet at closing Fri/Sat |
 | **Barry Hughes**, 61 | Window cleaner who sees inside every building. Wry storyteller. | Terrace windows Mon/Thu 09–12 with a 10:30 flask break, then dinner; Friday pint 17–19 |
 | **Ronnie Clegg**, 70 | Retired bus driver, Tommy's old mate from the 216. Dry, competitive, likes a bet. | Paper and racing post at Patel's 09:45; Billet Mon/Wed/Fri 13–16 and Sunday lunchtime |
+| **Norman Pilling**, 63 | Arcade attendant since 1987. Very formal, keeps every jackpot in a notebook and wears a tie on nights. Shares his flat above the arcade with Gerald, his tortoise. | Alternating day/night duty. Wants his jackpot records to balance and needs money for Gerald's vet bills. |
+| **Maxine Stott**, 44 | Arcade attendant and fixer from a fairground family. Keeps lost property, reads tarot and can unjam a machine with her shoe. Lives in a Blossom Street flat. | Shares the alternating rota. Wants to keep the old machines working and clear her electricity arrears. |
 
 When the quiz runs (Thursdays 19:30–22:30), Tommy, Brenda, Chloe, Peggy, Hannah and Liam come in if they're free, with Ronnie and Gary. A closed pub or shop
 sends its people home. House rule: names mostly British, a few others.
@@ -868,6 +887,17 @@ and the browser follows the graph at a walking pace, capped at six times normal 
 Simulation presence takes effect when the routine changes. The walk represents that change in the 3D client,
 which makes the APC available for nearby chat after arrival.
 
+### Gun Street Amusements
+
+The city scene adds a walkable arcade on the pinned OSM industrial footprint (way 1127565112, about 390 m²,
+5.1 m tall). The Gun Street doorway links to the city route graph. Its shell and machine bodies use the
+player collision octree. A rear partition preserves the older Billet interior where the two footprints
+overlap. A local mask removes overlapping kit backdrop fragments from the arcade volume.
+The machines and screens are scenic props, with two rows of two-player pushers, fruit machines, a claw and
+air hockey. The four cabinet bays and pool position use stable waypoint and mesh IDs `cabinet-1` to
+`cabinet-4` and `pool-table`. Norman's flat is represented by a rear stair door. Maxine uses the Blossom Street
+residential approach to OSM way 1127565117.
+
 ### Generated Ancoats city (normal map)
 
 `/world3d` opens the generated Ancoats streets by default. `/world3d?city=0` opens the original kit scene;
@@ -947,7 +977,7 @@ the loaded assets); choosing a preset reloads the matching asset set. Override w
 
 - The kit scene's Crooked Billet and Patel's News, exported from `Ancoats.blend`, with 44 collision
   hulls and 15 waypoints converted to three.js space (x, z, −y).
-- All 18 APCs have portrait files. The dashboard and map share the full-name portrait map; 3D character cards
+- The original 18 APCs have portrait files. Norman and Maxine use the existing fallbacks. The dashboard and map share the full-name portrait map; 3D character cards
   use the same files via each APC's first name (with Mohammed displayed as Mo).
 - Other logged-in players with a place set appear with their own names, using Rob’s player body and
   the existing waypoint walking. They have no portrait or E/touch talk prompt; player-to-player chat is
@@ -1156,7 +1186,7 @@ Some image filenames keep their original names (`unreal-hero`). The waitlist sti
 `hello@example.com`. The game server serves it at `/` with no login (`main.py`: `/`, `/styles.css`, `/images/`), so pushing to `main`
 publishes it through the G4's auto-update. Its Play buttons (nav and hero) link to `/game`. Personal contact details remain deferred. A **"What's new"** section (nav link "What's new", before the waitlist) lists
 features newest first; see rule 12 in §15. The **"Meet the APCs"** section (nav label "The APCs") now shows
-all eighteen: eight large cards and a responsive ten-person **"More of the street"** grid with portraits,
+all twenty: eight large cards and a responsive twelve-person **"More of the street"** grid with portraits or initials,
 roles and spoiler-free hooks. Grid portraits use optimised local WebP files with JPG fallbacks. The hero and
 share descriptions use "APC".
 
@@ -1171,6 +1201,11 @@ streets, film grain, matching the game's portraits.
 ---
 
 ## 9. Known issues and open questions
+
+- **Arcade cast (25 Nov):** Norman and Maxine use the shared Quaternius fallback bodies with their own
+  colours. Blender's MPFB extension could not initialise in the isolated build profile. Neither character
+  has a portrait yet, so their website cards use initials.
+
 
 - **Ancoats city (25 Nov):** `/world3d` now defaults to Blossom, Henry, Hood, Jersey and Murray streets;
   `?city=0` keeps the original kit scene available. Night is moonlit and stars clear with weather, with 74 city lamps
@@ -1241,7 +1276,7 @@ streets, film grain, matching the game's portraits.
 - **Not yet tested on a real phone**, especially iPhone memory, keyboard and touch. The city smoke captures use
   SwiftShader; their FPS values do not predict physical-phone performance.
 - **Quiet places can now stay silent:** automatic pairs stop at two chats per game day, even if nobody else
-  is around. All eighteen APCs have at least three hours of shared free time in a normal sampled week.
+  is around. All twenty APCs have at least three hours of shared free time in a normal sampled week.
 - **Director heuristics** are conservative word checks; since M4 it also rejects any digit and words such as set,
   pay, close and sign, so many of its ideas get dropped.
 - **A failed reaction call is used up**; the "offer nearly due" reminder three days before expiry gives another
@@ -1563,6 +1598,20 @@ the key pool and open sign-ups.
 ---
 
 ## 14. History
+
+### 25 November 2026 — Gun Street Amusements
+
+- Added the fictional 24-hour arcade on the pinned Gun Street industrial footprint, with a walkable interior,
+  neon frontage, a change booth and scenic machines. Reserved four cabinet positions and one pool position.
+- Appended Norman Pilling and Maxine Stott, including seed facts, relationships, a date-based rota and visiting
+  APCs. The existing seed IDs and facts are preserved. The website now lists twenty APCs.
+- The original kit's rendered backdrop extends into this footprint. A local render mask keeps it out of the
+  arcade while retaining the adjoining streets. MPFB setup failed in the isolated build profile, so the two
+  staff use shared fallback models.
+- The rota passed five-minute coverage checks over eight weeks around each UK clock change. Chrome verified
+  doorway access, wall collision and all five game positions, and captured the 18:55 handover. All five Node
+  test files passed. The single full Python run stopped at a test expecting the previous cast list. After
+  updating the cast expectations, 30 affected Python tests passed.
 
 ### 25 November 2026 — More APC activity and a daily DeepSeek budget
 

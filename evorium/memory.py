@@ -44,7 +44,7 @@ def open_commitments(connection: sqlite3.Connection, agent_id: int, limit=MAX_PR
 
 
 # Everyone on the street knows these people's jobs by sight: the uniform, the bar, the shop counter, the round.
-PUBLIC_FACES = ('Dez', 'Jess', 'Raj', 'Anjali', 'Grace', 'Gary', 'Barry')
+PUBLIC_FACES = ('Dez', 'Jess', 'Raj', 'Anjali', 'Grace', 'Gary', 'Barry', 'Norman', 'Maxine')
 
 
 def knowledge_for_prompt(connection: sqlite3.Connection, speaker: dict, listener: dict, now=None) -> dict:
