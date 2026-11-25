@@ -2,7 +2,7 @@
 import threading
 from datetime import datetime, timedelta, timezone
 from fastapi import HTTPException
-from evorium import accounts, world, places, timeline, relationships, economy, backoff
+from evorium import accounts, world, places, timeline, relationships, backoff
 from evorium.db import DEFAULT_DB_PATH, connect
 from evorium.memory import DUE_FMT, knowledge_for_prompt, open_commitments, resolve_commitment
 from evorium.llm import InvalidProposal, LLMError
@@ -74,8 +74,8 @@ def close(client, db_path=DEFAULT_DB_PATH):
 def enter(client,place,db_path=DEFAULT_DB_PATH):
     with lock:
         now=world.now(db_path)
-        if place not in places.REGISTRY:raise HTTPException(409,'Choose the pub, the shop or the street.')
-        if not places.is_open(place,now,economy.read(db_path)):raise HTTPException(409,'That place is shut right now.')
+        if place not in places.REGISTRY:raise HTTPException(409,'Choose a public place.')
+        if not places.is_open(place, now, places.opening_inputs(now, db_path)):raise HTTPException(409,'That place is shut right now.')
         if world.get_setting(accounts.setting_key('player_place'),'',db_path)!=place:close(client,db_path)
         with connect(db_path) as c:
             me=row(c);world._set(c,accounts.setting_key('player_place'),place)

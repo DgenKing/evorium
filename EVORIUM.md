@@ -85,7 +85,7 @@ and phone); it runs around the clock on the owner's HP G4 and is reachable over 
 | Area | State |
 |---|---|
 | Characters | 18 APCs, all with portraits + one player per account (existing owner Rob retained; friends created at first login) + 1 system ("World") row |
-| Places | Billet normally 09:00–24:00; Patel's normally Mon–Sat 07:00–19:00; festive/bank-holiday hours apply (§4); street always |
+| Places | Seven public places (§4). Billet normally 09:00–24:00; Patel's normally Mon–Sat 07:00–19:00; festive/bank-holiday hours apply (§4); street always |
 | Clock | Real UK time × speed multiplier (0 = paused, 1 = real, up to 600×+) |
 | Conversations | 4/6 lines; automatic pairs capped at two per game day, with quiet-APC priority and at least three hours of shared free time per normal week |
 | Memory | Facts (seed / observed / told / claim) scored 1–5 for importance; only ≥3 saved or shown |
@@ -382,7 +382,7 @@ simple hulls, and animates the third-person player and NPCs. Individual MPFB mod
 retargeted clips; failed models use a logged Quaternius fallback. It polls `GET /world/scene` every 1.5 seconds
 (5 seconds after errors). That endpoint reads a consistent read-only SQLite snapshot and exposes public presence
 and dialogue only, with no model calls. Spot assignments live in Python; the browser handles walking (along a
-collision-verified A* graph. `?city=1` joins that graph to sampled OSM road/path centerlines and uses heap-based A*), bubbles, lighting and doors. The city is static client-side geography and does not change simulation places or routines. `ambient.js` adds browser-local cosmetic street life with its own visible-tab clock, lazy animal loads and no collision in the player octree. Player actions use the existing `/player/*` and
+collision-verified A* graph. `?city=1` joins that graph to sampled OSM road/path centerlines and uses heap-based A*), bubbles, lighting and doors. The public place registry connects the simulation to OSM landmarks, hours, weather rules and 3D spots. `ambient.js` adds browser-local cosmetic street life with its own visible-tab clock, lazy animal loads and no collision in the player octree. Player actions use the existing `/player/*` and
 `/catchup` endpoints. NPC rationale and private facts never appear in the player UI. Details in §7.
 
 ### Code map
@@ -391,7 +391,7 @@ collision-verified A* graph. `?city=1` joins that graph to sampled OSM road/path
 |---|---|
 | `evorium/main.py` | FastAPI app, tick loop, endpoints, auth middleware, log file, restart endpoint |
 | `evorium/world.py` | Sim clock, pub hours, routines (read from the ledger), `whereabouts` |
-| `evorium/places.py` | Pub/shop registry, opening hours, who's present, conversation opportunities |
+| `evorium/place_registry.py`, `evorium/places.py` | Public location keys and names, map anchors and spots, opening rules, presence and conversation opportunities |
 | `evorium/tick.py` | Routine updates, event delivery, due-promise checks |
 | `evorium/sim.py` | Conversation runner, note-taking, `turns_for` |
 | `evorium/memory.py` | What a character knows (`knowledge_for_prompt`), storing notes, promise claims and guarded resolution |
@@ -448,6 +448,24 @@ collision-verified A* graph. `?city=1` joins that graph to sampled OSM road/path
 ---
 
 ## 4. The world: cast, places, routines, story
+
+### Public places and outings
+
+| Place | Map anchor | Hours |
+|---|---|---|
+| Bobbin Café (fictional) | Commercial footprint OSM way 1127826005, west of Cutting Room Square | 07:00–16:00, 09:00–14:00 on bank holidays and Boxing Day, closed Christmas Day |
+| Cutting Room Square | OSM way 198725251 | All day when dry |
+| Rochdale Canal towpath | North-bank path OSM way 1429556814 by Redhill Street | 08:00–18:00 when dry |
+| Spindle Off-Licence (fictional) | Retail footprint OSM way 679024763 on the Great Ancoats Street side | 12:00–21:00, 12:00–17:00 on bank holidays and Boxing Day, closed Christmas Day |
+
+Chloe has coffee before work on Monday, Wednesday and Friday. Jess stops for coffee after cleaning on those
+days. Brenda and Peggy meet for tea on Tuesday and Thursday. Gary and Kirsty take lunch on the square on
+Tuesday and Thursday. Tommy and Ronnie walk the towpath before their Sunday pint. Barry and Liam stop at
+Spindle on Tuesday and Thursday evenings. These outings fill spare time alongside the existing routines.
+Rain closes the square and towpath to encounters. A promise to meet someone at a named place can use a
+`talk` target with both a person and a place key, and requires a completed conversation there.
+
+
 
 Henry Street, Ancoats is the real street. The Crooked Billet and Patel's News remain fictional businesses
 located on it.
@@ -823,6 +841,16 @@ places registry links known APC locations and future OSM buildings to labels, oc
 Wheel, pinch, drag, double-click and the `+`/`−` controls navigate the overview; **Whole area** resets it. As the
 view reaches Henry Street, the existing pub/shop/street cutaway fades in at its real city position and rotation,
 keeping the familiar sprites, doors, popups and night tint. The map data is fetched once at startup, not per frame.
+
+### City destinations and walks
+
+The 3D scene uses route graph nodes for the new places. The café and off-licence use exterior frontage
+spots because their generated buildings have no playable interiors. Three residential entrances stand in for
+homes around the map edge. Dez still uses the stairs inside the Billet. The home descriptions in saved worlds
+remain the characters' story addresses. The heartbeat records the last departure in existing world settings,
+and the browser follows the graph at a walking pace, capped at six times normal pace on faster clocks.
+Simulation presence takes effect when the routine changes. The walk represents that change in the 3D client,
+which makes the APC available for nearby chat after arrival.
 
 ### Generated Ancoats city (normal map)
 
@@ -1519,6 +1547,18 @@ the key pool and open sign-ups.
 ---
 
 ## 14. History
+
+### 25 November 2026 — Public places across Ancoats
+
+- Added Bobbin Café, Cutting Room Square, the Rochdale Canal towpath and Spindle Off-Licence through a shared
+  registry. Ten APCs have new outings in spare routine windows. The café and off-licence use exterior spots.
+- The city client follows the route graph for departures and arrivals, including walks to residential entrances.
+  Existing location names and the database schema are retained. Named meeting promises check the conversation venue.
+- Verified the registry destinations and residential approaches are connected, the routine audit still gives all
+  18 APCs at least three hours of shared free time, and a café meeting promise needs a café conversation.
+  All five Node test files and 151 focused Python tests passed. The single full Python run stopped at a
+  prompt formatting error, which was corrected and verified in the focused run. Desktop Chrome showed Peggy
+  and Brenda at Bobbin Café and Brenda walking along the street.
 
 ### 25 November 2026 — Zoomable 2D Ancoats map
 

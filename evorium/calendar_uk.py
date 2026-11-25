@@ -27,7 +27,16 @@ def hours(place,at):
         if md==(12,25):return None
         if md==(12,26) or bank_holiday(at):return 9,16
         return (7,19) if at.weekday()<6 else None
-    return 0,24
+    from evorium.place_registry import PLACES
+    definition = PLACES.get(place)
+    if not definition:
+        return None
+    if definition.holiday_hours is not None:
+        if md == (12, 25):
+            return None
+        if bank_holiday(at) or md == (12, 26):
+            return definition.holiday_hours
+    return definition.hours
 
 
 def payday(year,month):

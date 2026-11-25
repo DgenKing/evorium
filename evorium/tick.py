@@ -6,8 +6,9 @@
 - starts a conversation when it's time and two people are in the pub
 """
 
+import json
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from evorium import world, timeline, places, economy
@@ -33,6 +34,9 @@ def update_routines(now: datetime, db_path: str | Path = DEFAULT_DB_PATH) -> lis
             if loc != a["location"] or act != a["activity"]:
                 connection.execute("UPDATE agents SET location=?, activity=? WHERE id=?", (loc, act, a["id"]))
                 if loc != a['location'] and (loc in places.REGISTRY.values() or a['location'] in places.REGISTRY.values()):
+                    world._set(connection, f"scene.travel.{a['id']}", json.dumps({
+                        'from': a['location'], 'to': loc, 'started': datetime.now(timezone.utc).timestamp(),
+                    }))
                     timeline.record(connection, now, 'arrival', f"{a['name']} → {act} ({loc})", 1, a['id'])
                 a.update(location=loc, activity=act)
                 changes.append(f"{a['name'].split()[0]} → {act} ({loc.split(',')[0]})")

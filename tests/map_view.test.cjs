@@ -20,7 +20,11 @@ function mapHarness(agents) {
     return elements.get(id);
   }
   const context = vm.createContext({
-    $:element, latestAgents:agents, latestUsage:{speed:1},latestConv:null,latestPlayer:null,
+    $:element, latestAgents:agents, latestUsage:{speed:1,places:[
+      {key:'pub',name:PUB,label:'The Crooked Billet'},
+      {key:'shop',name:SHOP,label:"Patel's News"},
+      {key:'street',name:'Henry Street, Ancoats',label:'Henry Street'}
+    ]},latestConv:null,latestPlayer:null,
     esc:String, portraits:{}, performance:{now:()=>0},
     document:{visibilityState:'visible',addEventListener() {}},
     localStorage:{getItem:()=>null,setItem() {}}, history:{replaceState() {}},

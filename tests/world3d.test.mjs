@@ -42,10 +42,12 @@ const nearbyHuman={person:{kind:'player',visible:true,place:'pub'},root:{positio
 const nearbyAPC={person:{kind:'npc',visible:true,place:'pub'},root:{position:{distanceTo:()=>1}}};
 const selection={people:new Map([[21,nearbyHuman],[1,nearbyAPC]])};
 assert.equal(Actors.prototype.nearestTalk.call(selection,{place:'pub',position:{}}),nearbyAPC);
+nearbyAPC.route=[[2,0,2]];
+assert.equal(Actors.prototype.nearestTalk.call(selection,{place:'pub',position:{}}),undefined);
 selection.people.delete(1);
 assert.equal(Actors.prototype.nearestTalk.call(selection,{place:'pub',position:{}}),undefined);
 const requestedModels=[];
-const actors=new Actors({}, {}, {routes:{nodes:{STREET_LEFT:[0,0,0]}},waypoints:{STREET_WAIT:{position:[1,0,0],yaw:0}}}, {ground:()=>0});
+const actors=new Actors({}, {}, {routes:{nodes:{STREET_LEFT:[0,0,0],STREET_WAIT:[1,0,0]}},waypoints:{STREET_WAIT:{position:[1,0,0],yaw:0}}}, {ground:()=>0,place:()=> 'street'});
 actors.create=async name=>{requestedModels.push(name);return{root:{position:{fromArray(){}}},tag:{}};};
 actors.label=()=>{};
 await actors.sync({speed:1,characters:[{id:21,name:'Thomas',first:'Thomas',kind:'player',visible:true,place:'street',waypoint:'STREET_WAIT',slot:0}]},true);

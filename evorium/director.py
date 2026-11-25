@@ -63,7 +63,7 @@ def validate(proposal,now,db_path=DEFAULT_DB_PATH):
     if '£' in p.content or re.search(r'\d[\d,.]*\s*(?:k\b|thousand\b)',p.content,re.I):raise ValueError('Director cannot set money terms.')
     # Reject unfamiliar proper-name tokens. This deliberately prefers dropping a proposal
     # over admitting an invented person; no NER service or additional model call.
-    known_text=' '.join([*cast,*names,*seeds])
+    known_text=' '.join([*cast,*names,*seeds,*places.REGISTRY.values()])
     allowed={word.casefold() for word in re.findall(r"[A-Za-z][A-Za-z'-]*",known_text)}
     allowed.update(w.casefold() for w in ['You','Your','A','An','The','It','They','He','She','I','Please','Dear','We','Someone','There','This','After','At','When','While','One'])
     capitalised=re.findall(r"\b[A-Z][a-z]+(?:[-'][A-Za-z]+)*\b",p.content)
@@ -107,7 +107,7 @@ def check(client,now,db_path=DEFAULT_DB_PATH):
     prompt='''Nudge a stalled Manchester neighbourhood with one mundane event. Invent no people or money terms, and do not contradict existing facts.
 Return JSON {"type":"small_incident","for":"full cast name","with":null,"content":"one or two sentences in second person, at most 300 characters","in_hours":1,"rationale":"why this helps"}.
 Allowed types: letter, phone_call, small_incident, chance_meeting. For a letter or phone call name an established sender, asking for an update or arranging an ordinary appointment; do not settle offers, leases or planning decisions.
-Small incidents ONLY: a barrel going off, late delivery, burst pipe, child off school ill. Chance meetings require two cast members and free time in an open pub or shop. No new fact is created for a meeting.
+Small incidents ONLY: a barrel going off, late delivery, burst pipe, child off school ill. Chance meetings require two cast members and free time in an open public place. No new fact is created for a meeting.
 '''+f'Active arcs: {json.dumps(active_arcs)}. Arc stats (context only, never alter or disclose private figures): {json.dumps(arc_stats)}. '+(f"Conversations keep circling back to '{report['looping_on']}'. Give someone something different to think or talk about. " if report['looping_on'] else '')+f"Now: {now.strftime(DUE_FMT)}. Cast: {json.dumps([{'name':a['name'],'occupation':a['occupation']} for a in cast])}. Other known people: {json.dumps(known)}. Established organisation: Northgate Estates.\nRecent timeline: {json.dumps([{'at':e['sim_at'],'text':e['text']} for e in recent])}"
     try:
         proposal=client.propose(aid,[{'role':'user','content':prompt}],schema=Proposal,max_tokens=300)

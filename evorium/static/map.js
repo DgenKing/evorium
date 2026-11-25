@@ -3,8 +3,6 @@
   'use strict';
   const WIDTH = 960, HEIGHT = 600;
   const WALK_SPEED = 68, MAX_WALK_SPEED = 310, SPRITE_SCALE = 1.35;
-  const PUB = 'The Crooked Billet, Ancoats, Manchester';
-  const SHOP = "Patel's News, Ancoats";
   const COLOURS = {
     ground:'#777363', pavement:'#b4ac96', road:'#575957', wall:'#674c3e',
     pubFloor:'#b29b78', shopFloor:'#b5b29c', wood:'#73513b', trim:'#d5b881',
@@ -14,11 +12,9 @@
   const STREET_Y = 467;
   // One registry drives the map labels, occupants and zoom targets. Add a row here
   // to place a future OSM building on the overview and expose its occupants.
-  const PLACES = [
-    {key:'pub',name:'The Crooked Billet',set:'henry',local:[-8,0],locations:[PUB],occupants:'pub'},
-    {key:'shop',name:"Patel's News",set:'henry',local:[10,0],locations:[SHOP],occupants:'shop'},
-    {key:'street',name:'Henry Street',set:'henry',local:[0,-7],locations:['Henry Street, Ancoats'],occupants:'street'}
-  ];
+  const PLACES = [];
+  // Placement within the existing Henry Street artwork is in kit-local metres.
+  const HENRY_ANCHORS = {pub:[-8,0],shop:[10,0],street:[0,-7]};
   const CITY_DATA_URL='/static/world3d/data/map2d.json';
   let cityMap=null, zoom=1, panX=0, panY=0, mapCenter=null, pointers=new Map(), drag=null, tapTime=0;
   const zoomRange={min:1,max:8.5};
@@ -269,10 +265,9 @@
     const b=cityMap.bounds,cx=mapCenter?.[0]??(b[0][0]+b[1][0])/2,cz=mapCenter?.[1]??(b[0][1]+b[1][1])/2,s=areaScale()*zoom;
     return {x:WIDTH/2+panX+(x-cx)*s,y:HEIGHT/2+panY-(z-cz)*s};
   }
-  function areaAlpha(){return Math.max(0,1-Math.max(0,zoom-1.4)/4.3);}
   function drawArea(){
     const b=cityMap.bounds;mapCenter ||= [(b[0][0]+b[1][0])/2,(b[0][1]+b[1][1])/2];
-    rect(0,0,WIDTH,HEIGHT,'#4a483d');ctx.save();ctx.globalAlpha=areaAlpha();
+    rect(0,0,WIDTH,HEIGHT,'#4a483d');ctx.save();
     const pathShape=shape=>{ctx.beginPath();shape.forEach((p,i)=>{const q=worldScreen(p[0],p[1]);if(i)ctx.lineTo(q.x,q.y);else ctx.moveTo(q.x,q.y);});ctx.closePath();};
     for(const space of cityMap.open_spaces||[]){pathShape(space.shape);ctx.fillStyle=space.name==='Cutting Room Square'?'#746f58':'#625f4d';ctx.fill();}
     for(const road of cityMap.roads||[]){
@@ -297,6 +292,7 @@
     return worldScreen(...placeWorld(place));
   }
   function placeWorld(place){
+    if(place.position) return place.position;
     let x,z;
     if(place.osmId){const building=cityMap.buildings.find(b=>String(b.id)===String(place.osmId));if(building){x=building.shape.reduce((n,p)=>n+p[0],0)/building.shape.length;z=building.shape.reduce((n,p)=>n+p[1],0)/building.shape.length;}}
     if(x===undefined){const h=cityMap.henry,pos=h.position,angle=(Number(h.rotation_degrees)||0)*Math.PI/180,l=place.local||[0,0];x=pos[0]+l[0]*Math.cos(angle)+l[1]*Math.sin(angle);z=pos[1]-l[0]*Math.sin(angle)+l[1]*Math.cos(angle);}
@@ -306,7 +302,7 @@
     const fade=Math.max(0,Math.min(1,(zoom-2.2)/4.4));
     for(const person of people.values())if(person.visible){
       const p=personScreen(person);
-      ctx.save();ctx.globalAlpha=1-fade;ctx.beginPath();ctx.arc(p.x,p.y,person.agent.isPlayer?5:4,0,Math.PI*2);ctx.fillStyle=person.agent.isPlayer?'#85d7ff':'#f5dc9c';ctx.fill();ctx.strokeStyle='#25231e';ctx.lineWidth=1.5;ctx.stroke();
+      ctx.save();ctx.globalAlpha=person.target?.startsWith('place:')?1:1-fade;ctx.beginPath();ctx.arc(p.x,p.y,person.agent.isPlayer?5:4,0,Math.PI*2);ctx.fillStyle=person.agent.isPlayer?'#85d7ff':'#f5dc9c';ctx.fill();ctx.strokeStyle='#25231e';ctx.lineWidth=1.5;ctx.stroke();
       if(zoom<4) {ctx.font='10px system-ui,sans-serif';ctx.textAlign='left';ctx.fillStyle='#fff0cf';ctx.fillText(labelName(person.agent),p.x+6,p.y-5);}
       ctx.restore();
     }
@@ -345,15 +341,16 @@
 
   // Movement and card functions below share the same stable person records.
   function targetFor(agent) {
-    if(agent.location===PUB) {
+    const place=PLACES.find(row=>row.locations.includes(agent.location));
+    if(place?.key==='pub') {
       if(['behind the bar','working the bar','covering Jess behind the bar'].includes(agent.activity)) return 'staff';
       if(agent.activity==='at his usual table') return 'tommy';
       if(agent.activity==='here for darts and company') return 'darts';
       return 'pub';
     }
-    if(agent.location===SHOP) return agent.activity==='behind the counter'?'till':'shop';
-    if(agent.location==='Henry Street, Ancoats' || (agent.location==='Ancoats' && agent.activity==='walking to the shops')) return 'street';
-    const mapped=PLACES.find(p=>p.locations?.includes(agent.location));if(mapped)return `place:${mapped.key}`;
+    if(place?.key==='shop') return agent.activity==='behind the counter'?'till':'shop';
+    if(place?.key==='street' || (agent.location==='Ancoats' && agent.activity==='walking to the shops')) return 'street';
+    if(place)return `place:${place.key}`;
     return null;
   }
   function poolFor(target,agent) {
@@ -437,10 +434,14 @@
   function update() {
     if(latestAgents===null) return;
     usage=latestUsage||{};conversation=latestConv;player=latestPlayer;
+    for(const place of usage.places||[]){
+      if(PLACES.some(row=>row.key===place.key)) continue;
+      PLACES.push({key:place.key,name:place.label||place.name,locations:[place.name],local:HENRY_ANCHORS[place.key],...place.map});
+    }
     const agents=[...latestAgents];
     for(const human of [...(player?.other_players||[]),...(player?.place?[{...player,isSelf:true}]:[])]) {
-      if(!['pub','shop','street'].includes(human.place)) continue;
-      agents.push({...human,id:`player-${human.id}`,isPlayer:true,location:human.place==='pub'?PUB:human.place==='shop'?SHOP:'Henry Street, Ancoats',activity:'visiting'});
+      if(!PLACES.some(p=>p.key===human.place)) continue;
+      agents.push({...human,id:`player-${human.id}`,isPlayer:true,location:PLACES.find(p=>p.key===human.place).locations[0],activity:'visiting'});
     }
     const ids=new Set(agents.map(a=>String(a.id)));
     for(const [id] of people) if(!ids.has(id)) people.delete(id);
@@ -567,7 +568,13 @@
   canvas.addEventListener('wheel',event=>{event.preventDefault();const b=canvas.getBoundingClientRect();zoomAt(zoom*Math.exp(-event.deltaY*.0015),(event.clientX-b.left)*WIDTH/b.width,(event.clientY-b.top)*HEIGHT/b.height);},{passive:false});
   canvas.addEventListener('dblclick',event=>{const b=canvas.getBoundingClientRect();zoomAt(zoom*1.8,(event.clientX-b.left)*WIDTH/b.width,(event.clientY-b.top)*HEIGHT/b.height);});
   canvas.addEventListener('pointerup',event=>{const now=performance.now();if(event.pointerType==='touch'&&now-tapTime<360){const b=canvas.getBoundingClientRect();zoomAt(zoom*1.8,(event.clientX-b.left)*WIDTH/b.width,(event.clientY-b.top)*HEIGHT/b.height);tapTime=0;}else tapTime=now;});
-  canvas.addEventListener('click',event=>{const person=hitPerson(event);if(person) openPopup(person.agent.id);else closePopup();});
+  canvas.addEventListener('click',event=>{const person=hitPerson(event);if(person) openPopup(person.agent.id);else {
+    closePopup();
+    if(!cityMap?.bounds)return;
+    const b=canvas.getBoundingClientRect(),x=(event.clientX-b.left)*WIDTH/b.width,y=(event.clientY-b.top)*HEIGHT/b.height;
+    const place=PLACES.find(row=>{const p=placeScreen(row);return Math.hypot(p.x-x,p.y-y)<10;});
+    if(place && zoom<5){const position=placeWorld(place);wholeArea();mapCenter=position;zoomAt(6);}
+  }});
   $('map-zoom-in').addEventListener('click',()=>zoomAt(zoom*1.5));
   $('map-zoom-out').addEventListener('click',()=>zoomAt(zoom/1.5));
   $('map-whole-area').addEventListener('click',wholeArea);

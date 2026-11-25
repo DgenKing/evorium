@@ -388,23 +388,36 @@ async def run(req: RunRequest):
         _last_error["message"] = None
         client = DeepSeekClient(DEFAULT_DB_PATH)
         now = world.now(DEFAULT_DB_PATH)
-        present = tick.who_is_in_the_pub(now, DEFAULT_DB_PATH)
-        ids = [p["id"] for p in present]
+        groups = places.present(now, DEFAULT_DB_PATH)
         a, b = req.agent_a_id, req.agent_b_id
-        if a is not None and b is not None and a != b:
-            if a not in ids or b not in ids:
-                with connect(DEFAULT_DB_PATH) as connection:
-                    names = {r["id"]: r["name"].split()[0] for r in connection.execute("SELECT id, name FROM agents")}
-                missing = [names.get(x,"Unknown character") for x in (a, b) if x not in ids]
-                raise HTTPException(409, f"{' and '.join(missing)} not in the pub right now ({world.describe(now)}). "
-                                         f"In: {', '.join(names[i] for i in ids) or 'nobody'}.")
+        candidates = [
+            (key, [p['id'] for p in group]) for key, group in groups.items()
+            if len(group) >= 2
+        ]
+        for key, ids in candidates:
+            if a is not None and a not in ids or b is not None and b not in ids:
+                continue
+            if a is not None and b is not None and a != b:
+                pair = a, b
+            else:
+                try:
+                    pair = world.pick_pair(ids, DEFAULT_DB_PATH, automatic=False)
+                except ValueError:
+                    continue
+                selected = a if a is not None else b
+                if selected is not None and selected not in pair:
+                    # Pick the companion among people available at the chosen place.
+                    with connect(DEFAULT_DB_PATH) as connection:
+                        from evorium.plans import busy
+                        available = [i for i in ids if i != selected and not busy(connection, i)]
+                    if not available:
+                        continue
+                    pair = (selected, available[0]) if a is not None else (available[0], selected)
+            cid = await run_in_threadpool(run_conversation, client, *pair, req.turns, DEFAULT_DB_PATH,
+                                          location=places.REGISTRY[key])
+            break
         else:
-            if len(ids) < 2:
-                raise HTTPException(409, f"Fewer than two people in the pub right now ({world.describe(now)}). "
-                                         f"In: {', '.join(p['name'].split()[0] for p in present) or 'nobody'}. Speed the clock up or wait.")
-            try:a, b = world.pick_pair(ids, DEFAULT_DB_PATH, automatic=False)
-            except ValueError:raise HTTPException(409,'Fewer than two available people; someone is talking to the player.')
-        cid = await run_in_threadpool(run_conversation, client, a, b, req.turns, DEFAULT_DB_PATH)
+            raise HTTPException(409, f"Choose two available neighbours at the same public place ({world.describe(now)}).")
         return get_conversation(cid, DEFAULT_DB_PATH)
     except ValueError as exc:
         raise HTTPException(409,str(exc))

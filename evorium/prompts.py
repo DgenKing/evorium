@@ -26,6 +26,9 @@ Respond with JSON only, exactly this shape and nothing else:
 {{"say": "<one or two sentences of dialogue>", "rationale": "<one short sentence on why you said it>", "mood": "<one word>"}}"""
 
 
+from evorium.place_registry import REGISTRY as PUBLIC_PLACES
+
+
 def _section(title: str, items: list[str]) -> str:
     if not items:
         return ""
@@ -108,8 +111,9 @@ For EACH of the two speakers, record:
   its deadline, recipient or wording, and no duplicate is recorded.
   "kind" and "target": REQUIRED. Use only explicit, checkable targets; never guess:
   action: {{"key":"allowed menu key","args":{{...}}}}; the owner must be allowed that action.
-  visit: {{"place":"pub|shop|street"}}, optionally "start_at"/"end_at" in YYYY-MM-DD HH:MM game time.
-  talk: {{"person":"full cast name"}} for a conversation, bending an ear or doing something together.
+  visit: {{"place":"{place_keys}"}}, optionally "start_at"/"end_at" in YYYY-MM-DD HH:MM game time.
+  Public place names by key: {place_names}.
+  talk: {{"person":"full cast name"}} for a conversation, bending an ear or doing something together. Include "place" with its key if a specific meeting place was promised.
   tell: {{"person":"full cast name","fact_id":123}} for passing a specific known fact (use a listed id).
   make: {{"item":"quiz_questions","count":40}}; only Tommy and quiz questions are supported.
   pay: {{"ask_id":123}} for an existing loan request or {{"offer_id":123}} for an existing ledger settlement;
@@ -155,7 +159,7 @@ def build_extraction_messages(a: dict, b: dict, transcript: list[dict], known_fa
     opens = "\n".join(f"- id {c['id']} ({c['owner']}): {c['content']}; due {c.get('due_at')}; kind {c.get('kind')}; target {c.get('target_json')}; {c.get('progress', '')}" for c in open_commitments if not c.get("lapsed_at")) or "- (none)"
     prompt = EXTRACTION_TEMPLATE.format(
         a_name=a["name"], b_name=b["name"], location=a["location"], sim_time=sim_time,
-        cast=", ".join(cast), known_facts=known, open_commitments=opens, transcript=lines,
+        cast=", ".join(cast), place_keys="|".join(PUBLIC_PLACES), place_names=str(PUBLIC_PLACES), known_facts=known, open_commitments=opens, transcript=lines,
     )
     from evorium.actions import REGISTRY
     speakers = {a["name"].split()[0]: a["name"], b["name"].split()[0]: b["name"]}

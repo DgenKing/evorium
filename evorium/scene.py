@@ -1,4 +1,5 @@
 """Public rendering snapshot. This endpoint opens SQLite read-only and never calls a model."""
+import json
 import sqlite3
 from contextlib import closing
 from collections import Counter
@@ -32,17 +33,18 @@ def assign_spots(characters):
             elif 'darts' in activity:
                 waypoint = 'PUB_DART'
             else:
-                waypoint = ('PUB_BOOTH', 'PUB_BAR', 'PUB_WINDOW')[pools['pub'] % 3]
+                waypoint = places.PLACES[place].spots[pools[place] % len(places.PLACES[place].spots)]
                 pools['pub'] += 1
         elif place == 'shop':
             if activity == 'behind the counter':
                 waypoint = 'NEWS_TILL'
             else:
-                waypoint = ('NEWS_QUEUE', 'NEWS_RACK', 'NEWS_CHILLER')[pools['shop'] % 3]
+                waypoint = places.PLACES[place].spots[pools[place] % len(places.PLACES[place].spots)]
                 pools['shop'] += 1
-        elif place == 'street':
-            waypoint = ('STREET_WAIT', 'STREET_LINK')[pools['street'] % 2]
-            pools['street'] += 1
+        elif place in places.PLACES:
+            spots = places.PLACES[place].spots
+            waypoint = spots[pools[place] % len(spots)]
+            pools[place] += 1
         item.update(waypoint=waypoint, slot=slots[waypoint] if waypoint else 0, visible=waypoint is not None)
         if waypoint:
             slots[waypoint] += 1
@@ -78,19 +80,31 @@ def snapshot(db_path=DEFAULT_DB_PATH, *, real_at=None):
                 talk[b] = a
             for message in c.execute('SELECT speaker_id,text,created_at FROM messages WHERE conversation_id=? ORDER BY id', (conv['id'],)):
                 lines[message['speaker_id']] = {'conversation_id': conv['id'], 'line': message['text'], 'line_at': message['created_at']}
+        from evorium.place_registry import home_door
         characters = []
         for agent in c.execute("SELECT id,name,kind,location,activity,mood FROM agents WHERE kind='npc' ORDER BY id"):
             # The persisted presence is exactly what the dashboard shows; the heartbeat owns it.
             location, activity = agent['location'], agent['activity'] or ''
-            place = next((key for key, name in places.REGISTRY.items() if name == location), 'away')
+            place = places.BY_LOCATION.get(location, 'away')
             if place == 'away' and location in (world.STREET, 'Ancoats'):
                 place = 'street'
             if location == 'Ancoats' and activity == 'walking to the shops':
                 place = 'street'
             first = first_name(agent['name'])
             portrait = first.lower() + '.png'
+            door = home_door(first) if location == world.home_location(agent['name']) else 'STREET_LEFT'
+            journey = json.loads(settings.get(f"scene.travel.{agent['id']}", 'null'))
+            travel = None
+            if journey and journey['to'] == location:
+                age = real_at.timestamp() - journey['started']
+                if 0 <= age < 360:
+                    origin = journey['from']
+                    origin_place = places.BY_LOCATION.get(origin)
+                    origin_spot = (places.PLACES[origin_place].spots[0] if origin_place else
+                                   home_door(first) if origin == world.home_location(agent['name']) else 'STREET_LEFT')
+                    travel = {'from': origin_spot, 'age': age, 'id': journey['started']}
             characters.append({'id': agent['id'], 'name': agent['name'], 'first': first, 'kind': 'npc',
-                               'place': place, 'activity': activity, 'mood': agent['mood'],
+                               'place': place, 'door': door, 'travel': travel, 'activity': activity, 'mood': agent['mood'],
                                'talking_to': talk.get(agent['id']),
                                'conversation_id': None, 'line': None, 'line_at': None,
                                **lines.get(agent['id'], {}),
@@ -108,4 +122,13 @@ def snapshot(db_path=DEFAULT_DB_PATH, *, real_at=None):
     from evorium import calendar_uk
     return {'calendar':calendar_uk.state(now),'weather':weather_now,'sim_at': stamp, 'sim_time': world.describe(now), 'speed': speed, 'daylight': daylight,
             'pub_open': places.is_open('pub', now, values), 'shop_open': places.is_open('shop', now, values),
-            'notices': notices, 'characters': assign_spots(characters), 'player': player}
+            'notices': notices, 'places': public_places(now, {**values, '_weather': weather_now}), 'characters': assign_spots(characters), 'player': player}
+
+
+def public_places(now, values):
+    return [
+        {'key': key, 'name': place.name, 'location': place.location, 'kind': place.kind,
+         'indoor': place.indoor, 'landmark': place.landmark, 'spots': place.spots,
+         'open': places.is_open(key, now, values)}
+        for key, place in places.PLACES.items()
+    ]

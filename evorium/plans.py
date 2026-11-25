@@ -92,9 +92,9 @@ def daily(client,now,db_path=DEFAULT_DB_PATH):
         prompt=f'''You are {a['name']}, {a['occupation']}. {a['personality']} Goal: {a['current_goal']}.
 It is {now.strftime(DUE_FMT)}. Most days you simply follow your routine; return an empty list unless you have a real reason.
 {('Serious news on your mind: '+json.dumps(big_news)+'. Real people rarely sit on news like this: if it affects you or someone you know, consider ringing someone about it, or going where you can tell or ask someone you trust. ') if big_news else ''}Return JSON {{"actions": [], "plans": [{{"action":"visit","place":"shop","person":null,"hour":0,"minute":0,"duration_minutes":30,"fulfils":null,"reason":"one sentence"}}]}}.
-Actions: visit, phone, stay_home. Places: pub, shop, street or null. Person: another NPC full name or null. Use actual JSON null, zero to two plans, minute 0 or 30, duration 30–180. Only later today, while free; places must be open throughout. Phone another NPC; stay_home only replaces an evening pub customer visit.
+Actions: visit, phone, stay_home. Place: one of {', '.join(places.REGISTRY)} or null. Person: another NPC full name or null. Use actual JSON null, zero to two plans, minute 0 or 30, duration 30–180. Only later today, while free; places must be open throughout. Phone another NPC; stay_home only replaces an evening pub customer visit.
 Timetable: {json.dumps(timetable)}
-Public places today: pub {calendar_uk.hours("pub",now)}; shop {calendar_uk.hours("shop",now) or "shut"}; street always open.
+Public places today (key, name, hours): {[(key, place.name, calendar_uk.hours(key,now)) for key, place in places.PLACES.items()]}.
 Keep checkable promises before their deadlines. Use a matching visit or phone plan with its promise id in fulfils.
 Use the action menu for action, tell and quiz-question promises; saying "done" never completes them.
 Open promises with ids, targets, progress and deadlines: {json.dumps(promises)}

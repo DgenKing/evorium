@@ -47,8 +47,10 @@ def validate_target(c, owner, kind, target, nested=False):
                 raise ValueError('Empty visit window.')
         elif kind in ('talk', 'tell'):
             allowed = {'person'} if kind == 'talk' else {'person', 'fact_id'}
-            if set(t) != allowed:
+            if set(t) - ({'place'} if kind == 'talk' else set()) != allowed:
                 raise ValueError('Name the person and, for tell, a known fact id.')
+            if 'place' in t and t['place'] not in places.REGISTRY:
+                raise ValueError('Unknown meeting place.')
             t['person'] = _person(c, t['person'], owner)['name']
             if kind == 'tell' and (type(t['fact_id']) is not int or not c.execute(
                     'SELECT 1 FROM facts WHERE id=? AND agent_id=?', (t['fact_id'], owner['id'])).fetchone()):
@@ -185,6 +187,8 @@ def evidence_for(c, commitment):
             AND v.sim_at>=? AND (? IS NULL OR v.sim_at<=?) AND v.id!=coalesce(?,0)
             AND EXISTS (SELECT 1 FROM messages m WHERE m.conversation_id=v.id AND m.speaker_id=?) ORDER BY v.sim_at,v.id""",
             (aid, other, other, aid, start, end, end, p.get('source_conversation_id'), aid))]
+        if 'place' in t:
+            rows = [row for row in rows if row['location'] == places.REGISTRY[t['place']]]
     elif kind == 'tell':
         other = _person(c, t['person'], dict(owner))['id']
         fact = c.execute('SELECT content FROM facts WHERE id=? AND agent_id=?', (t['fact_id'], aid)).fetchone()
@@ -258,6 +262,8 @@ def had_chance(c, commitment, until):
             free = places.is_open(t['place'], cursor, values)
         if free and p.get('kind') in ('talk', 'tell'):
             free = world.routine(t['person'], cursor, values)[1] != 'asleep'
+            if free and 'place' in t:
+                free = places.is_open(t['place'], cursor, values) and world.is_free(t['person'], cursor, values)
         if free:
             seconds += (following - cursor).total_seconds()
             if seconds >= 3600:

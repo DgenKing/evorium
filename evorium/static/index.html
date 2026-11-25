@@ -203,7 +203,7 @@ async function loadAgents(){
     <details class="card character-card" data-agent-id="${esc(a.id)}"${openCards.has(String(a.id))?' open':''}>
       <summary class="character-heading">${avatar(a.name,true)}<div class="character-info">
         <h2>${esc(a.name)}</h2>
-        <div class="character-status"><span class="mood">${esc(a.mood)}</span><span class="sub">${a.in_pub?'In the pub':a.location==="Patel's News, Ancoats"?'In the shop':'Away'}</span></div>
+        <div class="character-status"><span class="mood">${esc(a.mood)}</span><span class="sub">${a.in_pub?'In the pub':esc(latestUsage?.places?.find(p=>p.name===a.location)?.label||'Away')}</span></div>
       </div>
       <div class="character-preview">
         <div title="${esc(a.activity||'—')}"><b>Now</b> ${esc(a.activity||'—')}</div>
@@ -311,7 +311,7 @@ async function loadPlayer(){
   if(!$('player-name').dataset.loaded){$('player-name').value=p.name;$('player-about').value=p.about;$('player-name').dataset.loaded='1';}
   $('player-profile').querySelector('button').disabled=!!p.conversation;
   $('player-place').textContent=p.place?`You are in ${p.places.find(x=>x.key===p.place)?.name||p.place}.`:'You are outside the world.';
-  $('player-places').innerHTML=p.places.map(x=>`<button type="button" data-enter="${esc(x.key)}" ${!x.open?'disabled':''} title="${esc(x.reason)}">${x.key==='pub'?'Walk into the Crooked Billet':x.key==='shop'?"Go into Patel's News":'Go onto Henry Street'}${!x.open?' (shut)':''}</button>`).join('')+`<button type="button" id="player-leave" ${!p.place?'disabled':''}>Leave</button>`;
+  $('player-places').innerHTML=p.places.map(x=>`<button type="button" data-enter="${esc(x.key)}" ${!x.open?'disabled':''} title="${esc(x.reason)}">${x.key==='pub'?'Walk into the Crooked Billet':x.key==='shop'?"Go into Patel's News":x.key==='street'?'Go onto Henry Street':'Go to '+esc(x.label||x.name)}${!x.open?' (shut)':''}</button>`).join('')+`<button type="button" id="player-leave" ${!p.place?'disabled':''}>Leave</button>`;
   for(const button of $('player-places').querySelectorAll('[data-enter]'))button.onclick=()=>playerAction(()=>playerPost('/enter',{place:button.dataset.enter}));
   $('player-leave').onclick=()=>playerAction(()=>playerPost('/leave'));
   const here=p.places.find(x=>x.key===p.place)?.people||[];

@@ -85,6 +85,13 @@ export class World{
  this.night.update(dt,d,w,this.camera,this.preset.shadows?this.preset.lights:0);
  this.scene.fog.near=w.fog?8:25;this.scene.fog.far=w.fog?38:this.cityTransform&&!this.preset.shadows?42:100;const sky=new THREE.Color(0x1a2a42).lerp(new THREE.Color(0xaab7c2),d);if(w.dark)sky.lerp(new THREE.Color(0x6b7680),.35);this.scene.background.copy(sky);this.scene.fog.color.copy(sky);this.lights.forEach((l,i)=>{l.intensity=this.open[l.userData.place]&&(i<this.preset.lights)?12:0;});for(const material of this.materials)material.lightMapIntensity=.15+d*.5;for(const o of this.glowing){const place=/Pub|Billet/i.test(o.name)?'pub':'shop';o.material.emissive?.setHex(this.open[place]?0xffb568:0);o.material.emissiveIntensity=(1-d)*.9;}for(const material of this.cityWindows||[])material.emissiveIntensity=(1-d)*.35;}
  ground(x,z){const hit=this.octree.rayIntersect(new THREE.Ray(new THREE.Vector3(x,3,z),new THREE.Vector3(0,-1,0)));return hit?.position.y??0;}
- place(p){let x=p.x,z=p.z;if(this.cityTransform){const t=this.cityTransform,dx=x-t.x,dz=z-t.z,c=Math.cos(t.yaw),s=Math.sin(t.yaw);x=dx*c-dz*s;z=dx*s+dz*c;}if(z<-.3&&z>-10&&x>-9.1&&x<.1)return 'pub';if(z<-.3&&z>-10&&x>.3&&x<8.3)return 'shop';return 'street';}
+ publicPlace(p){
+  if(!this.cityTransform)return null;
+  for(const place of this.cityPlaces||[]){
+   if(place.open && place.positions.some(([x,,z])=>Math.hypot(p.x-x,p.z-z)<4.5))return place.key;
+  }
+  return null;
+ }
+ place(p){let x=p.x,z=p.z;if(this.cityTransform){const t=this.cityTransform,dx=x-t.x,dz=z-t.z,c=Math.cos(t.yaw),s=Math.sin(t.yaw);x=dx*c-dz*s;z=dx*s+dz*c;}if(z<-.3&&z>-10&&x>-9.1&&x<.1)return 'pub';if(z<-.3&&z>-10&&x>.3&&x<8.3)return 'shop';return this.publicPlace(p)||'street';}
  cameraDistance(origin,direction,max){const hit=this.octree.rayIntersect(new THREE.Ray(origin,direction));return hit?Math.min(max,Math.max(.15,hit.distance-.18)):max;}
 }
