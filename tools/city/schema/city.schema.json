@@ -9,7 +9,7 @@
     "origin": {"type": "array", "prefixItems": [{"type": "number"}, {"type": "number"}], "minItems": 2, "maxItems": 2},
     "attribution": {"type": "array", "items": {"type": "string"}, "minItems": 1},
     "buildings": {"type": "integer", "minimum": 0}, "roads": {"type": "integer", "minimum": 0},
-    "props": {"type": "integer", "minimum": 0}, "navmesh": {"$ref": "navmesh.schema.json"},
+    "props": {"type": "integer", "minimum": 0}, "lamps": {"type": "array", "items": {"type": "array", "items": {"type": "number"}, "minItems": 3, "maxItems": 3}}, "navmesh": {"$ref": "navmesh.schema.json"},
     "bounds": {"type": "object", "required": ["min", "max"], "properties": {
       "min": {"$ref": "#/$defs/vec2"}, "max": {"$ref": "#/$defs/vec2"}
     }, "additionalProperties": false},

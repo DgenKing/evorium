@@ -10,7 +10,7 @@
 > (`git show 6fec17c:EVORIUM_BUILD_BRIEF_M3.md`, etc.), the old README, the home server guide, the Web3D
 > pipeline, controls and verification notes, the portrait prompts, and the M4, Web3D and Unreal Codex briefs.
 >
-> **Last updated:** 24 November 2026
+> **Last updated:** 25 November 2026
 
 ## Contents
 
@@ -103,12 +103,12 @@ and phone); it runs around the clock on the owner's HP G4 and is reachable over 
 | Navigation | ☰ burger menu top right on every page: Dashboard, Map, 3D, Timeline, Guide |
 | Dashboard | Character cards, live feed, usage/spend, controls, terrace card, **version** (git commit and date) and the **Restart server** button |
 | Map tab | 2D canvas of the pub, shop, empty unit and street; pixel sprites, bubbles, portrait popups |
-| 3D game | `/world3d`: Shuttle Street in Three.js, nine distinct MPFB models, third person, touch controls, chat and optional cosmetic street life; Ancoats city mode is opt-in at `?city=1` with a local review build |
-| City pipeline | Opt-in Ancoats review on `city-pipeline` with surveyed terrain, kit materials and instanced facades. Both package limits pass (§7, §10). |
+| 3D game | `/world3d`: five real Ancoats streets by default, with Shuttle Street available at `?city=0`; Three.js, nine distinct MPFB models, third person, touch controls, chat, street life and night lighting |
+| City pipeline | Five-street Ancoats city generated from surveyed terrain, kit materials and instanced facades; both package limits pass (§7, §10). |
 | Hosting | HP G4 home server, auto-updating from GitHub, nightly backups, public via a Cloudflare Tunnel; connection details kept private (§6) |
 | Model | DeepSeek `deepseek-flash`, JSON mode, temperature 0.8 (0.6 decisions, 0.2 structured calls) |
 | Cost | About $0.00015 per call; about $0.40 a day for the whole world at real speed with auto mode on |
-| Tests | 393 Python tests + 8 Node map tests + 2 navigation tests + Web3D Node checks and offline Chrome checks, all fake/offline |
+| Tests | 401 Python tests + 18 city tests + Node map/navigation/city/night tests + Web3D Node checks and offline Chrome checks, all fake/offline |
 
 ### Tech stack and dependencies
 
@@ -600,10 +600,8 @@ when accessing the game remotely. `GET /me` reports the current canonical accoun
 ### Tests
 
 ```bash
-.venv/bin/python -m pytest -q        # 393 tests
-node tests/map_view.test.cjs         # map
-node tests/world3d.test.mjs          # 3D routes, animation states, quality, slots, cast
-node tests/nav.test.cjs              # burger menu
+.venv/bin/python -m pytest -q        # 401 tests
+for f in tests/*.test.cjs tests/*.test.mjs; do node "$f"; done
 bash tools/web3d/run_checks.sh       # 3D: smoke server + 20 headless screenshots and movement checks
 ```
 
@@ -806,12 +804,18 @@ street sets `player_place=street`; entering/leaving buildings updates that prese
 Open `/world3d`, or **3D** in the dashboard header. No build step or runtime Node: Three.js, the high/low assets,
 ten animation clips and baked lighting are served by FastAPI. The EVORIUM wordmark returns to `/`.
 
-### Optional generated city mode
+### Generated Ancoats city (normal map)
 
-`/world3d` keeps the existing Shuttle Street scene unless opened as `/world3d?city=1`. City mode conditionally
+`/world3d` opens the generated Ancoats streets by default. `/world3d?city=0` opens the original Shuttle Street;
+test harness pages stay on Shuttle Street unless explicitly passed `?city=1`. City mode conditionally
 loads `data/city.json`, `city.glb`, `city-collision.glb` and, when present, `city-props.glb`; it places Shuttle
 Street at the transform in `tools/city/config.yaml`, joins its street exits to the generated walk graph, and shows
 OpenStreetMap and Environment Agency attribution. The local review build is available in this mode.
+
+Night uses a phase-correct moon sprite, stars that fade in cloud, rain, snow or fog, emissive lamp heads and
+ground pools for all 74 city lamps. Up to four nearby PointLights run on medium/high; low uses only the emissive
+heads and instanced pools. The ambient floor and moonlight keep buildings and streets readable. Shuttle Street's
+existing windows, festive lights and interior lights continue using the shared day/night update.
 
 From the repo root, follow the §5 setup and run:
 
@@ -849,10 +853,13 @@ The tree fetch pins the CC0 Kenney source mesh and palette. Windows and trees ar
 **Export and verification.** Simplification was dropping one triangle from some window panes. The city export
 uses topology preserving Meshopt compression and checks that all 13,557 window instances per tier use complete
 two-triangle panes. Two full rebuilds produced identical city GLBs, manifests and package reports. Low totals
-**7.993 MB** and high **11.854 MB**, including Shuttle Street, cast and `city.json`. The package report is
+**7.995 MB** and high **11.856 MB**, including Shuttle Street, cast and `city.json`. The package report is
 `tools/city/build/budgets.json`. Browser triangle measurements count each submitted instance and peaked at 143,598 low and 318,849 high. The offline
-Chrome harness checks the five named walks, routes and attribution on the fake smoke server on port 8011.
-Matched screenshots are under `tools/city/build/appearance-before/` and `appearance-after/`. The approximate
+The Chrome harness checks the five named walks, routes and attribution on the fake smoke server on port 8011.
+Final night screenshots are under `tools/city/build/night-final/`; the retained Shuttle Street night view is
+under `tools/city/build/night-legacy/`. The first visual pass, before fixing the moon's screen placement, is
+under `tools/city/build/night-review/`. Matched day screenshots are under `tools/city/build/appearance-before/`
+and `appearance-after/`. The approximate
 kit reference angle is under `appearance-kit-angle/`. The headless recordings use SwiftShader and a desktop
 or phone viewport. Real-phone performance still needs a hardware check.
 
@@ -1096,6 +1103,14 @@ streets, film grain, matching the game's portraits.
 
 ## 9. Known issues and open questions
 
+- **Ancoats city (25 Nov):** `/world3d` now defaults to Blossom, Henry, Hood, Jersey and Murray streets;
+  `?city=0` keeps Shuttle Street available. Night is moonlit and stars clear with weather, with 74 city lamps
+  using emissive heads and ground pools, plus two Shuttle Street lamps with warm heads and pools (real lights
+  only on medium/high). Final desktop/phone low/high captures are in `tools/city/build/night-final/`; the legacy
+  pub-open night capture is in `tools/city/build/night-legacy/`. Visible triangles stayed below 150k/400k.
+  Five city walks, city route connectivity/physics/weather/chat and the daytime legacy movement check pass.
+  Owner review and physical phone performance remain outstanding.
+
 - **Ancoats review build (24 Nov):** terrain and most heights use EA LiDAR. The street is still made from
   repeating facade bays. Ground floor interiors and individually modelled storefronts belong to the original
   Shuttle Street kit. Mill windows use segmental lintels over rectangular panes. Low quality omits deep
@@ -1152,7 +1167,8 @@ streets, film grain, matching the game's portraits.
 - **3D polish:** MPFB models are stylised low-poly interpretations rather than exact portrait likenesses; some garments are the nearest CC0 shirt/jacket styles and Brenda's curls remain faceted; no facial/lip animation. NPC catch-up snaps rather than
   fading and departures vanish at the route end; NPCs can overlap while walking; speech bubbles near the screen
   edge get cut off; shared lightmap gives small props little detail; no separate night bake or bloom.
-- **Not yet tested on a real phone**, especially iPhone memory, keyboard and touch.
+- **Not yet tested on a real phone**, especially iPhone memory, keyboard and touch. The city smoke captures use
+  SwiftShader; their FPS values do not predict physical-phone performance.
 - **Quiet places can now stay silent:** automatic pairs stop at two chats per game day, even if nobody else
   is around. All eighteen APCs have at least three hours of shared free time in a normal sampled week.
 - **Director heuristics** are conservative word checks; since M4 it also rejects any digit and words such as set,
@@ -1206,6 +1222,11 @@ streets, film grain, matching the game's portraits.
 - **Promise evidence is deployed (23 Nov).** Keep watching real kept/broken/lapsed results and false claims with
   the read-only promise report; unsupported research/repayment needs real actions before it can be checked.
 
+- **Ancoats city and night lighting are ready for owner review (25 Nov).** The five-street city is now the normal
+  `/world3d` map; `?city=0` retains Shuttle Street. Inspect `tools/city/build/night-final/`, then check night,
+  Shuttle Street lighting and performance on a physical phone before deployment. Low city build is 7.995 MB of
+  its 8 MB limit.
+
 - Align the G4 checkout with the rewritten history using §6 so automatic updates resume. Review its
   access controls. Request an eligible old-object/cache
   purge through GitHub Support; do not merge old clones back into the cleaned history. Make the kit
@@ -1237,9 +1258,10 @@ streets, film grain, matching the game's portraits.
 modelled by hand and not invented by AI. Codex writes and fixes the scripts; the scripts make the city; the
 owner looks at screenshots at each gate. Same inputs always give the same city, so areas stay fixed once built.
 
-**Status (24 Nov):** the five-street opt-in review now uses EA LiDAR for terrain and 154 building heights,
-the owner's kit textures and instanced facades, and Kenney CC0 trees. Rebuild and provenance are in §7.
-Both package and sampled triangle targets pass. The owner visual review and real-phone performance gate remain open.
+**Status (25 Nov):** the five-street Ancoats city is the normal `/world3d` map and uses EA LiDAR for terrain and
+154 building heights, the owner's kit textures and instanced facades, and Kenney CC0 trees. Night includes
+working city and Shuttle Street lamp pools, moonlight and weather-aware stars. Rebuild and provenance are in §7.
+Package and sampled triangle targets pass. The owner visual review and real-phone performance gate remain open.
 
 **How the work is split**
 
@@ -1467,6 +1489,26 @@ the key pool and open sign-ups.
 ---
 
 ## 14. History
+
+### 25 November 2026 — Ancoats city becomes the normal map; night lighting
+
+- **What:** made `/world3d` open the five generated Ancoats streets by default, retaining Shuttle Street at
+  `?city=0` and preserving the old street for test pages unless `?city=1` is set. City lamp heads now sit atop
+  their 4.3 m posts; the manifest lists all 74 head positions for emissive glow, ground pools and nearby
+  medium/high PointLights. Added moon phase and weather-aware stars, brighter moonlit ambient, and updated the
+  Shuttle Street's two kit lamp posts with amber heads, pools and medium/high PointLights; raised the open-pub
+  window glow while the closed shop stays dark. Updated the browser title, guide, website description and dated
+  What's new entry.
+- **Why / learned:** the first night build had lamp heads at ground level and no sky or road light. Visual
+  captures showed the city is readable at night, with window glow, lamp pools, moon and stars. The exported
+  Shuttle Street mesh has two tall lamp posts but no separate lamp-head meshes; added aligned warm heads and
+  pools at their measured fixture positions. The Chrome physics probe also needed to transform its old
+  Shuttle Street test coordinates into the translated/rotated city scene.
+- **Checks:** 401 project Python tests, 18 city tests, all Node tests (including moon phase/weather clarity and
+  the 74-lamp manifest), desktop/phone low/high screenshots on Jersey, Murray and Blossom, five successful
+  named-street walks, city route/physics checks, and daytime Shuttle Street movement plus night captures. Low/high
+  packages remain 6.759/10.958 MB for the base assets and 7.995/11.856 MB for the city build; visible triangles remain under
+  150k/400k. The owner review and real-phone performance check remain open. No push or live server change.
 
 ### 25 November 2026 — G4 hardening: Evorium cut off from the home network
 

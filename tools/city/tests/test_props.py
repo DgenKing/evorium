@@ -36,3 +36,15 @@ def test_props_use_supported_types_and_stay_in_bounds():
     assert any(p["type"] == "tree" and p["source"] == "OpenStreetMap tree" for p in props)
     assert any(p["type"] == "bench" and p["source"] == "OpenStreetMap bench" for p in props)
     assert all(0 <= p["position"][0] <= 100 and 0 <= p["position"][2] <= 10 for p in props)
+
+
+def test_lamp_heads_sit_on_top_of_their_posts_and_are_exported_as_lights():
+    props = PROPS.generate_props(fixture_layers(), 42, (0, 0, 100, 10))
+    lamps = [p for p in props if p["type"] == "lamp"]
+    assert lamps
+    mesh = PROPS._mesh_for_props(lamps, terrain=lambda x, z: 1.5)
+    heads = [mesh.positions[i] for i in mesh.groups["lamp_head"]]
+    assert min(y for _, y, _ in heads) >= 1.5 + 4.0   # not lying on the ground
+    lights = PROPS.lamp_lights(lamps, terrain=lambda x, z: 1.5)
+    assert len(lights) == len(lamps)
+    assert all(len(light) == 3 and light[1] == round(1.5 + PROPS.LAMP_HEAD_Y, 2) for light in lights)

@@ -115,12 +115,12 @@ def _cylinder(mesh, x, z, radius, height, material, sides=8):
         mesh.triangle((x, height, z), q0, q1, material)
 
 
-def _box(mesh, x, z, width, depth, height, material, yaw=0):
+def _box(mesh, x, z, width, depth, height, material, yaw=0, bottom_y=0.0):
     c, s = math.cos(yaw), math.sin(yaw)
     local = [(-width/2,-depth/2),(width/2,-depth/2),(width/2,depth/2),(-width/2,depth/2)]
     base = [(x+a*c-b*s, z+a*s+b*c) for a,b in local]
-    top = [(px,height,pz) for px,pz in base]
-    bottom = [(px,0,pz) for px,pz in base]
+    top = [(px,bottom_y+height,pz) for px,pz in base]
+    bottom = [(px,bottom_y,pz) for px,pz in base]
     mesh.quad(top[0],top[1],top[2],top[3],material)
     for i in range(4):
         j=(i+1)%4
@@ -157,6 +157,22 @@ def _kenney_tree(path):
     return mesh
 
 
+LAMP_HEAD_Y = 4.18   # underside of the lamp head; the post is 4.3 m
+
+
+def lamp_lights(props, terrain=None):
+    """Where each lamp's light comes from, for night lighting in the game: [x, y, z] in metres."""
+    lights = []
+    for prop in props:
+        if prop["type"] != "lamp":
+            continue
+        x, _, z = prop["position"]
+        yaw = float(prop["yaw"])
+        base = terrain(x, z) if terrain else 0
+        lights.append([round(x + math.sin(yaw) * .28, 2), round(base + LAMP_HEAD_Y, 2), round(z + math.cos(yaw) * .28, 2)])
+    return lights
+
+
 def _mesh_for_props(props, terrain=None, tree_model=None):
     from geometry.mesh import Mesh
     mesh = Mesh()
@@ -167,7 +183,8 @@ def _mesh_for_props(props, terrain=None, tree_model=None):
         kind = prop["type"]
         if kind == "lamp":
             _cylinder(mesh,x,z,.055,4.3,"lamp_post",6)
-            _box(mesh,x+math.sin(yaw)*.28,z+math.cos(yaw)*.28,.08,.65,.12,"lamp_head",yaw)
+            # The head sits at the top of the post (it was built at ground level before 25 Nov).
+            _box(mesh,x+math.sin(yaw)*.28,z+math.cos(yaw)*.28,.08,.65,.12,"lamp_head",yaw,LAMP_HEAD_Y)
         elif kind == "bollard":
             _cylinder(mesh,x,z,.13,.85,"bollard",8)
         elif kind == "bin":
@@ -213,7 +230,9 @@ def run(config, fixture=False):
     tree = _kenney_tree(tree_path) if not fixture and tree_path.is_file() else None
     if not fixture and not tree:
         raise FileNotFoundError("Run tools/city/fetch.py --tree to fetch the Kenney tree")
-    mesh = _mesh_for_props(props, terrain_for(config,root,fixture), tree)
+    terrain = terrain_for(config,root,fixture)
+    mesh = _mesh_for_props(props, terrain, tree)
+    lamps = lamp_lights(props, terrain)
     for tier in ("low", "high"):
         from geometry.mesh import write_glb
         destination = root / config["outputs"]["static_dir"] / "assets" / tier / "city-props.glb"
@@ -233,6 +252,7 @@ def run(config, fixture=False):
         if manifest_path.exists():
             manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
             manifest["props"] = len(props)
+            manifest["lamps"] = lamps
             manifest_path.write_text(json.dumps(manifest, sort_keys=True, separators=(",", ":")) + "\n", encoding="utf-8")
     return {"props": len(props), "types": {kind: sum(p["type"] == kind for p in props) for kind in sorted({p["type"] for p in props})}}
 

@@ -1,10 +1,10 @@
 // Chrome DevTools Protocol, Node built-ins only. Always targets fake server 8011.
 import {spawn} from 'node:child_process';import fs from 'node:fs/promises';
 const base='http://127.0.0.1:8011';const smoke=await(await fetch(base+'/smoke/status')).json();if(!smoke.fake_models)throw Error('Fake smoke server required');
-const cityMode=process.argv.includes('--city'),night=process.argv.includes('--night'),grey=process.argv.includes('--grey');
+const cityMode=process.argv.includes('--city'),legacy=process.argv.includes('--legacy'),night=process.argv.includes('--night'),grey=process.argv.includes('--grey');
 const cityWalk=process.argv.includes('--city-walk');
 const output=process.argv.find(arg=>arg.startsWith('--output='))?.slice(9) || (cityMode?'tools/city/build/screenshots':'tools/web3d/raw/screens');await fs.mkdir(output,{recursive:true});
-if(cityMode)await fetch(base+'/smoke/at',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({at:night?'2026-11-24 23:00:00':'2026-11-24 12:00:00'})});
+if(cityMode||legacy)await fetch(base+'/smoke/at',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({at:night?'2026-11-24 23:00:00':'2026-11-24 12:00:00'})});
 const overviewCameras=new Map();
 let lines=[];
 if(cityMode){
@@ -36,7 +36,7 @@ try{
  const qualities=tier?[tier]:oneView?['low']:['low','high'];
  for(const [device,width,height] of devices)for(const quality of qualities)for(const cam of (process.argv.includes('--cast')?['lineup',...['dez','jess','tommy','raj','chloe','simon','brenda','mo','player'].map(id=>'head&character='+id)]:process.argv.includes('--poses')?['dez','tommy','brenda'].flatMap(id=>['idle','walk','run','jump_start','sit','talk'].map(pose=>'body&character='+id+'&pose='+pose)):process.argv.find(a=>a.startsWith('--cam='))?[process.argv.find(a=>a.startsWith('--cam=')).slice('--cam='.length).split(',')].flat():process.argv.includes('--movement-only')?['pub']:['street','pub','shop','cast','player'])){
  await cdp('Emulation.setDeviceMetricsOverride',{width,height,deviceScaleFactor:1,mobile:device==='phone'});await cdp('Emulation.setTouchEmulationEnabled',{enabled:device==='phone'});
- await cdp('Page.navigate',{url:`${base}/world3d?test=1&quality=${quality}&cam=${cam}${cityMode?'&city=1':''}`});
+ await cdp('Page.navigate',{url:`${base}/world3d?test=1&quality=${quality}&cam=${cam}${cityMode?'&city=1':legacy?'&city=0':''}`});
  let ready=false;for(let i=0;i<240;i++){await pause(250);if(await evaluate('window.__evoriumReady===true && !!window.__evoriumTest')){ready=true;break;}const errors=await evaluate('window.__evoriumReport?.errors');if(errors?.length)throw Error(JSON.stringify(errors));}
  if(!ready)throw Error('Page never became ready');
  if(overviewCameras.has(cam)){
@@ -56,7 +56,8 @@ try{
  }
  if(!process.argv.includes('--screens-only')&&!process.argv.includes('--cast')&&!process.argv.includes('--poses')){
  const physics=await evaluate('window.__evoriumTest.physics()');await fs.writeFile(output+'/physics.json',JSON.stringify(physics,null,2));console.log('PHYSICS',JSON.stringify(physics));
- const movement=await evaluate('window.__evoriumTest.movement()');await fs.writeFile(output+'/movement.json',JSON.stringify(movement,null,2));console.log('MOVEMENT',JSON.stringify(movement.results));
+ if(cityMode){const routes=await evaluate('window.__evoriumTest.cityRoutes()');if(routes.length)throw Error('City routes unreachable: '+JSON.stringify(routes));await fs.writeFile(output+'/city-routes.json',JSON.stringify({unreachable:routes},null,2));console.log('CITY ROUTES all waypoints connect to both street ends');}
+ else{const movement=await evaluate('window.__evoriumTest.movement()');await fs.writeFile(output+'/movement.json',JSON.stringify(movement,null,2));console.log('MOVEMENT',JSON.stringify(movement.results));}
  if(!await evaluate('window.__evoriumTest.calendar(true)')||await evaluate('window.__evoriumTest.calendar(false)'))throw Error('Festive decoration toggle failed');
  console.log('CALENDAR festive lights toggle passed');
  for(const condition of ['rain','snow','fog','unknown']){

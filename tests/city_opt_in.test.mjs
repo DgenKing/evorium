@@ -6,8 +6,8 @@ const main = read('../evorium/static/world3d/js/main.js');
 const assets = read('../evorium/static/world3d/js/assets.js');
 const world = read('../evorium/static/world3d/js/world.js');
 
-// City stays opt-in: the ordinary URL never passes the enable flag to city loaders.
-assert.match(main, /params\.get\(['"]city['"]\)\s*===\s*['"]1['"]/);
+// The city is the normal map; ?city=0 gives the old street, and ?test=1 pages keep the old street unless ?city=1.
+assert.ok(main.includes("const cityEnabled=params.has('city')?params.get('city')==='1':!test;"), 'city is the default outside tests');
 assert.match(main, /loadData\(cityEnabled\)/);
 assert.ok(main.includes('data.cast,cityEnabled)'), 'city flag reaches the asset loader');
 assert.match(assets, /cityEnabled\?\[['"]city['"]\]/);
