@@ -186,7 +186,7 @@ SEED_FACTS = (
     ("Hannah Kerr","ethics","I never quote anyone without their permission, and I protect my sources."),
     # Added 20 Nov 2026, second batch (append only: seed keys are list positions).
     ("Gary Walsh","post","This month I've delivered recorded letters from Northgate Estates to the Billet, to Patel's News and to the empty unit between them."),
-    ("Gary Walsh","round","My round takes in Shuttle Street every morning around quarter to nine."),
+    ("Gary Walsh","round","My round takes in Henry Street every morning around quarter to nine."),
     ("Kirsty Doyle","home","Our block was sold last year and the new owners put the rent up £150 a month. I never found out who they were."),
     ("Kirsty Doyle","people","Jess Hartley is my neighbour and my best mate round here. She babysits Mia when she can."),
     ("Grace Adeyemi","beat","Nobody has reported anything to me about the Billet or Patel's News this week."),

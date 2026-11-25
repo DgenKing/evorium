@@ -30,7 +30,7 @@ def test_website_is_public_and_the_game_is_not(monkeypatch):
     monkeypatch.setattr(main,'DASHBOARD_PASSWORD','test-only-password')
     client=TestClient(main.app)
     home=client.get('/')
-    assert home.status_code==200 and 'href="/game"' in home.text and 'Shuttle Street' in home.text
+    assert home.status_code==200 and 'href="/game"' in home.text and 'Henry Street' in home.text
     assert client.get('/styles.css').status_code==200
     assert client.get('/images/hero.webp').status_code==200
     assert client.get('/images/../../config.py').status_code in (401,404)

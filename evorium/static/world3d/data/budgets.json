@@ -1,8 +1,8 @@
 {
   "high": {
-    "bytes": 10957998,
-    "megabytes": 10.957998,
-    "triangles": 278787,
+    "bytes": 10961806,
+    "megabytes": 10.961806,
+    "triangles": 278789,
     "estimatedTextureMB": 504.365056,
     "cast": {
       "dez": {
@@ -94,9 +94,9 @@
     }
   },
   "low": {
-    "bytes": 6759074,
-    "megabytes": 6.759074,
-    "triangles": 166754,
+    "bytes": 6762918,
+    "megabytes": 6.762918,
+    "triangles": 166756,
     "estimatedTextureMB": 122.68339199999998,
     "cast": {
       "dez": {

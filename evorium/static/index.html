@@ -302,7 +302,7 @@ async function loadPlayer(){
   if(!$('player-name').dataset.loaded){$('player-name').value=p.name;$('player-about').value=p.about;$('player-name').dataset.loaded='1';}
   $('player-profile').querySelector('button').disabled=!!p.conversation;
   $('player-place').textContent=p.place?`You are in ${p.places.find(x=>x.key===p.place)?.name||p.place}.`:'You are outside the world.';
-  $('player-places').innerHTML=p.places.map(x=>`<button type="button" data-enter="${esc(x.key)}" ${!x.open?'disabled':''} title="${esc(x.reason)}">${x.key==='pub'?'Walk into the Crooked Billet':x.key==='shop'?"Go into Patel's News":'Go onto Shuttle Street'}${!x.open?' (shut)':''}</button>`).join('')+`<button type="button" id="player-leave" ${!p.place?'disabled':''}>Leave</button>`;
+  $('player-places').innerHTML=p.places.map(x=>`<button type="button" data-enter="${esc(x.key)}" ${!x.open?'disabled':''} title="${esc(x.reason)}">${x.key==='pub'?'Walk into the Crooked Billet':x.key==='shop'?"Go into Patel's News":'Go onto Henry Street'}${!x.open?' (shut)':''}</button>`).join('')+`<button type="button" id="player-leave" ${!p.place?'disabled':''}>Leave</button>`;
   for(const button of $('player-places').querySelectorAll('[data-enter]'))button.onclick=()=>playerAction(()=>playerPost('/enter',{place:button.dataset.enter}));
   $('player-leave').onclick=()=>playerAction(()=>playerPost('/leave'));
   const here=p.places.find(x=>x.key===p.place)?.people||[];

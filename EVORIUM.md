@@ -103,12 +103,12 @@ and phone); it runs around the clock on the owner's HP G4 and is reachable over 
 | Navigation | ☰ burger menu top right on every page: Dashboard, Map, 3D, Timeline, Guide |
 | Dashboard | Character cards, live feed, usage/spend, controls, terrace card, **version** (git commit and date) and the **Restart server** button |
 | Map tab | 2D canvas of the pub, shop, empty unit and street; pixel sprites, bubbles, portrait popups |
-| 3D game | `/world3d`: five real Ancoats streets by default, with Shuttle Street available at `?city=0`; Three.js, nine distinct MPFB models, third person, touch controls, chat, street life and night lighting |
+| 3D game | `/world3d`: five real Ancoats streets by default, with the original kit scene available at `?city=0`; Three.js, nine distinct MPFB models, third person, touch controls, chat, street life and night lighting |
 | City pipeline | Five-street Ancoats city generated from surveyed terrain, kit materials and instanced facades; both package limits pass (§7, §10). |
 | Hosting | HP G4 home server, auto-updating from GitHub, nightly backups, public via a Cloudflare Tunnel; connection details kept private (§6) |
 | Model | DeepSeek `deepseek-flash`, JSON mode, temperature 0.8 (0.6 decisions, 0.2 structured calls) |
 | Cost | About $0.00015 per call; about $0.40 a day for the whole world at real speed with auto mode on |
-| Tests | 401 Python tests + 18 city tests + Node map/navigation/city/night tests + Web3D Node checks and offline Chrome checks, all fake/offline |
+| Tests | 403 Python tests + 18 city tests + Node map/navigation/city/night tests + Web3D Node checks and offline Chrome checks, all fake/offline |
 
 ### Tech stack and dependencies
 
@@ -133,7 +133,10 @@ The canonical account ID is case-folded; `owner` is reserved for the existing ow
 Middleware sets a request `ContextVar` and resets it after the request; synchronous endpoints inherit it
 through FastAPI’s threadpool. The first authenticated named request creates that account’s player once,
 without model calls. Migration 14 marks the lowest-ID existing player as `owner` without replacing any
-history. Player profiles avoid duplicate names/first names across APCs and players so memory attribution
+history. Migration 17 renames saved place values and APC-readable text from Shuttle Street to Henry Street in
+place; message transcripts and timeline entries stay historical and unchanged. It is idempotent and covers
+all stored text columns outside those history tables. Player profiles avoid duplicate names/first names across
+APCs and players so memory attribution
 stays unambiguous; a conflicting account display name receives a distinct player name automatically.
 
 Conversations, learned facts, directed relationships, promises, location and catch-up checkpoints belong
@@ -300,7 +303,8 @@ are unchanged: approximately **40–70 extra input tokens** for these dedicated 
 under **$0.00003 per uncached call** at the documented peak input price, with no additional model calls.
 Existing bounded memory retrieval still carries newly observed facts in the usual way.
 
-All small state uses the existing `world` settings table; **no migration beyond Part 5's 16** is needed.
+All small state uses the existing `world` settings table; migration 17 now updates saved Henry Street place
+references and APC-readable text while preserving transcripts and timeline history.
 Promise evidence/resolution and seed facts are unchanged. Test weather HTTP is faked globally; the smoke
 server disables refresh and uses fake dialogue on a SQLite backup copy.
 
@@ -412,7 +416,7 @@ collision-verified A* graph. `?city=1` joins that graph to sampled OSM road/path
 | `evorium/accounts.py` | Request identity, account-owned players and per-account settings |
 | `evorium/player.py` | Each human player’s profile, presence, chats and promises |
 | `evorium/llm.py` | DeepSeek client, budget cap, usage and cost records |
-| `evorium/db.py` | Schema migrations (15 so far), connection helper |
+| `evorium/db.py` | Schema migrations (17 so far), connection helper |
 | `evorium/seed.py` | Cast, seed facts, scheduled events, starting relationships |
 | `evorium/rescore.py` | One-off importance scoring of old facts |
 | `evorium/static/index.html` | Dashboard + tab bar |
@@ -442,6 +446,9 @@ collision-verified A* graph. `?city=1` joins that graph to sampled OSM road/path
 ---
 
 ## 4. The world: cast, places, routines, story
+
+Henry Street, Ancoats is the real street. The Crooked Billet and Patel's News remain fictional businesses
+located on it.
 
 Grace follows serious reports up through cases (§3), using her existing patrol and Friday/Saturday closing-time visits. No other police characters are added.
 
@@ -531,8 +538,8 @@ uvicorn evorium.main:app --host 127.0.0.1 --port 8000
 ```
 
 - Open `http://127.0.0.1:8000/game` (the website is at `/`). Startup creates `evorium.sqlite3` and seeds the cast if it's absent;
-  restarting reuses the database. Existing saves migrate in place and are never reset. Migration 15 adds
-  promise evidence fields/claims without rebuilding commitments; verified on a version-14 world copy.
+  restarting reuses the database. Existing saves migrate in place and are never reset. Migration 17 renames
+  saved street references on startup; it is covered by an old-schema temporary-database test.
 - **Stop:** Ctrl+C, or `pkill -f "uvicorn evorium.main:app"`. **Restart after code changes:** the "Restart
   server" button, top right of the dashboard (it re-runs the same command and the page reloads itself).
 - **The real world lives on the G4 now (§6).** On the main PC, only run copies: `EVORIUM_DB_PATH=/path/to/copy.sqlite3`
@@ -557,7 +564,7 @@ one stage. The fetch stage reuses `tools/city/raw/osm-overpass.json`. Fresh quer
 The manifest records the snapshot date and SHA-256. For an isolated offline fixture build, point the config
 at separate build and static output directories and use `--fixture`. The G4 updater's default pytest collection
 is limited to `tests/`. Run the optional build tests with
-`tools/city/.venv/bin/python -m pytest -q tools/city/tests`.
+`timeout 120 tools/city/.venv/bin/python -m pytest -q tools/city/tests`.
 
 
 ### Settings (`config.py`, git-ignored)
@@ -600,13 +607,13 @@ when accessing the game remotely. `GET /me` reports the current canonical accoun
 ### Tests
 
 ```bash
-.venv/bin/python -m pytest -q        # 401 tests
-for f in tests/*.test.cjs tests/*.test.mjs; do node "$f"; done
-bash tools/web3d/run_checks.sh       # 3D: smoke server + 20 headless screenshots and movement checks
+timeout 120 .venv/bin/python -m pytest -q -x        # 403 tests
+for f in tests/*.test.cjs tests/*.test.mjs; do timeout 120 node "$f"; done
+timeout 120 bash tools/web3d/run_checks.sh       # 3D: smoke server + 20 headless screenshots and movement checks
 ```
 
 Tests use temporary SQLite files and never call the real API. `tests/conftest.py` turns off the file log and the
-machine’s local authentication settings. Schema changes are appended to `MIGRATIONS` in `evorium/db.py` (version in
+machine’s local authentication settings. Schema changes are appended to `MIGRATIONS` in `evorium/db.py` (version 17 in
 SQLite's `user_version`). Each connection enforces foreign keys, commits on success, rolls back on failure and
 closes when finished.
 
@@ -806,16 +813,15 @@ ten animation clips and baked lighting are served by FastAPI. The EVORIUM wordma
 
 ### Generated Ancoats city (normal map)
 
-`/world3d` opens the generated Ancoats streets by default. `/world3d?city=0` opens the original Shuttle Street;
-test harness pages stay on Shuttle Street unless explicitly passed `?city=1`. City mode conditionally
-loads `data/city.json`, `city.glb`, `city-collision.glb` and, when present, `city-props.glb`; it places Shuttle
-Street at the transform in `tools/city/config.yaml`, joins its street exits to the generated walk graph, and credits
+`/world3d` opens the generated Ancoats streets by default. `/world3d?city=0` opens the original kit scene;
+test harness pages stay on the kit scene unless explicitly passed `?city=1`. City mode conditionally
+loads `data/city.json`, `city.glb`, `city-collision.glb` and, when present, `city-props.glb`; it places the fictional Billet/Patel kit at the transform in `tools/city/config.yaml`, joins its street exits to the generated walk graph, and credits
 OpenStreetMap and the Environment Agency in the ⚙ settings panel (not on the game screen), the guide and the
 website footer, as the ODbL and OGL licences require. The local review build is available in this mode.
 
 Night uses a phase-correct moon sprite, stars that fade in cloud, rain, snow or fog, emissive lamp heads and
 ground pools for all 74 city lamps. Up to four nearby PointLights run on medium/high; low uses only the emissive
-heads and instanced pools. The ambient floor and moonlight keep buildings and streets readable. Shuttle Street's
+heads and instanced pools. The ambient floor and moonlight keep buildings and streets readable. The kit scene's
 existing windows, festive lights and interior lights continue using the shared day/night update.
 
 From the repo root, follow the §5 setup and run:
@@ -834,12 +840,12 @@ The script extracts the TIFFs, mosaics each product with Rasterio, and clips bot
 `tools/city/raw/lidar_dsm.tif` and `tools/city/raw/lidar_dtm.tif`. The build manifest records their hashes.
 The first-return DSM minus DTM gives 154 of the 156 heights. Two use type defaults. Interior sample relief
 guides terrace roof selection where enough samples survive the edge mask. Terrain uses the DTM in metres
-relative to the flat Shuttle Street block, with a blend around it.
+relative to the flat kit-scene block, with a blend around it.
 
 **OSM and placement.** The pinned 24 Nov snapshot has 800 elements and SHA-256
 `1735fbcc98e29e23679d66d7ca998a5d315e2d9579c04f19a20763c3af6add32`. The 400 × 300 m Cutting Room Square box
 contains 156 building footprints, 571 road/path features, 21 trees, 21 mapped props, 3 water features,
-24 land-use features and no tagged shops. Shuttle Street follows Henry Street at [4.9, 5.48] m and 41.8° yaw.
+24 land-use features and no tagged shops. The kit follows Henry Street at [4.9, 5.48] m and 41.8° yaw.
 Six overlapping footprints are removed. The generated scene has 150 buildings and 212 props.
 
 **Materials and facades.** Put the owner's raw kit at `tools/city/raw/kit/`. The generator reads its material
@@ -854,10 +860,10 @@ The tree fetch pins the CC0 Kenney source mesh and palette. Windows and trees ar
 **Export and verification.** Simplification was dropping one triangle from some window panes. The city export
 uses topology preserving Meshopt compression and checks that all 13,557 window instances per tier use complete
 two-triangle panes. Two full rebuilds produced identical city GLBs, manifests and package reports. Low totals
-**7.995 MB** and high **11.856 MB**, including Shuttle Street, cast and `city.json`. The package report is
+**7.999 MB** and high **11.859 MB**, including the original kit scene, cast and `city.json`; both remain under the 8/12 MB limits after the plaque update. The package report is
 `tools/city/build/budgets.json`. Browser triangle measurements count each submitted instance and peaked at 143,598 low and 318,849 high. The offline
 The Chrome harness checks the five named walks, routes and attribution on the fake smoke server on port 8011.
-Final night screenshots are under `tools/city/build/night-final/`; the retained Shuttle Street night view is
+Final night screenshots are under `tools/city/build/night-final/`; the retained kit-scene night view is
 under `tools/city/build/night-legacy/`. The first visual pass, before fixing the moon's screen placement, is
 under `tools/city/build/night-review/`. Matched day screenshots are under `tools/city/build/appearance-before/`
 and `appearance-after/`. The approximate
@@ -882,7 +888,7 @@ the loaded assets); choosing a preset reloads the matching asset set. Override w
 
 ### What's in it
 
-- The kit's Shuttle Street, Crooked Billet and Patel's News, exported from `Ancoats.blend`, with 44 collision
+- The kit scene's Crooked Billet and Patel's News, exported from `Ancoats.blend`, with 44 collision
   hulls and 15 waypoints converted to three.js space (x, z, −y).
 - Other logged-in players with a place set appear with their own names, using Rob’s player body and
   the existing waypoint walking. They have no portrait or E/touch talk prompt; player-to-player chat is
@@ -895,7 +901,7 @@ the loaded assets); choosing a preset reloads the matching asset set. Override w
   appear. Old Quaternius bodies and original clips load only after a model failure, listed in the debug HUD.
 - Baked indirect lighting (Cycles, 128 samples, 2048 high / 1024 low atlas); night dims the bake and uses
   glowing windows and runtime lights.
-- Assets including the MPFB cast and street life: **low 6.76 MB**, **high 10.96 MB**, including all nine models and
+- Assets including the MPFB cast and street life: **low 6.763 MB**, **high 10.962 MB**, including all nine models and
   fallback files; normal play loads a visible subset. Vendor modules add about 2.4 MB uncompressed.
   Per-character budgets are below; licences are in `evorium/static/world3d/assets/LICENSES.md`.
 - Physics: capsule-and-octree walking with step-up, a 1.03 m jump, wall and closed-door blocking, and a camera
@@ -1105,8 +1111,8 @@ streets, film grain, matching the game's portraits.
 ## 9. Known issues and open questions
 
 - **Ancoats city (25 Nov):** `/world3d` now defaults to Blossom, Henry, Hood, Jersey and Murray streets;
-  `?city=0` keeps Shuttle Street available. Night is moonlit and stars clear with weather, with 74 city lamps
-  using emissive heads and ground pools, plus two Shuttle Street lamps with warm heads and pools (real lights
+  `?city=0` keeps the original kit scene available. Night is moonlit and stars clear with weather, with 74 city lamps
+  using emissive heads and ground pools, plus two kit-scene lamps with warm heads and pools (real lights
   only on medium/high). Final desktop/phone low/high captures are in `tools/city/build/night-final/`; the legacy
   pub-open night capture is in `tools/city/build/night-legacy/`. Visible triangles stayed below 150k/400k.
   Five city walks, city route connectivity/physics/weather/chat and the daytime legacy movement check pass.
@@ -1114,7 +1120,7 @@ streets, film grain, matching the game's portraits.
 
 - **Ancoats review build (24 Nov):** terrain and most heights use EA LiDAR. The street is still made from
   repeating facade bays. Ground floor interiors and individually modelled storefronts belong to the original
-  Shuttle Street kit. Mill windows use segmental lintels over rectangular panes. Low quality omits deep
+  original kit scene. Mill windows use segmental lintels over rectangular panes. Low quality omits deep
   recesses and the full sash detail. The ambient shading is a local vertex bake. The canal edge and detailed
   side path and scheduled NPC coverage remain open. The phone FPS gate needs a physical device.
 
@@ -1206,7 +1212,10 @@ streets, film grain, matching the game's portraits.
 - **Restart button** requires authentication when access control is enabled (as configured on the G4).
 - **Spend recorded before 19 Nov is overstated** by about $0.09 (old pricing).
 - **Security to-dos:** review the G4 access controls.
-- **Starlette test-client deprecation warning** (harmless).
+- **Full pytest run in this sandbox timed out** at 120 seconds on 25 Nov 2026 without output; the suite normally
+  completes in about nine seconds. The migration test file passes alone (2 tests). A combined targeted run of
+  that file and `test_auth.py` did not return a summary. Do not retry the full run here; the owner reviewer should
+  run it.
 
 ---
 
@@ -1224,9 +1233,9 @@ streets, film grain, matching the game's portraits.
   the read-only promise report; unsupported research/repayment needs real actions before it can be checked.
 
 - **Ancoats city and night lighting are ready for owner review (25 Nov).** The five-street city is now the normal
-  `/world3d` map; `?city=0` retains Shuttle Street. Inspect `tools/city/build/night-final/`, then check night,
-  Shuttle Street lighting and performance on a physical phone before deployment. Low city build is 7.995 MB of
-  its 8 MB limit.
+  `/world3d` map; `?city=0` retains the original kit scene. Inspect `tools/city/build/night-final/`, then check night,
+  kit-scene lighting and performance on a physical phone before deployment. Low city build is 7.999 MB of
+  its 8 MB limit, including the Henry Street plaque texture.
 
 - Align the G4 checkout with the rewritten history using §6 so automatic updates resume. Review its
   access controls. Request an eligible old-object/cache
@@ -1261,7 +1270,7 @@ owner looks at screenshots at each gate. Same inputs always give the same city, 
 
 **Status (25 Nov):** the five-street Ancoats city is the normal `/world3d` map and uses EA LiDAR for terrain and
 154 building heights, the owner's kit textures and instanced facades, and Kenney CC0 trees. Night includes
-working city and Shuttle Street lamp pools, moonlight and weather-aware stars. Rebuild and provenance are in §7.
+working city and kit-scene lamp pools, moonlight and weather-aware stars. Rebuild and provenance are in §7.
 Package and sampled triangle targets pass. The owner visual review and real-phone performance gate remain open.
 
 **How the work is split**
@@ -1277,7 +1286,7 @@ Package and sampled triangle targets pass. The owner visual review and real-phon
 **Decided defaults** (change before Part 1 if wanted)
 - Area: about 400 × 300 m around Cutting Room Square, Ancoats (roughly Blossom St, Henry St, Hood St, Jersey St,
   Murray St). Part 1 prints a labelled preview so the owner confirms the exact box before anything is built.
-- Shuttle Street, the Billet and Patel's stay fictional. Where they sit in the real area is decided at Part 7.
+- The Billet and Patel's News remain fictional businesses; they sit on the real Henry Street, Ancoats.
 - Real geography, **fictional businesses**: no real shop names or signs, and no APC lives at a real house number.
 - Lighting: real-time lights plus a cheap baked shadow (ambient occlusion), not one big baked lightmap, so size stays
   close to today's (target ≤ 12 MB high, ≤ 8 MB low for the whole five-street area, loaded at once; chunk
@@ -1308,7 +1317,7 @@ Package and sampled triangle targets pass. The owner visual review and real-phon
 | 4. Facades | Per-type facade rules: floors, window bays, doors facing the road, shopfronts where OSM has a shop, sills, lintels, parapets, chimneys; shared texture sheets; windows as instances; seed from each OSM id | Screenshots per building type; size within budget |
 | 5. Street dressing | Lamp posts, bins, bollards, benches, road markings, OSM trees and street trees, the canal if in the box | Screenshots day and night; triangle budget |
 | 6. Lighting and speed | Ambient-occlusion bake, night window glow, compressed textures, budgets in `budgets.json`, low/high versions | **Gate 2:** phone test at 30 fps or better |
-| 7. Into the game | Navigation mesh from pavements replacing the 746-node graph and its slow A*, Shuttle Street placed in the area, waypoints and collisions joined up, APCs walking real streets | All existing 3D tests pass; APCs reach every place from every street end |
+| 7. Into the game | Navigation mesh from pavements replacing the 746-node graph and its slow A*, the fictional pub and shop kit placed in the area, waypoints and collisions joined up, APCs walking real streets | All existing 3D tests pass; APCs reach every place from every street end |
 | 8. Landmarks (optional) | `landmarks.yaml` overrides: exact heights, materials or a hand-made model for chosen buildings | Owner's choice, ongoing |
 
 **Not in this plan:** the simulation. APCs stay place-based (the 3D only shows them). A separate, smaller job
@@ -1490,6 +1499,24 @@ the key pool and open sign-ups.
 ---
 
 ## 14. History
+
+### 25 November 2026 — Shuttle Street renamed Henry Street
+
+- **What:** renamed the real street throughout the current world to Henry Street, Ancoats while keeping the
+  Crooked Billet and Patel's News fictional. Migration 17 updates stored place values and APC-readable saved
+  text in place, including facts, memories, goals, plans, events, relationship notes, offers and cases. Past
+  conversation messages and timeline rows remain unchanged. New-world seed text and the kit street plaque now
+  read Henry Street; `?city=0` remains the original kit-scene selector.
+- **Why / learned:** the OSM city places the fictional kit on Henry Street, so the game should use the real
+  street name without claiming its businesses are real. The visible plaque is geometry in the exported GLB; a
+  small texture overlay updates it without rebuilding the kit or editing `Ancoats.blend`.
+- **Checks:** migration test 2/2; all five Node files passed; one desktop/high street-sign capture is at
+  `tools/web3d/raw/henry-sign-review/desktop-high-street-sign.png` and the in-view count is 139,689. The full
+  full pytest run timed out at 120 seconds with no output; the combined migration/auth targeted run also did not
+  return a summary, while the migration file alone passed 2/2. Per the owner's instruction the full suite was not
+  retried. Low/high
+  city packages are 7,998,657/11,859,465 bytes and remain within budget. No push.
+
 
 ### 25 November 2026 — Map credits moved off the game screen
 

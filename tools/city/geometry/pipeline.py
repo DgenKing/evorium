@@ -189,7 +189,7 @@ def _inside_rectangle(point, size):
 
 
 def _segment_hits_rectangle(a, b, size):
-    """Liang–Barsky segment/rectangle intersection in Shuttle Street local space."""
+    """Liang–Barsky segment/rectangle intersection in Henry Street local space."""
     x0, z0 = a; x1, z1 = b
     dx, dz = x1 - x0, z1 - z0
     hx, hz = size[0] / 2, size[1] / 2

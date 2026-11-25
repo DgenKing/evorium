@@ -265,7 +265,7 @@
       return 'pub';
     }
     if(agent.location===SHOP) return agent.activity==='behind the counter'?'till':'shop';
-    if(agent.location==='Shuttle Street, Ancoats' || (agent.location==='Ancoats' && agent.activity==='walking to the shops')) return 'street';
+    if(agent.location==='Henry Street, Ancoats' || (agent.location==='Ancoats' && agent.activity==='walking to the shops')) return 'street';
     return null;
   }
   function poolFor(target,agent) {
@@ -351,7 +351,7 @@
     const agents=[...latestAgents];
     for(const human of [...(player?.other_players||[]),...(player?.place?[{...player,isSelf:true}]:[])]) {
       if(!['pub','shop','street'].includes(human.place)) continue;
-      agents.push({...human,id:`player-${human.id}`,isPlayer:true,location:human.place==='pub'?PUB:human.place==='shop'?SHOP:'Shuttle Street, Ancoats',activity:'visiting'});
+      agents.push({...human,id:`player-${human.id}`,isPlayer:true,location:human.place==='pub'?PUB:human.place==='shop'?SHOP:'Henry Street, Ancoats',activity:'visiting'});
     }
     const ids=new Set(agents.map(a=>String(a.id)));
     for(const [id] of people) if(!ids.has(id)) people.delete(id);

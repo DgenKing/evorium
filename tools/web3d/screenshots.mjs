@@ -30,7 +30,7 @@ try{
  function cdp(method,params={}){return new Promise((resolve,reject)=>{const n=++id;pending.set(n,{resolve,reject});socket.send(JSON.stringify({id:n,method,params}));});}
  async function evaluate(expression){const r=await cdp('Runtime.evaluate',{expression,returnByValue:true,awaitPromise:true});if(r.exceptionDetails)throw Error(r.exceptionDetails.text+JSON.stringify(r.exceptionDetails.exception));return r.result.value;}
  await cdp('Page.enable');await cdp('Network.enable');await cdp('Network.setCacheDisabled',{cacheDisabled:true});await cdp('Runtime.enable');let all=[],budgetFailures=[];
- const oneView=process.argv.includes('--movement-only')||process.argv.includes('--poses');
+ const oneView=process.argv.includes('--movement-only')||process.argv.includes('--poses')||process.argv.includes('--single-view');
  const devices=oneView?[['desktop',1280,720]]:[['desktop',1280,720],['phone',390,844]];
  const tier=process.argv.find(arg=>arg.startsWith('--tier='))?.slice(7);
  const qualities=tier?[tier]:oneView?['low']:['low','high'];

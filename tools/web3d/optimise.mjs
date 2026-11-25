@@ -11,13 +11,30 @@ const reports={};
 const cast=JSON.parse(await fs.readFile('tools/web3d/raw/cast/inventory.json','utf8'));
 const caster={};
 
+async function addHenryStreetPlaque(document){
+ const svg=Buffer.from('<svg width="384" height="96" xmlns="http://www.w3.org/2000/svg"><rect x="3" y="3" width="378" height="90" rx="5" fill="#243a3e" stroke="#d6c7a0" stroke-width="5"/><text x="192" y="64" text-anchor="middle" font-family="Georgia,serif" font-weight="bold" font-size="46" letter-spacing="1" fill="#f2e7c8">HENRY STREET</text></svg>');
+ const image=await sharp(svg).webp({quality:40,effort:6}).toBuffer();
+ const root=document.getRoot(),buffer=root.listBuffers()[0];
+ const texture=document.createTexture('Henry Street plaque').setImage(image).setMimeType('image/webp');
+ const material=document.createMaterial('Henry Street plaque material').setBaseColorTexture(texture).setMetallicFactor(0).setRoughnessFactor(.8).setEmissiveFactor([.24,.20,.13]);
+ const mesh=document.createMesh('Henry Street plaque overlay');
+ const position=document.createAccessor('POSITION').setType('VEC3').setArray(new Float32Array([-.4,-.09,0,.4,-.09,0,.4,.09,0,-.4,.09,0])).setBuffer(buffer);
+ const uv=document.createAccessor('TEXCOORD_0').setType('VEC2').setArray(new Float32Array([0,1,1,1,1,0,0,0])).setBuffer(buffer);
+ const indices=document.createAccessor('indices').setType('SCALAR').setArray(new Uint16Array([0,1,2,0,2,3])).setBuffer(buffer);
+ mesh.addPrimitive(document.createPrimitive().setAttribute('POSITION',position).setAttribute('TEXCOORD_0',uv).setIndices(indices).setMaterial(material));
+ root.listScenes()[0].addChild(document.createNode('Henry Street plaque overlay').setMesh(mesh).setTranslation([-8.62,2.21,.315]));
+}
+
 for(const quality of ['high','low']){
  let bytes=0,triangles=0,gpu=0;
  for(const file of ['shuttle_street','collision','characters','animations','animations_ual']){
  const input=file==='shuttle_street'?'shuttle_street_lit':file==='animations'?'animations_mpfb':file==='animations_ual'?'animations':file;
  const d=await io.read(`tools/web3d/raw/${input}.glb`);
  if(file==='animations'){const map=JSON.parse(await fs.readFile('tools/web3d/data/mpfb_to_ual_bones.json','utf8'));for(const a of d.getRoot().listAnimations())for(const c of a.listChannels()){const name=c.getTargetNode()?.getName();if(!map[name]||c.getTargetPath()!=='rotation'&&!(name==='pelvis'&&c.getTargetPath()==='translation'))c.dispose();}}
- if(file==='shuttle_street')await d.transform(flatten(),join({keepNamed:false}));
+ if(file==='shuttle_street'){
+  await d.transform(flatten(),join({keepNamed:false}));
+  await addHenryStreetPlaque(d);
+ }
  await d.transform(dedup(),prune(),weld());
  if(quality==='low' && ['shuttle_street','characters'].includes(file))await d.transform(simplify({simplifier:MeshoptSimplifier,ratio:file==='characters'?.35:.35,error:file==='characters'?.01:.001}));
  if(file==='shuttle_street'){

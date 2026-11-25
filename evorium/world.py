@@ -14,7 +14,7 @@ from evorium.db import DEFAULT_DB_PATH, connect
 TZ = ZoneInfo("Europe/London")
 FMT = "%Y-%m-%d %H:%M:%S"
 PUB = "The Crooked Billet, Ancoats, Manchester"
-STREET = "Shuttle Street, Ancoats"   # the pavement outside the pub and shop: people pass, stop and chat here
+STREET = "Henry Street, Ancoats"   # the pavement outside the fictional pub and shop: people pass, stop and chat here
 
 
 def _real_now() -> datetime:

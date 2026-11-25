@@ -14,7 +14,7 @@ class Terrain:
             self.transform = ~ds.transform
         self.zero = self._absolute(*anchor)
         if self.zero is None:
-            raise ValueError("City DTM has no sample at the Shuttle Street anchor")
+            raise ValueError("City DTM has no sample at the Henry Street anchor")
         self.anchor = tuple(anchor)
 
     def _absolute(self, x, z):

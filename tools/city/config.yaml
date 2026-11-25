@@ -12,7 +12,7 @@ shuttle_street:
   # Local street lane at z=1.5 aligns with the straight Henry Street segment.
   position: [4.9, 5.48]
   rotation_degrees: 41.8
-  # Local X/Z footprint from the shipped Shuttle Street GLB bounds (metres).
+  # Local X/Z footprint from the shipped Henry Street GLB bounds (metres).
   footprint_size: [35.1, 23.4]
 inputs:
   osm: tools/city/raw/osm-overpass.json

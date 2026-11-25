@@ -100,7 +100,7 @@ def say(client,to_agent_id,text,db_path=DEFAULT_DB_PATH):
         now=world.now(db_path);text=text.strip();place=world.get_setting(accounts.setting_key('player_place'),'',db_path)
         if not 1<=len(text)<=500:raise HTTPException(409,'Say between 1 and 500 characters.')
         if not place:
-            # Outside the pub and shop means you're on Shuttle Street: talking to someone there puts you on the street.
+            # Outside the pub and shop means you're on Henry Street: talking to someone there puts you on the street.
             if not any(a['id']==to_agent_id for a in places.present(now,db_path).get('street',[])):
                 raise HTTPException(409,'Walk into a place before speaking.')
             place='street'

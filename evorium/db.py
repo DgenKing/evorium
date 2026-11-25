@@ -8,6 +8,27 @@ from typing import Iterator
 
 DEFAULT_DB_PATH = Path(os.environ.get("EVORIUM_DB_PATH") or Path(__file__).resolve().parent.parent / "evorium.sqlite3")
 
+
+def _rename_street_references(connection: sqlite3.Connection) -> None:
+    """Rename the street in persisted world text, preserving transcript/history tables."""
+    excluded_tables = {"messages", "timeline"}
+    tables = connection.execute(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"
+    ).fetchall()
+    for (table,) in tables:
+        if table in excluded_tables:
+            continue
+        for _, column, declared_type, *_ in connection.execute(f'PRAGMA table_info("{table}")'):
+            if not any(kind in (declared_type or "").upper() for kind in ("TEXT", "CHAR", "CLOB")):
+                continue
+            table_name = table.replace('"', '""')
+            column_name = column.replace('"', '""')
+            connection.execute(
+                f'UPDATE "{table_name}" SET "{column_name}" = replace("{column_name}", ?, ?) '
+                f'WHERE instr("{column_name}", ?) > 0',
+                ("Shuttle Street", "Henry Street", "Shuttle Street"),
+            )
+
 # Append migrations; never edit one after it has been applied to a saved world.
 # PRAGMA user_version records how many migrations have been applied.
 MIGRATIONS = (
@@ -225,6 +246,8 @@ MIGRATIONS = (
             spoken_at TEXT, last_incident_at TEXT NOT NULL, last_attempt_day TEXT, last_looked_day TEXT)""",
         "CREATE UNIQUE INDEX cases_open_subject ON cases(subject_id) WHERE status!='closed'",
     ),
+    # Migration 17: rename place values and APC-readable saved text; transcripts/history stay untouched.
+    (_rename_street_references,),
 )
 
 VISIBLE_IMPORTANCE = 3  # facts scored below this are kept in the database but never shown to characters
@@ -258,6 +281,9 @@ def init_db(db_path: str | Path = DEFAULT_DB_PATH) -> None:
         if version > len(MIGRATIONS):
             raise RuntimeError("Database schema is newer than this Evorium version.")
         for index in range(version, len(MIGRATIONS)):
-            for statement in MIGRATIONS[index]:
-                connection.execute(statement)
+            for migration_step in MIGRATIONS[index]:
+                if callable(migration_step):
+                    migration_step(connection)
+                else:
+                    connection.execute(migration_step)
             connection.execute(f"PRAGMA user_version = {index + 1}")
