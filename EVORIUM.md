@@ -1668,6 +1668,14 @@ the key pool and open sign-ups.
 
 ## 14. History
 
+### 26 November 2026 — Sun and clouds in the sky
+
+- `night.js` now also draws a sun by day (in the sun light's direction) and 20 soft drifting cloud sprites. The
+  real weather sets the cover (`cloudCover`): clear about 15% (a few wisps, full sun), cloudy 80% (sun dimmed),
+  unknown 45%, rain/snow/fog full grey cover and no sun. Clouds turn dark grey-blue at night. Clear days use a
+  bluer sky colour in `world.js`. Stars and moon unchanged. Checked in Chrome (clear, cloudy, rain, clear night);
+  Node tests pass.
+
 ### 25 November 2026 — Faster sprint
 
 - Shift-run is 25% faster: 4 → 5 m/s in `player.js` (walking stays 1.6 m/s). The run clip plays at 1.25× so
